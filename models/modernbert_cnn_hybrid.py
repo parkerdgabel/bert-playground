@@ -8,7 +8,7 @@ from pathlib import Path
 import json
 import numpy as np
 from loguru import logger
-from .modernbert_optimized import OptimizedModernBertMLX, ModernBertConfig, OptimizedEmbeddings, OptimizedTransformerBlock
+from .modernbert import ModernBertModel, ModernBertConfig, OptimizedEmbeddings, TransformerBlock
 
 
 @dataclass
@@ -270,7 +270,7 @@ class CNNEnhancedModernBERT(nn.Module):
         
         # Base ModernBERT encoder
         self.embeddings = OptimizedEmbeddings(config)
-        self.transformer_layers = [OptimizedTransformerBlock(config) for _ in range(config.num_hidden_layers)]
+        self.transformer_layers = [TransformerBlock(config) for _ in range(config.num_hidden_layers)]
         
         # Multi-scale CNN layers
         self.multi_scale_cnn = MultiScaleConv1D(
