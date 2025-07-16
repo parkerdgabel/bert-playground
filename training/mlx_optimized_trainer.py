@@ -21,6 +21,7 @@ import numpy as np
 from loguru import logger
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc_auc_score
+from tqdm import tqdm
 
 from data.unified_loader import OptimizedTitanicDataPipeline
 from utils.logging_config import log_execution_time
@@ -340,87 +341,99 @@ class MLXOptimizedTrainer:
         
         start_time = time.time()
         
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            transient=True,
-        ) as progress:
+        # Use tqdm for better progress tracking
+        for epoch in range(self.config.num_epochs):
+            epoch_start = time.time()
+            epoch_loss = 0
+            epoch_steps = 0
             
-            for epoch in range(self.config.num_epochs):
-                epoch_start = time.time()
-                epoch_loss = 0
-                epoch_steps = 0
+            # Adjust batch size based on memory
+            self.current_batch_size = self.adjust_batch_size()
+            if self.current_batch_size != train_dataloader.batch_size:
+                train_dataloader.batch_size = self.current_batch_size
+                train_dataloader._initialize_optimized_stream()
+            
+            # Setup tqdm progress bar
+            epoch_pbar = tqdm(
+                total=steps_per_epoch,
+                desc=f"Epoch {epoch + 1}/{self.config.num_epochs}",
+                unit="step",
+                dynamic_ncols=True,
+                leave=True
+            )
+            
+            for batch in train_dataloader.get_dataloader()():
+                self.global_step += 1
                 
-                # Adjust batch size based on memory
-                self.current_batch_size = self.adjust_batch_size()
-                if self.current_batch_size != train_dataloader.batch_size:
-                    train_dataloader.batch_size = self.current_batch_size
-                    train_dataloader._initialize_optimized_stream()
+                # Training step with lazy computation
+                loss, metrics = self.train_step_lazy(batch)
                 
-                task = progress.add_task(
-                    f"[cyan]Epoch {epoch + 1}/{self.config.num_epochs}", total=steps_per_epoch
-                )
+                # Force eval periodically
+                self.force_eval_if_needed()
                 
-                for batch in train_dataloader.get_dataloader()():
-                    self.global_step += 1
+                # Update progress only on actual updates
+                if "loss" in metrics:
+                    epoch_loss += metrics["loss"]
+                    epoch_steps += 1
                     
-                    # Training step with lazy computation
-                    loss, metrics = self.train_step_lazy(batch)
+                    # Update tqdm with metrics
+                    epoch_pbar.update(1)
+                    epoch_pbar.set_postfix({
+                        'Loss': f"{metrics['loss']:.4f}",
+                        'LR': f"{metrics['learning_rate']:.2e}",
+                        'Mem': f"{metrics['memory_usage']:.1%}",
+                        'BS': self.current_batch_size
+                    })
+                
+                # Profile memory periodically
+                if (
+                    self.config.enable_profiling
+                    and self.global_step % self.config.profile_memory_steps == 0
+                ):
+                    self.memory_history.append(
+                        {
+                            "step": self.global_step,
+                            "memory": self.get_memory_usage(),
+                            "batch_size": self.current_batch_size,
+                        }
+                    )
+                
+                # Evaluate periodically
+                if val_dataloader and self.global_step % self.config.eval_steps == 0:
+                    epoch_pbar.set_description(f"Epoch {epoch + 1}/{self.config.num_epochs} - Evaluating...")
+                    val_metrics = self.evaluate_lazy(val_dataloader, "val")
                     
-                    # Force eval periodically
-                    self.force_eval_if_needed()
-                    
-                    # Update progress only on actual updates
-                    if "loss" in metrics:
-                        epoch_loss += metrics["loss"]
-                        epoch_steps += 1
-                        
-                        progress.update(
-                            task,
-                            advance=1,
-                            description=f"[cyan]Epoch {epoch + 1}/{self.config.num_epochs} - "
-                            f"Loss: {metrics['loss']:.4f}, "
-                            f"LR: {metrics['learning_rate']:.2e}, "
-                            f"Mem: {metrics['memory_usage']:.1%}",
+                    # Save best model
+                    if val_metrics.get("val_accuracy", 0) > self.best_metric:
+                        self.best_metric = val_metrics["val_accuracy"]
+                        self.save_checkpoint("best")
+                        logger.info(
+                            f"New best model saved with accuracy: {self.best_metric:.4f}"
                         )
                     
-                    # Profile memory periodically
-                    if (
-                        self.config.enable_profiling
-                        and self.global_step % self.config.profile_memory_steps == 0
-                    ):
-                        self.memory_history.append(
-                            {
-                                "step": self.global_step,
-                                "memory": self.get_memory_usage(),
-                                "batch_size": self.current_batch_size,
-                            }
-                        )
-                    
-                    # Evaluate periodically
-                    if val_dataloader and self.global_step % self.config.eval_steps == 0:
-                        val_metrics = self.evaluate_lazy(val_dataloader, "val")
-                        
-                        # Save best model
-                        if val_metrics.get("val_accuracy", 0) > self.best_metric:
-                            self.best_metric = val_metrics["val_accuracy"]
-                            self.save_checkpoint("best")
-                            logger.info(
-                                f"New best model saved with accuracy: {self.best_metric:.4f}"
-                            )
-                    
-                    # Save checkpoint periodically
-                    if self.global_step % self.config.save_steps == 0:
-                        self.save_checkpoint(f"checkpoint-{self.global_step}")
+                    # Update postfix with validation metrics
+                    epoch_pbar.set_postfix({
+                        'Loss': f"{metrics['loss']:.4f}",
+                        'Val_Acc': f"{val_metrics.get('val_accuracy', 0):.4f}",
+                        'LR': f"{metrics['learning_rate']:.2e}",
+                        'Mem': f"{metrics['memory_usage']:.1%}"
+                    })
+                    epoch_pbar.set_description(f"Epoch {epoch + 1}/{self.config.num_epochs}")
                 
-                # Epoch summary
-                avg_loss = epoch_loss / max(1, epoch_steps)
-                epoch_time = time.time() - epoch_start
-                logger.info(
-                    f"Epoch {epoch + 1} completed in {epoch_time:.1f}s - "
-                    f"Avg Loss: {avg_loss:.4f}, "
-                    f"Steps/sec: {epoch_steps / epoch_time:.1f}"
-                )
+                # Save checkpoint periodically
+                if self.global_step % self.config.save_steps == 0:
+                    self.save_checkpoint(f"checkpoint-{self.global_step}")
+            
+            epoch_pbar.close()
+            
+            # Epoch summary
+            avg_loss = epoch_loss / max(1, epoch_steps)
+            epoch_time = time.time() - epoch_start
+            logger.info(
+                f"Epoch {epoch + 1} completed in {epoch_time:.1f}s - "
+                f"Avg Loss: {avg_loss:.4f}, "
+                f"Steps/sec: {epoch_steps / epoch_time:.1f}"
+            )
         
         # Final evaluation
         if val_dataloader:
@@ -449,12 +462,17 @@ class MLXOptimizedTrainer:
         # Save model
         self.model.save_pretrained(str(checkpoint_path))
         
-        # Save optimizer state
+        # Save optimizer state using MLX recommended approach
         optimizer_path = checkpoint_path / "optimizer.safetensors"
-        mx.save_safetensors(
-            str(optimizer_path),
-            {"optimizer": self.optimizer.state},
-        )
+        try:
+            from mlx.utils import tree_flatten
+            # Flatten the optimizer state for safe serialization
+            state_flattened = tree_flatten(self.optimizer.state)
+            mx.save_safetensors(str(optimizer_path), dict(state_flattened))
+        except Exception as e:
+            # If optimizer state saving fails, log warning but continue
+            logger.warning(f"Failed to save optimizer state: {e}")
+            logger.warning("Continuing without optimizer checkpoint - model weights are still saved")
         
         # Save training state
         state_path = checkpoint_path / "trainer_state.json"
@@ -473,6 +491,49 @@ class MLXOptimizedTrainer:
             )
         
         logger.info(f"Checkpoint saved to {checkpoint_path}")
+    
+    def load_checkpoint(self, checkpoint_name: str = "best"):
+        """Load a checkpoint."""
+        checkpoint_path = Path(self.config.checkpoint_dir) / checkpoint_name
+        
+        if not checkpoint_path.exists():
+            logger.warning(f"Checkpoint {checkpoint_path} does not exist")
+            return False
+        
+        try:
+            # Load model - this should work with the existing save_pretrained method
+            from models.modernbert_cnn_hybrid import CNNEnhancedModernBERT
+            
+            # Load optimizer state if available
+            optimizer_path = checkpoint_path / "optimizer.safetensors"
+            if optimizer_path.exists():
+                try:
+                    from mlx.utils import tree_unflatten
+                    # Load flattened optimizer state
+                    state_flat = mx.load(str(optimizer_path))
+                    state_restored = tree_unflatten(list(state_flat.items()))
+                    self.optimizer.state = state_restored
+                    logger.info("Loaded optimizer state from checkpoint")
+                except Exception as e:
+                    logger.warning(f"Failed to load optimizer state: {e}")
+                    logger.warning("Continuing without optimizer state")
+            
+            # Load training state if available
+            state_path = checkpoint_path / "trainer_state.json"
+            if state_path.exists():
+                import json
+                with open(state_path, "r") as f:
+                    state = json.load(f)
+                    self.global_step = state.get("global_step", 0)
+                    self.best_metric = state.get("best_metric", 0.0)
+                    logger.info(f"Loaded training state: step={self.global_step}, best_metric={self.best_metric}")
+            
+            logger.info(f"Successfully loaded checkpoint from {checkpoint_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to load checkpoint: {e}")
+            return False
     
     def _save_memory_profile(self):
         """Save memory profiling data."""
