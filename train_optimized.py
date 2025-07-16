@@ -22,7 +22,7 @@ from data.unified_loader import create_optimized_dataloaders
 from models.modernbert_cnn_hybrid import CNNEnhancedModernBERT, CNNHybridConfig
 from training.mlx_optimized_trainer import MLXOptimizedTrainer, OptimizedTrainingConfig
 from utils.logging_config import LoggingConfig
-from utils.mlflow_helper import MLflowHelper
+from utils.mlflow_helper import UnifiedMLflowTracker
 
 
 def parse_args():
@@ -232,8 +232,9 @@ def main():
     # Setup MLflow if enabled
     mlflow_helper = None
     if args.enable_mlflow:
-        mlflow_helper = MLflowHelper(
+        mlflow_helper = UnifiedMLflowTracker(
             experiment_name=args.experiment_name,
+            model_type="cnn_hybrid_optimized",
             tracking_uri=f"file://{args.output_dir}/mlruns",
         )
         
