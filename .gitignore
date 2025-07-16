@@ -1,0 +1,4 @@
+# Ignore checkpoints and training outputs
+output/
+mlruns/
+cache/
