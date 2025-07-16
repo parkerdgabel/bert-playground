@@ -20,7 +20,7 @@ import pandas as pd
 from loguru import logger
 from transformers import PreTrainedTokenizerBase
 
-from .text_templates import generate_augmented_texts, text_to_features
+from .text_templates import TitanicTextTemplates
 
 
 class MLXEnhancedDataPipeline:
@@ -91,16 +91,20 @@ class MLXEnhancedDataPipeline:
         """Load data from file."""
         df = pd.read_csv(self.data_path)
         
+        # Initialize text template generator
+        text_generator = TitanicTextTemplates()
+        
         # Convert to text format
         if self.is_test:
             # Test data - no labels
-            self.texts = [text_to_features(row) for _, row in df.iterrows()]
+            self.texts = [text_generator.row_to_text(row.to_dict()) for _, row in df.iterrows()]
             self.labels = None
             if self.enable_augmentation and self.is_training:
                 # Augment test data too for better predictions
                 augmented = []
                 for _, row in df.iterrows():
-                    augmented.extend(generate_augmented_texts(row, num_augmentations=2))
+                    base_text = text_generator.row_to_text(row.to_dict())
+                    augmented.extend(text_generator.augment_text(base_text)[:2])
                 self.texts.extend(augmented)
         else:
             # Training/validation data with labels
@@ -108,7 +112,7 @@ class MLXEnhancedDataPipeline:
             self.labels = []
             
             for _, row in df.iterrows():
-                base_text = text_to_features(row)
+                base_text = text_generator.row_to_text(row.to_dict())
                 label = int(row["Survived"])
                 
                 self.texts.append(base_text)
@@ -116,7 +120,7 @@ class MLXEnhancedDataPipeline:
                 
                 # Add augmented versions for training
                 if self.enable_augmentation and self.is_training:
-                    augmented = generate_augmented_texts(row, num_augmentations=3)
+                    augmented = text_generator.augment_text(base_text)[:3]
                     self.texts.extend(augmented)
                     self.labels.extend([label] * len(augmented))
         
