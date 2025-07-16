@@ -178,38 +178,31 @@ class MLXEnhancedDataPipeline:
     def _initialize_optimized_stream(self):
         """Initialize optimized MLX data stream."""
         # Create indices
+        if not hasattr(self, 'tokenized_data') or not self.tokenized_data:
+            logger.error("No tokenized data available")
+            return
+            
         indices = list(range(len(self.tokenized_data)))
+        logger.debug(f"Creating dataset with {len(indices)} indices")
         
         if self.memory_map:
             # Use memory-mapped arrays for large datasets
             self._create_memory_mapped_data()
-            dataset = dx.buffer_from_vector(indices)
-        else:
-            # Standard in-memory dataset
-            dataset = dx.buffer_from_vector(indices)
         
-        # Shuffle for training
-        if self.is_training:
-            dataset = dataset.shuffle(buffer_size=len(indices))
+        # For now, use a simpler approach that works
+        # We'll create a basic generator that yields batches
+        def batch_generator():
+            if self.is_training:
+                # Shuffle indices for training
+                import random
+                random.shuffle(indices)
+            
+            for i in range(0, len(indices), self.batch_size):
+                batch_indices = indices[i:i + self.batch_size]
+                if len(batch_indices) > 0:
+                    yield self._process_batch_optimized(batch_indices)
         
-        # Batch the dataset
-        dataset = dataset.batch(self.batch_size)
-        
-        # Apply optimized processing
-        dataset = dataset.map(
-            self._process_batch_optimized,
-            num_workers=self.num_threads,
-        )
-        
-        # Prefetch with double buffering
-        if self.double_buffer and self.prefetch_size > 0:
-            # Create two prefetch stages for double buffering
-            dataset = dataset.prefetch(self.prefetch_size // 2)
-            dataset = dataset.prefetch(self.prefetch_size // 2)
-        elif self.prefetch_size > 0:
-            dataset = dataset.prefetch(self.prefetch_size)
-        
-        self.stream = dataset.to_stream()
+        self.stream = batch_generator
     
     def _create_memory_mapped_data(self):
         """Create memory-mapped arrays for efficient loading."""
