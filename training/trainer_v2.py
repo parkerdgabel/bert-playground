@@ -420,15 +420,18 @@ class TitanicTrainerV2:
                                     self.training_history[key].append(value)
                             
                             # Save best model
-                            if val_metrics['val_loss'] < self.best_val_loss:
-                                self.best_val_loss = val_metrics['val_loss']
-                                self.save_checkpoint('best_model_loss', is_best=True)
-                                logger.success(f"New best model (loss) saved at step {self.global_step}")
-                            
-                            if val_metrics['val_accuracy'] > self.best_val_accuracy:
-                                self.best_val_accuracy = val_metrics['val_accuracy']
-                                self.save_checkpoint('best_model_accuracy', is_best=True)
-                                logger.success(f"New best model (accuracy) saved at step {self.global_step}")
+                            if val_metrics and 'val_loss' in val_metrics:
+                                if val_metrics['val_loss'] < self.best_val_loss:
+                                    self.best_val_loss = val_metrics['val_loss']
+                                    self.save_checkpoint('best_model_loss', is_best=True)
+                                    logger.success(f"New best model (loss) saved at step {self.global_step}")
+                                
+                                if val_metrics['val_accuracy'] > self.best_val_accuracy:
+                                    self.best_val_accuracy = val_metrics['val_accuracy']
+                                    self.save_checkpoint('best_model_accuracy', is_best=True)
+                                    logger.success(f"New best model (accuracy) saved at step {self.global_step}")
+                            else:
+                                logger.warning(f"Validation metrics empty at step {self.global_step}")
                         
                         # Periodic checkpoint
                         if self.global_step % self.save_steps == 0:

@@ -165,7 +165,9 @@ class OptimizedTitanicDataPipeline:
     def get_dataloader(self) -> Iterator[Dict[str, mx.array]]:
         """Get optimized dataloader iterator."""
         def batch_iterator():
-            for batch in self.stream:
+            # Recreate stream for each iteration to allow multiple passes
+            fresh_stream = self._create_stream()
+            for batch in fresh_stream:
                 # The batch is already a dictionary with arrays
                 mlx_batch = {}
                 
