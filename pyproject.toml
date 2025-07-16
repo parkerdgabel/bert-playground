@@ -1,0 +1,30 @@
+[project]
+name = "bert-playground"
+version = "0.1.0"
+description = "MLX-based ModernBERT implementation for Kaggle competitions"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "mlx>=0.22.0",
+    "mlx-data>=0.0.7",
+    "transformers>=4.47.0",
+    "pandas>=2.2.0",
+    "numpy>=1.26.0",
+    "scikit-learn>=1.5.0",
+    "tqdm>=4.67.0",
+    "kaggle>=1.6.0",
+    "mlflow>=2.19.0",
+    "matplotlib>=3.9.0",
+    "seaborn>=0.13.0",
+    "rich>=13.10.0",
+    "loguru>=0.7.2",
+    "python-dotenv>=1.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "ipykernel>=6.29.0",
+]
