@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "mlx>=0.22.0",
     "mlx-data>=0.0.7",
+    "mlx-lm>=0.20.0",
     "transformers>=4.47.0",
     "pandas>=2.2.0",
     "numpy>=1.26.0",
@@ -19,6 +20,8 @@ dependencies = [
     "rich>=13.10.0",
     "loguru>=0.7.2",
     "python-dotenv>=1.0.1",
+    "typer>=0.15.0",
+    "click>=8.1.0",
 ]
 
 [project.optional-dependencies]

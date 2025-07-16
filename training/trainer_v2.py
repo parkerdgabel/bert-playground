@@ -1,6 +1,7 @@
 import mlx.core as mx
 import mlx.nn as nn
 import mlx.optimizers as optim
+from mlx.utils import tree_flatten, tree_unflatten
 from typing import Dict, Optional, Tuple, List
 from pathlib import Path
 import time
@@ -421,17 +422,17 @@ class TitanicTrainerV2:
                             # Save best model
                             if val_metrics['val_loss'] < self.best_val_loss:
                                 self.best_val_loss = val_metrics['val_loss']
-                                self.save_checkpoint('best_model_loss')
+                                self.save_checkpoint('best_model_loss', is_best=True)
                                 logger.success(f"New best model (loss) saved at step {self.global_step}")
                             
                             if val_metrics['val_accuracy'] > self.best_val_accuracy:
                                 self.best_val_accuracy = val_metrics['val_accuracy']
-                                self.save_checkpoint('best_model_accuracy')
+                                self.save_checkpoint('best_model_accuracy', is_best=True)
                                 logger.success(f"New best model (accuracy) saved at step {self.global_step}")
                         
                         # Periodic checkpoint
                         if self.global_step % self.save_steps == 0:
-                            self.save_checkpoint(f'checkpoint_{self.global_step}')
+                            self.save_checkpoint(f'checkpoint_{self.global_step}', is_best=False)
                         
                         if num_batches >= self.train_loader.get_num_batches():
                             break
@@ -464,7 +465,7 @@ class TitanicTrainerV2:
                         self.mlflow_tracker.log_metrics(val_metrics, step=self.global_step)
             
             # Save final model
-            self.save_checkpoint('final_model')
+            self.save_checkpoint('final_model', is_best=False)
             
             # Log training curves
             if self.enable_mlflow:
@@ -503,47 +504,144 @@ class TitanicTrainerV2:
             
             self.mlflow_tracker.end_run()
     
-    def save_checkpoint(self, name: str):
-        """Save model checkpoint with enhanced logging."""
+    def save_checkpoint(self, name: str, is_best: bool = False):
+        """Save model checkpoint using safetensors format."""
         checkpoint_dir = self.output_dir / name
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
         
         logger.info(f"Saving checkpoint '{name}'...")
         
-        # Save model
-        self.model.bert.save_pretrained(str(checkpoint_dir / "bert"))
+        # Save model weights using safetensors
+        try:
+            # Get all model parameters
+            model_params = dict(tree_flatten(self.model.parameters()))
+            
+            # Save model weights with safetensors
+            mx.save_safetensors(
+                str(checkpoint_dir / "model.safetensors"), 
+                model_params
+            )
+            logger.info(f"Model weights saved to {checkpoint_dir / 'model.safetensors'}")
+            
+        except Exception as e:
+            logger.error(f"Error saving model weights: {e}")
+            # Try fallback method
+            try:
+                mx.savez(str(checkpoint_dir / "model.npz"), **model_params)
+                logger.warning("Saved model using npz format as fallback")
+            except Exception as e2:
+                logger.error(f"Error with fallback save: {e2}")
         
-        # Save classifier weights
-        classifier_weights = {}
-        for name, param in self.model.classifier.parameters().items():
-            classifier_weights[name] = np.array(param)
+        # Save optimizer state using safetensors
+        try:
+            # Flatten optimizer state
+            optimizer_state = dict(tree_flatten(self.optimizer.state))
+            
+            # Save optimizer state
+            mx.save_safetensors(
+                str(checkpoint_dir / "optimizer.safetensors"),
+                optimizer_state
+            )
+            logger.info(f"Optimizer state saved to {checkpoint_dir / 'optimizer.safetensors'}")
+            
+        except Exception as e:
+            logger.error(f"Error saving optimizer state: {e}")
         
-        np.savez(str(checkpoint_dir / "classifier_weights.npz"), **classifier_weights)
-        
-        # Save training state
-        state = {
+        # Save training metadata
+        metadata = {
             'global_step': self.global_step,
             'best_val_loss': float(self.best_val_loss),
             'best_val_accuracy': float(self.best_val_accuracy),
+            'learning_rate': float(self.optimizer.learning_rate),
             'training_history': self.training_history,
-            'optimizer_state': {
-                'learning_rate': float(self.optimizer.learning_rate),
-                'weight_decay': float(self.optimizer.weight_decay)
-            }
+            'checkpoint_name': name,
+            'is_best': is_best,
+            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
         }
         
-        with open(checkpoint_dir / "training_state.json", "w") as f:
-            json.dump(state, f, indent=2)
+        with open(checkpoint_dir / "metadata.json", "w") as f:
+            json.dump(metadata, f, indent=2)
+        
+        # If this is the best model, also save it to a 'best' directory
+        if is_best:
+            best_dir = self.output_dir / "best_model"
+            best_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Copy files to best directory
+            import shutil
+            for file in checkpoint_dir.glob("*"):
+                shutil.copy2(file, best_dir / file.name)
+            
+            logger.success(f"Best model saved to {best_dir}")
         
         # Log to MLflow
         if self.enable_mlflow and mlflow.active_run():
-            self.mlflow_tracker.log_model(
-                str(checkpoint_dir),
-                name,
-                metadata=state
-            )
+            try:
+                self.mlflow_tracker.log_model(
+                    str(checkpoint_dir),
+                    name,
+                    metadata=metadata
+                )
+                if is_best:
+                    self.mlflow_tracker.log_metrics({
+                        'best_val_loss': float(self.best_val_loss),
+                        'best_val_accuracy': float(self.best_val_accuracy),
+                    }, step=self.global_step)
+            except Exception as e:
+                logger.error(f"Error logging model to MLflow: {e}")
         
         logger.success(f"Checkpoint saved to {checkpoint_dir}")
+    
+    def load_checkpoint(self, checkpoint_path: str):
+        """Load model checkpoint from safetensors format."""
+        checkpoint_dir = Path(checkpoint_path)
+        
+        if not checkpoint_dir.exists():
+            raise FileNotFoundError(f"Checkpoint directory not found: {checkpoint_dir}")
+        
+        logger.info(f"Loading checkpoint from {checkpoint_dir}...")
+        
+        # Load model weights
+        model_path = checkpoint_dir / "model.safetensors"
+        if model_path.exists():
+            model_weights = mx.load(str(model_path))
+            model_params = tree_unflatten(list(model_weights.items()))
+            self.model.load_weights(model_params)
+            logger.info("Model weights loaded from safetensors")
+        elif (checkpoint_dir / "model.npz").exists():
+            # Fallback to npz format
+            model_weights = mx.load(str(checkpoint_dir / "model.npz"))
+            model_params = tree_unflatten(list(model_weights.items()))
+            self.model.load_weights(model_params)
+            logger.info("Model weights loaded from npz")
+        else:
+            logger.warning("No model weights found in checkpoint")
+        
+        # Load optimizer state
+        optimizer_path = checkpoint_dir / "optimizer.safetensors"
+        if optimizer_path.exists():
+            optimizer_state = mx.load(str(optimizer_path))
+            self.optimizer.state = tree_unflatten(list(optimizer_state.items()))
+            logger.info("Optimizer state loaded")
+        else:
+            logger.warning("No optimizer state found in checkpoint")
+        
+        # Load metadata
+        metadata_path = checkpoint_dir / "metadata.json"
+        if metadata_path.exists():
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+            
+            self.global_step = metadata.get('global_step', 0)
+            self.best_val_loss = metadata.get('best_val_loss', float('inf'))
+            self.best_val_accuracy = metadata.get('best_val_accuracy', 0.0)
+            self.training_history = metadata.get('training_history', self.training_history)
+            
+            logger.info(f"Resumed from step {self.global_step}")
+            logger.info(f"Best val loss: {self.best_val_loss:.4f}")
+            logger.info(f"Best val accuracy: {self.best_val_accuracy:.4f}")
+        
+        logger.success(f"Checkpoint loaded successfully from {checkpoint_dir}")
 
 
 def create_trainer_v2(
