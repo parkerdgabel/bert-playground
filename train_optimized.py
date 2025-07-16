@@ -187,7 +187,6 @@ def main():
             intermediate_size=3072,
             max_position_embeddings=8192,
             num_labels=2,
-            pad_token_id=tokenizer.pad_token_id,
             # CNN config
             cnn_num_filters=[128, 256, 512],
             cnn_filter_sizes=[3, 5, 7],
