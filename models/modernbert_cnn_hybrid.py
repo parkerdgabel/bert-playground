@@ -440,12 +440,22 @@ class CNNEnhancedModernBERT(nn.Module):
         save_path = Path(save_path)
         save_path.mkdir(parents=True, exist_ok=True)
         
-        # Save config
-        with open(save_path / "config.json", "w") as f:
-            json.dump(self.config.__dict__, f, indent=2)
+        # Save config - ensure hidden_size is correct (768 for base BERT)
+        config_dict = self.config.__dict__.copy()
+        # Ensure we save the actual BERT hidden size, not the fusion output size
+        if hasattr(self.config, 'fusion_hidden_size'):
+            # For CNN hybrid, hidden_size should be 768 (BERT base)
+            # fusion_hidden_size is the output dimension after CNN fusion
+            if config_dict.get('hidden_size') == config_dict.get('fusion_hidden_size'):
+                config_dict['hidden_size'] = 768  # Correct BERT base hidden size
         
-        # Save weights
-        weights = dict(self.parameters())
+        with open(save_path / "config.json", "w") as f:
+            json.dump(config_dict, f, indent=2)
+        
+        # Save weights with proper flattening
+        from mlx.utils import tree_flatten
+        flat_params = tree_flatten(self.parameters())
+        weights = {k: v for k, v in flat_params}
         mx.save_safetensors(str(save_path / "model.safetensors"), weights)
         
         logger.info(f"CNN-Enhanced ModernBERT saved to {save_path}")

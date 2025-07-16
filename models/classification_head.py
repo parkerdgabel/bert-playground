@@ -43,11 +43,22 @@ class TitanicClassifier(nn.Module):
     ):
         super().__init__()
         self.bert = bert_model
-        self.classifier = BinaryClassificationHead(
-            input_dim=bert_model.config.hidden_size,
-            hidden_dim=hidden_dim,
-            dropout_prob=dropout_prob
-        )
+        
+        # Check if the model already has a classifier (CNN hybrid case)
+        self.has_built_in_classifier = hasattr(bert_model, 'classifier')
+        
+        if not self.has_built_in_classifier:
+            # Get the actual output dimension from the model
+            output_dim = getattr(bert_model, 'output_hidden_size', bert_model.config.hidden_size)
+            
+            self.classifier = BinaryClassificationHead(
+                input_dim=output_dim,
+                hidden_dim=hidden_dim,
+                dropout_prob=dropout_prob
+            )
+        else:
+            # CNN hybrid model already has classifier, no need to add another
+            self.classifier = None
         
         # Optionally freeze BERT parameters
         if freeze_bert:
@@ -65,36 +76,42 @@ class TitanicClassifier(nn.Module):
         labels: Optional[mx.array] = None
     ) -> dict:
         # Get BERT outputs
-        bert_outputs = self.bert(input_ids, attention_mask)
-        pooled_output = bert_outputs['pooled_output']
+        bert_outputs = self.bert(input_ids, attention_mask, labels=labels)
         
-        # Classification
-        logits = self.classifier(pooled_output)
-        
-        outputs = {'logits': logits}
-        
-        # Calculate loss if labels provided
-        if labels is not None:
-            # Ensure labels have the correct shape
-            if labels.ndim == 0:  # Scalar label
-                labels = labels.reshape(1)
-            elif labels.ndim == 2:  # Already has batch dimension
-                labels = labels.squeeze()
+        if self.has_built_in_classifier:
+            # CNN hybrid model already produces logits and loss
+            return bert_outputs
+        else:
+            # Standard BERT model - need to add classification
+            pooled_output = bert_outputs['pooled_output']
             
-            # Ensure we have a batch dimension
-            if logits.shape[0] != labels.shape[0]:
-                logger.warning(f"Shape mismatch: logits {logits.shape} vs labels {labels.shape}")
+            # Classification
+            logits = self.classifier(pooled_output)
             
-            loss = mx.mean(
-                nn.losses.cross_entropy(
-                    logits,
-                    labels,
-                    reduction='none'
+            outputs = {'logits': logits}
+            
+            # Calculate loss if labels provided
+            if labels is not None:
+                # Ensure labels have the correct shape
+                if labels.ndim == 0:  # Scalar label
+                    labels = labels.reshape(1)
+                elif labels.ndim == 2:  # Already has batch dimension
+                    labels = labels.squeeze()
+                
+                # Ensure we have a batch dimension
+                if logits.shape[0] != labels.shape[0]:
+                    logger.warning(f"Shape mismatch: logits {logits.shape} vs labels {labels.shape}")
+                
+                loss = mx.mean(
+                    nn.losses.cross_entropy(
+                        logits,
+                        labels,
+                        reduction='none'
+                    )
                 )
-            )
-            outputs['loss'] = loss
-        
-        return outputs
+                outputs['loss'] = loss
+            
+            return outputs
     
     def predict(self, input_ids: mx.array, attention_mask: Optional[mx.array] = None) -> mx.array:
         outputs = self.forward(input_ids, attention_mask)
