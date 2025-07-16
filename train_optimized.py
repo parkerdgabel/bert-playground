@@ -19,7 +19,7 @@ from loguru import logger
 from transformers import AutoTokenizer
 
 from data.unified_loader import create_optimized_dataloaders
-from models.modernbert_cnn_hybrid import CNNEnhancedModernBERT, ModernBERTConfig
+from models.modernbert_cnn_hybrid import CNNEnhancedModernBERT, CNNHybridConfig
 from training.mlx_optimized_trainer import MLXOptimizedTrainer, OptimizedTrainingConfig
 from utils.logging_config import LoggingConfig
 from utils.mlflow_helper import MLflowHelper
@@ -176,9 +176,9 @@ def main():
         
         with open(args.config_path) as f:
             config_dict = json.load(f)
-        config = ModernBERTConfig(**config_dict)
+        config = CNNHybridConfig(**config_dict)
     else:
-        config = ModernBERTConfig(
+        config = CNNHybridConfig(
             vocab_size=tokenizer.vocab_size,
             hidden_size=768,
             num_hidden_layers=12,
