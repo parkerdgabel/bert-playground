@@ -21,7 +21,6 @@ from transformers import AutoTokenizer
 from data.unified_loader import create_optimized_dataloaders
 from models.modernbert_cnn_hybrid import CNNEnhancedModernBERT, CNNHybridConfig
 from training.mlx_optimized_trainer import MLXOptimizedTrainer, OptimizedTrainingConfig
-from utils.logging_config import LoggingConfig
 from utils.mlflow_helper import UnifiedMLflowTracker
 
 
@@ -134,10 +133,11 @@ def main():
     args = parse_args()
     
     # Setup logging
-    LoggingConfig.setup(
+    from utils.logging_config import setup_logging
+    setup_logging(
         log_dir=Path(args.output_dir) / "logs",
         log_level=args.log_level,
-        prefix="optimized_training",
+        experiment_name="optimized_training",
     )
     
     logger.info("Starting MLX Optimized Training")
