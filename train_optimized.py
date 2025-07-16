@@ -188,13 +188,13 @@ def main():
             max_position_embeddings=8192,
             num_labels=2,
             # CNN config
-            cnn_num_filters=[128, 256, 512],
-            cnn_filter_sizes=[3, 5, 7],
+            cnn_kernel_sizes=[3, 5, 7],
+            cnn_num_filters=256,
             cnn_dropout=0.3,
         )
     
     model = CNNEnhancedModernBERT(config)
-    logger.info(f"Model initialized with {sum(p.size for p in model.parameters()):,} parameters")
+    logger.info("Model initialized successfully")
     
     # Initialize optimizer
     optimizer = optim.AdamW(
@@ -234,8 +234,8 @@ def main():
     if args.enable_mlflow:
         mlflow_helper = UnifiedMLflowTracker(
             experiment_name=args.experiment_name,
-            model_type="cnn_hybrid_optimized",
-            tracking_uri=f"file://{args.output_dir}/mlruns",
+            tracking_mode="file",
+            base_dir=args.output_dir,
         )
         
         run_name = args.run_name or f"optimized_{datetime.now().strftime('%Y%m%d_%H%M%S')}"

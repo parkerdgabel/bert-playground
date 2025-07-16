@@ -85,6 +85,7 @@ class MLXOptimizedTrainer:
         self.accumulated_loss = None
         self.accumulated_grads = None
         self.steps_since_eval = 0
+        self.max_steps = 0  # Will be set during training
         
         # Create output directory
         os.makedirs(config.checkpoint_dir, exist_ok=True)
@@ -124,6 +125,10 @@ class MLXOptimizedTrainer:
     
     def get_learning_rate(self) -> float:
         """Linear warmup and cosine decay."""
+        # Handle case when max_steps is not set yet
+        if self.max_steps == 0:
+            return self.config.learning_rate
+            
         warmup_steps = int(self.config.warmup_ratio * self.max_steps)
         
         if self.global_step < warmup_steps:
@@ -171,15 +176,15 @@ class MLXOptimizedTrainer:
             self.accumulated_grads = grads
             self.accumulated_loss = loss
         else:
-            # Accumulate gradients lazily
-            for key in grads:
-                if isinstance(grads[key], dict):
-                    for subkey in grads[key]:
-                        self.accumulated_grads[key][subkey] = (
-                            self.accumulated_grads[key][subkey] + grads[key][subkey]
-                        )
-                else:
-                    self.accumulated_grads[key] = self.accumulated_grads[key] + grads[key]
+            # Accumulate gradients recursively
+            def accumulate_recursive(acc_dict, new_dict):
+                for key in new_dict:
+                    if isinstance(new_dict[key], dict):
+                        accumulate_recursive(acc_dict[key], new_dict[key])
+                    else:
+                        acc_dict[key] = acc_dict[key] + new_dict[key]
+            
+            accumulate_recursive(self.accumulated_grads, grads)
             self.accumulated_loss = self.accumulated_loss + loss
         
         self.steps_since_eval += 1
@@ -197,7 +202,8 @@ class MLXOptimizedTrainer:
             self.optimizer.learning_rate = new_lr
             
             # Get metrics (force eval for logging)
-            loss_value = float(mx.eval(self.accumulated_loss))
+            mx.eval(self.accumulated_loss)
+            loss_value = float(self.accumulated_loss)
             
             # Reset accumulation
             self.accumulated_grads = None
@@ -210,7 +216,7 @@ class MLXOptimizedTrainer:
                 "memory_usage": self.get_memory_usage(),
             }
             
-            return loss, metrics
+            return loss_value, metrics
         else:
             # Return dummy metrics during accumulation
             return loss, {"accumulating": True}
@@ -233,7 +239,7 @@ class MLXOptimizedTrainer:
         # Temporarily increase batch size for evaluation
         original_batch_size = dataloader.batch_size
         dataloader.batch_size = self.config.eval_batch_size
-        dataloader._initialize_mlx_stream()  # Reinitialize with new batch size
+        dataloader._initialize_optimized_stream()  # Reinitialize with new batch size
         
         total_loss = 0
         all_predictions = []
@@ -275,7 +281,7 @@ class MLXOptimizedTrainer:
         
         # Restore original batch size
         dataloader.batch_size = original_batch_size
-        dataloader._initialize_mlx_stream()
+        dataloader._initialize_optimized_stream()
         
         # Calculate metrics
         metrics = {}
@@ -330,7 +336,7 @@ class MLXOptimizedTrainer:
         # Initialize data pipeline with optimal settings
         train_dataloader.num_threads = self.config.num_workers
         train_dataloader.prefetch_size = self.config.prefetch_size
-        train_dataloader._initialize_mlx_stream()
+        train_dataloader._initialize_optimized_stream()
         
         start_time = time.time()
         
@@ -349,7 +355,7 @@ class MLXOptimizedTrainer:
                 self.current_batch_size = self.adjust_batch_size()
                 if self.current_batch_size != train_dataloader.batch_size:
                     train_dataloader.batch_size = self.current_batch_size
-                    train_dataloader._initialize_mlx_stream()
+                    train_dataloader._initialize_optimized_stream()
                 
                 task = progress.add_task(
                     f"[cyan]Epoch {epoch + 1}/{self.config.num_epochs}", total=steps_per_epoch
