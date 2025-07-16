@@ -18,7 +18,7 @@ import mlx.optimizers as optim
 from loguru import logger
 from transformers import AutoTokenizer
 
-from data.unified_loader import create_optimized_dataloaders
+from data.mlx_enhanced_loader import create_enhanced_dataloaders
 from models.modernbert_cnn_hybrid import CNNEnhancedModernBERT, CNNHybridConfig
 from training.mlx_optimized_trainer import MLXOptimizedTrainer, OptimizedTrainingConfig
 from utils.mlflow_helper import UnifiedMLflowTracker
@@ -155,7 +155,7 @@ def main():
     
     # Create data loaders with optimizations
     logger.info("Creating optimized data loaders...")
-    train_loader, val_loader, test_loader = create_optimized_dataloaders(
+    train_loader, val_loader, test_loader = create_enhanced_dataloaders(
         data_dir=args.data_dir,
         tokenizer=tokenizer,
         batch_size=args.base_batch_size,
@@ -165,8 +165,9 @@ def main():
         test_file=args.test_file,
         num_threads=args.num_workers,
         prefetch_size=args.prefetch_size,
-        pre_tokenize=True,  # Enable pre-tokenization
-        use_mlx_data=True,  # Use MLX-Data pipeline
+        enable_augmentation=True,  # Enable augmentation for training
+        memory_map=True,  # Use memory mapping
+        double_buffer=True,  # Use double buffering
     )
     
     # Initialize model
