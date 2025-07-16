@@ -1,0 +1,13 @@
+{
+  "train_metrics": {
+    "loss": [],
+    "accuracy": [],
+    "learning_rate": [],
+    "gradient_norm": []
+  },
+  "val_metrics": {
+    "loss": [],
+    "accuracy": []
+  },
+  "timestamp": "2025-07-16T10:27:30.519168"
+}
