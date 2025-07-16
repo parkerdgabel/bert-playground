@@ -23,7 +23,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc_auc_score
 
 from data.unified_loader import OptimizedTitanicDataPipeline
-from utils.mlflow_utils import log_execution_time
+from utils.logging_config import log_execution_time
 
 
 @dataclass
