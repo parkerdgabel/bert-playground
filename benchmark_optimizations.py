@@ -14,7 +14,7 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import matplotlib.pyplot as plt
 import mlx.core as mx

@@ -16,10 +16,9 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import matplotlib.pyplot as plt
-import mlx.core as mx
 import numpy as np
 from loguru import logger
 

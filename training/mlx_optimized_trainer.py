@@ -23,7 +23,6 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc_auc_score
 
 from data.unified_loader import OptimizedTitanicDataPipeline
-from utils.logging_config import LoggingConfig
 from utils.mlflow_utils import log_execution_time
 
 
@@ -424,7 +423,7 @@ class MLXOptimizedTrainer:
         
         if test_dataloader:
             logger.info("Running test evaluation...")
-            test_metrics = self.evaluate_lazy(test_dataloader, "test")
+            self.evaluate_lazy(test_dataloader, "test")
         
         total_time = time.time() - start_time
         logger.info(
