@@ -87,6 +87,11 @@ dev = [
     { name = "ruff" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "ruff" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.1.0" },
@@ -111,6 +116,9 @@ requires-dist = [
     { name = "transformers", specifier = ">=4.47.0" },
     { name = "typer", specifier = ">=0.15.0" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "ruff", specifier = ">=0.12.3" }]
 
 [[package]]
 name = "bleach"

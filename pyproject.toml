@@ -31,3 +31,12 @@ dev = [
     "mypy>=1.13.0",
     "ipykernel>=6.29.0",
 ]
+
+[tool.ruff]
+# Exclude legacy directory from linting
+extend-exclude = ["legacy/"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.12.3",
+]
