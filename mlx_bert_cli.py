@@ -9,6 +9,7 @@ import mlx.nn as nn
 from rich.console import Console
 from rich.table import Table
 from rich.progress import track
+from training.rich_display_manager import RichDisplayManager
 import json
 import time
 from datetime import datetime
@@ -298,11 +299,15 @@ def train(
         weight_decay=0.01,  # Default weight decay
     )
 
+    # Create display manager for Rich console output
+    display_manager = RichDisplayManager(console=console)
+
     # Create unified trainer
     trainer = MLXTrainer(
         model=model,
         config=training_config,
         optimizer=optimizer,
+        display_manager=display_manager,
     )
 
     # Save training config
@@ -342,11 +347,14 @@ def train(
     console.print("\n[bold green]Starting training...[/bold green]\n")
 
     start_time = time.time()
-    results = trainer.train(
-        train_loader=train_loader,
-        val_loader=val_loader,
-        resume_from_checkpoint=resume_from,
-    )
+    
+    # Use display manager as context manager for proper cleanup
+    with display_manager:
+        results = trainer.train(
+            train_loader=train_loader,
+            val_loader=val_loader,
+            resume_from_checkpoint=resume_from,
+        )
     
     # Training complete
     elapsed_time = time.time() - start_time

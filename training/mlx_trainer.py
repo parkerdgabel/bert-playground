@@ -14,13 +14,7 @@ import mlx.optimizers as optim
 import numpy as np
 from loguru import logger
 from rich.console import Console
-from rich.progress import (
-    BarColumn,
-    Progress,
-    SpinnerColumn,
-    TextColumn,
-    TimeRemainingColumn,
-)
+from training.rich_display_manager import RichDisplayManager
 from sklearn.metrics import (
     accuracy_score,
     precision_recall_fscore_support,
@@ -55,6 +49,7 @@ class MLXTrainer:
         model: nn.Module,
         config: TrainingConfig,
         optimizer: optim.Optimizer | None = None,
+        display_manager: RichDisplayManager | None = None,
     ):
         """Initialize the production MLX trainer.
 
@@ -62,9 +57,11 @@ class MLXTrainer:
             model: MLX model to train
             config: Comprehensive training configuration
             optimizer: Optional optimizer (created if not provided)
+            display_manager: Optional shared display manager for Rich console
         """
         self.model = model
         self.config = config
+        self.display_manager = display_manager
 
         # Initialize logging
         self.logging_config = LoggingConfig(
@@ -137,7 +134,8 @@ class MLXTrainer:
 
         # Comprehensive monitoring system
         self.monitor = ComprehensiveMonitor(
-            config=config, memory_manager=self.memory_manager, profiler=self.profiler
+            config=config, memory_manager=self.memory_manager, profiler=self.profiler,
+            display_manager=self.display_manager
         )
 
         # Apply Apple Silicon optimizations if available
@@ -482,19 +480,13 @@ class MLXTrainer:
         num_batches = 0
 
         # Progress tracking
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TimeRemainingColumn(),
-            console=console,
-            transient=True,
-        ) as progress:
-            eval_task = progress.add_task(
-                f"Evaluating {phase}", total=max_batches or len(dataloader)
+        eval_task_id = None
+        if self.display_manager:
+            eval_task_id = self.display_manager.create_progress_task(
+                f"eval_{phase}", f"Evaluating {phase}", max_batches or len(dataloader)
             )
 
+        try:
             for batch_idx, batch in enumerate(dataloader):
                 if max_batches and batch_idx >= max_batches:
                     break
@@ -527,7 +519,15 @@ class MLXTrainer:
                     all_probabilities.extend(probabilities[:, 1].tolist())
 
                 num_batches += 1
-                progress.update(eval_task, advance=1)
+                
+                # Update progress
+                if eval_task_id:
+                    self.display_manager.update_progress_task(eval_task_id, advance=1)
+
+        finally:
+            # Clean up progress task
+            if eval_task_id:
+                self.display_manager.remove_progress_task(eval_task_id)
 
         # Force final evaluation
         if total_loss > 0:
@@ -763,19 +763,16 @@ class MLXTrainer:
         num_updates = 0
         step_times = []
 
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TimeRemainingColumn(),
-            console=console,
-        ) as progress:
-            train_task = progress.add_task(
+        # Progress tracking
+        train_task_id = None
+        if self.display_manager:
+            train_task_id = self.display_manager.create_progress_task(
+                f"train_epoch_{self.current_epoch}",
                 f"Epoch {self.current_epoch + 1}/{self.config.epochs}",
-                total=len(train_loader),
+                len(train_loader)
             )
 
+        try:
             for _batch_idx, batch in enumerate(train_loader):
                 step_start = time.time()
 
@@ -793,12 +790,12 @@ class MLXTrainer:
                     num_updates += 1
 
                     # Update progress
-                    progress.update(
-                        train_task,
-                        advance=1,
-                        description=f"Epoch {self.current_epoch + 1}/{self.config.epochs} "
-                        f"(Loss: {metrics['loss']:.4f}, LR: {metrics['learning_rate']:.2e})",
-                    )
+                    if train_task_id:
+                        description = f"Epoch {self.current_epoch + 1}/{self.config.epochs} " \
+                                    f"(Loss: {metrics['loss']:.4f}, LR: {metrics['learning_rate']:.2e})"
+                        self.display_manager.update_progress_task(
+                            train_task_id, advance=1, description=description
+                        )
 
                     # Log to MLflow
                     if self.config.monitoring.enable_mlflow and self.mlflow_run:
@@ -846,6 +843,11 @@ class MLXTrainer:
                     == 0
                 ):
                     self._save_checkpoint(f"checkpoint-step-{self.global_step}")
+
+        finally:
+            # Clean up progress task
+            if train_task_id:
+                self.display_manager.remove_progress_task(train_task_id)
 
         # Epoch metrics
         avg_loss = epoch_loss / max(1, num_updates)

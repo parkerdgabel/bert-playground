@@ -7,26 +7,18 @@ real-time metrics, rich console output, and performance visualization.
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, Optional
 
 import mlflow
 import mlx.core as mx
 import numpy as np
 from loguru import logger
 from rich.console import Console
-from rich.live import Live
 from rich.panel import Panel
-from rich.progress import (
-    BarColumn,
-    Progress,
-    SpinnerColumn,
-    TaskID,
-    TextColumn,
-    TimeElapsedColumn,
-    TimeRemainingColumn,
-)
 from rich.table import Table
 from rich.text import Text
+
+from training.rich_display_manager import RichDisplayManager
 
 from training.config import TrainingConfig
 from training.memory_manager import AppleSiliconMemoryManager
@@ -292,18 +284,18 @@ class MLflowTracker:
 class RichConsoleMonitor:
     """Rich console monitoring for real-time training progress."""
 
-    def __init__(self, config: TrainingConfig):
+    def __init__(self, config: TrainingConfig, display_manager: Optional[RichDisplayManager] = None):
         """Initialize rich console monitor.
 
         Args:
             config: Training configuration
+            display_manager: Optional shared display manager
         """
         self.config = config
         self.console = Console()
-        self.progress = None
-        self.live_display = None
-        self.training_task: TaskID | None = None
-        self.epoch_task: TaskID | None = None
+        self.display_manager = display_manager
+        self.training_task_id: Optional[str] = None
+        self.epoch_task_id: Optional[str] = None
 
         # Training state
         self.start_time = time.time()
@@ -325,33 +317,17 @@ class RichConsoleMonitor:
         if not self.enabled:
             return
 
-        # Create progress display
-        self.progress = Progress(
-            SpinnerColumn(),
-            TextColumn("[bold blue]{task.description}"),
-            BarColumn(),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TextColumn("•"),
-            TextColumn("{task.completed}/{task.total}"),
-            TextColumn("•"),
-            TimeElapsedColumn(),
-            TextColumn("•"),
-            TimeRemainingColumn(),
-            console=self.console,
-            refresh_per_second=1,
-        )
-
-        # Add training tasks
-        self.training_task = self.progress.add_task(
-            "Overall Progress", total=total_epochs
-        )
-        self.epoch_task = self.progress.add_task("Current Epoch", total=steps_per_epoch)
-
-        # Start live display
-        self.live_display = Live(
-            self._create_display_panel(), console=self.console, refresh_per_second=1
-        )
-        self.live_display.start()
+        # Use display manager if available
+        if self.display_manager:
+            self.training_task_id = self.display_manager.create_progress_task(
+                "training", "Overall Progress", total_epochs
+            )
+            self.epoch_task_id = self.display_manager.create_progress_task(
+                "epoch", "Current Epoch", steps_per_epoch
+            )
+        else:
+            # Fallback to console output
+            self.console.print(f"[bold blue]Starting training: {total_epochs} epochs, {steps_per_epoch} steps/epoch[/bold blue]")
 
     def update_training_progress(
         self,
@@ -370,19 +346,78 @@ class RichConsoleMonitor:
             memory_manager: Memory manager for metrics
             profiler: Profiler for performance metrics
         """
-        if not self.enabled or not self.live_display:
+        if not self.enabled:
             return
 
-        # Update progress bars
-        if self.training_task is not None:
-            self.progress.update(self.training_task, completed=epoch)
-        if self.epoch_task is not None:
-            self.progress.update(self.epoch_task, completed=step)
-
-        # Update display panel
-        self.live_display.update(
-            self._create_display_panel(metrics, memory_manager, profiler)
-        )
+        # Update via display manager if available
+        if self.display_manager:
+            # Update progress tasks
+            if self.training_task_id:
+                self.display_manager.update_progress_task(
+                    self.training_task_id, advance=0, 
+                    description=f"Epoch {epoch} - Overall Progress"
+                )
+            if self.epoch_task_id:
+                self.display_manager.update_progress_task(
+                    self.epoch_task_id, advance=1,
+                    description=f"Step {step} - Current Epoch"
+                )
+            
+            # Update metrics in display manager
+            metrics_dict = self._extract_metrics_dict(metrics, memory_manager, profiler)
+            self.display_manager.update_metrics(metrics_dict)
+            
+            # Update status
+            status = f"Epoch {epoch}, Step {step}"
+            if metrics.train_loss.values:
+                status += f", Loss: {metrics.train_loss.values[-1]:.4f}"
+            self.display_manager.update_status(status)
+        else:
+            # Fallback to console logging
+            loss_str = f"{metrics.train_loss.values[-1]:.4f}" if metrics.train_loss.values else "N/A"
+            self.console.print(f"[dim]Epoch {epoch}, Step {step}, Loss: {loss_str}[/dim]")
+    
+    def _extract_metrics_dict(
+        self,
+        metrics: TrainingMetrics,
+        memory_manager: AppleSiliconMemoryManager,
+        profiler: AppleSiliconProfiler,
+    ) -> Dict[str, Any]:
+        """Extract metrics into a dictionary for display manager."""
+        metrics_dict = {}
+        
+        # Training metrics
+        if metrics.train_loss.values:
+            metrics_dict["Train Loss"] = metrics.train_loss.values[-1]
+        if metrics.train_accuracy.values:
+            metrics_dict["Train Accuracy"] = metrics.train_accuracy.values[-1]
+        if metrics.val_loss.values:
+            metrics_dict["Val Loss"] = metrics.val_loss.values[-1]
+        if metrics.val_accuracy.values:
+            metrics_dict["Val Accuracy"] = metrics.val_accuracy.values[-1]
+        if metrics.learning_rate.values:
+            metrics_dict["Learning Rate"] = f"{metrics.learning_rate.values[-1]:.2e}"
+        
+        # Memory metrics
+        try:
+            memory_metrics = memory_manager.get_current_metrics()
+            metrics_dict["Memory Usage"] = f"{memory_metrics.memory_percentage:.1f}%"
+            metrics_dict["Memory Used"] = f"{memory_metrics.memory_used_mb:.0f}MB"
+        except Exception as e:
+            metrics_dict["Memory"] = "Error"
+        
+        # Performance metrics
+        try:
+            if profiler.metrics_history:
+                latest_perf = profiler.metrics_history[-1]
+                metrics_dict["Step Time"] = f"{latest_perf.step_time_seconds:.3f}s"
+                metrics_dict["Throughput"] = f"{latest_perf.samples_per_second:.1f} samples/s"
+                if latest_perf.tokens_per_second > 0:
+                    metrics_dict["Token Throughput"] = f"{latest_perf.tokens_per_second:.0f} tokens/s"
+        except Exception as e:
+            metrics_dict["Performance"] = "Error"
+        
+        return metrics_dict
 
     def _create_display_panel(
         self,
@@ -553,10 +588,17 @@ class RichConsoleMonitor:
 
     def stop_training(self) -> None:
         """Stop training progress display."""
-        if self.live_display:
-            self.live_display.stop()
-
-        if self.enabled:
+        if self.display_manager:
+            # Remove progress tasks
+            if self.training_task_id:
+                self.display_manager.remove_progress_task(self.training_task_id)
+            if self.epoch_task_id:
+                self.display_manager.remove_progress_task(self.epoch_task_id)
+            
+            # Update status
+            elapsed = time.time() - self.start_time
+            self.display_manager.update_status(f"Training completed in {elapsed:.1f}s")
+        else:
             # Show final summary
             elapsed = time.time() - self.start_time
             self.console.print(
@@ -572,6 +614,7 @@ class ComprehensiveMonitor:
         config: TrainingConfig,
         memory_manager: AppleSiliconMemoryManager,
         profiler: AppleSiliconProfiler,
+        display_manager: Optional[RichDisplayManager] = None,
     ):
         """Initialize comprehensive monitoring system.
 
@@ -579,15 +622,17 @@ class ComprehensiveMonitor:
             config: Training configuration
             memory_manager: Memory manager
             profiler: Performance profiler
+            display_manager: Optional shared display manager
         """
         self.config = config
         self.memory_manager = memory_manager
         self.profiler = profiler
+        self.display_manager = display_manager
 
         # Initialize monitoring components
         self.metrics = TrainingMetrics()
         self.mlflow_tracker = MLflowTracker(config)
-        self.console_monitor = RichConsoleMonitor(config)
+        self.console_monitor = RichConsoleMonitor(config, display_manager)
 
         # State tracking
         self.start_time = time.time()
