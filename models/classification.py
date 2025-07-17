@@ -87,9 +87,22 @@ class TitanicClassifier(nn.Module):
 
         if not self.has_built_in_classifier:
             # Get the actual output dimension from the model
-            output_dim = getattr(
-                bert_model, "output_hidden_size", bert_model.config.hidden_size
-            )
+            # Try multiple ways to get hidden size for compatibility
+            output_dim = None
+            
+            # Try output_hidden_size first (for CNN hybrid models)
+            if hasattr(bert_model, "output_hidden_size"):
+                output_dim = bert_model.output_hidden_size
+            # Try config.hidden_size (for standard models)
+            elif hasattr(bert_model, "config") and hasattr(bert_model.config, "hidden_size"):
+                output_dim = bert_model.config.hidden_size
+            # Try hidden_size directly (fallback)
+            elif hasattr(bert_model, "hidden_size"):
+                output_dim = bert_model.hidden_size
+            # Default to 768 (standard ModernBERT base size)
+            else:
+                output_dim = 768
+                logger.warning(f"Could not determine hidden size for {type(bert_model).__name__}, using default 768")
 
             self.classifier = BinaryClassificationHead(
                 input_dim=output_dim,

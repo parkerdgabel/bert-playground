@@ -144,12 +144,17 @@ class MLflowTracker:
             self._initialize_mlflow()
 
     def _initialize_mlflow(self) -> None:
-        """Initialize MLflow experiment tracking."""
+        """Initialize MLflow experiment tracking with enhanced error handling."""
         try:
-            # Initialize central MLflow configuration
+            # Initialize central MLflow configuration with validation
             self.mlflow_central.initialize(
                 experiment_name=self.config.experiment_name or "mlx_training_v2"
             )
+
+            # Validate connection before proceeding
+            connection_status = self.mlflow_central.validate_connection()
+            if connection_status["status"] != "CONNECTED":
+                raise Exception(f"MLflow connection failed: {connection_status['message']}")
 
             # Start run with tags
             tags = {
@@ -174,7 +179,7 @@ class MLflowTracker:
                 )
                 tags["git_commit"] = git_commit[:8]
             except Exception:
-                pass
+                logger.debug("Git information not available")
 
             self.run = mlflow.start_run(tags=tags)
             self.run_id = self.run.info.run_id
@@ -187,6 +192,41 @@ class MLflowTracker:
         except Exception as e:
             logger.warning(f"Failed to initialize MLflow: {e}")
             self.config.monitoring.enable_mlflow = False
+            
+            # Provide specific error handling and suggestions
+            error_msg = str(e).lower()
+            
+            if "sqlite" in error_msg or "database" in error_msg:
+                logger.info("MLflow database issue detected:")
+                logger.info("  • Ensure the mlruns directory is writable")
+                logger.info("  • Check if database file is corrupted")
+                logger.info("  • Run 'uv run python mlx_bert_cli.py mlflow-health' for diagnosis")
+                
+            elif "permission" in error_msg:
+                logger.info("MLflow permission issue detected:")
+                logger.info("  • Check file permissions for the MLflow directory")
+                logger.info("  • Ensure write access to mlruns and artifact directories")
+                logger.info("  • Try running with appropriate user privileges")
+                
+            elif "connection" in error_msg or "network" in error_msg:
+                logger.info("MLflow connection issue detected:")
+                logger.info("  • Check your network connection or MLflow server status")
+                logger.info("  • Verify tracking URI is accessible")
+                logger.info("  • Check if MLflow server is running")
+                
+            elif "configuration" in error_msg:
+                logger.info("MLflow configuration issue detected:")
+                logger.info("  • Check MLflow configuration parameters")
+                logger.info("  • Verify tracking URI and artifact root settings")
+                logger.info("  • Run 'uv run python mlx_bert_cli.py mlflow-health' for diagnosis")
+                
+            else:
+                logger.info("General MLflow issue detected:")
+                logger.info("  • Check MLflow installation and version")
+                logger.info("  • Verify all dependencies are installed")
+                logger.info("  • Run 'uv run python mlx_bert_cli.py mlflow-health' for diagnosis")
+                
+            logger.info("Training will continue without MLflow tracking")
 
     def _log_config_params(self) -> None:
         """Log training configuration as MLflow parameters."""
@@ -245,9 +285,16 @@ class MLflowTracker:
 
         try:
             for name, value in metrics.items():
-                mlflow.log_metric(name, value, step=step)
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
+                    mlflow.log_metric(name, value, step=step)
+                else:
+                    logger.debug(f"Skipping non-numeric metric {name}: {value}")
         except Exception as e:
             logger.warning(f"Failed to log metrics to MLflow: {e}")
+            # Optionally disable MLflow if it keeps failing
+            if "Connection" in str(e) or "HTTP" in str(e):
+                logger.warning("MLflow connection issues detected, disabling MLflow tracking")
+                self.config.monitoring.enable_mlflow = False
 
     def log_artifacts(self, artifacts: dict[str, str]) -> None:
         """Log artifacts to MLflow.

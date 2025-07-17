@@ -6,10 +6,15 @@ ensuring all training runs use the same database and tracking location.
 
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Any, Optional
 
 import mlflow
 from loguru import logger
+
+
+class MLflowConfigurationError(Exception):
+    """Custom exception for MLflow configuration errors."""
+    pass
 
 
 class MLflowCentral:
@@ -48,6 +53,9 @@ class MLflowCentral:
             tracking_uri: Override default tracking URI
             artifact_root: Override default artifact location
             experiment_name: Experiment name to use
+            
+        Raises:
+            MLflowConfigurationError: If configuration is invalid
         """
         if self._initialized:
             logger.debug("MLflow already initialized")
@@ -65,18 +73,28 @@ class MLflowCentral:
             or self.ARTIFACT_ROOT
         )
         
-        # Ensure directories exist
-        Path(self._tracking_uri.replace("sqlite:///", "")).parent.mkdir(
-            parents=True, exist_ok=True
-        )
-        Path(self._artifact_root).mkdir(parents=True, exist_ok=True)
+        # Validate configuration
+        self._validate_configuration()
         
-        # Set MLflow tracking URI
-        mlflow.set_tracking_uri(self._tracking_uri)
+        # Ensure directories exist with proper error handling
+        self._ensure_directories()
         
-        # Set experiment
-        experiment = experiment_name or self.DEFAULT_EXPERIMENT
-        mlflow.set_experiment(experiment)
+        # Set MLflow tracking URI with validation
+        try:
+            mlflow.set_tracking_uri(self._tracking_uri)
+        except Exception as e:
+            raise MLflowConfigurationError(
+                f"Failed to set tracking URI '{self._tracking_uri}': {str(e)}"
+            )
+        
+        # Set experiment with validation
+        try:
+            experiment = experiment_name or self.DEFAULT_EXPERIMENT
+            mlflow.set_experiment(experiment)
+        except Exception as e:
+            raise MLflowConfigurationError(
+                f"Failed to set experiment '{experiment}': {str(e)}"
+            )
         
         self._initialized = True
         
@@ -86,6 +104,130 @@ class MLflowCentral:
             f"  Artifact Root: {self._artifact_root}\n"
             f"  Experiment: {experiment}"
         )
+    
+    def _validate_configuration(self) -> None:
+        """Validate MLflow configuration parameters.
+        
+        Raises:
+            MLflowConfigurationError: If configuration is invalid
+        """
+        # Validate tracking URI
+        if not self._tracking_uri:
+            raise MLflowConfigurationError("Tracking URI cannot be empty")
+        
+        # Validate SQLite URI format
+        if self._tracking_uri.startswith("sqlite:"):
+            db_path = self._tracking_uri.replace("sqlite:///", "")
+            db_dir = Path(db_path).parent
+            
+            if not db_dir.exists():
+                try:
+                    db_dir.mkdir(parents=True, exist_ok=True)
+                except PermissionError:
+                    raise MLflowConfigurationError(
+                        f"Cannot create database directory: {db_dir}. "
+                        "Check permissions or use a different location."
+                    )
+            
+            # Check write permissions
+            if not os.access(db_dir, os.W_OK):
+                raise MLflowConfigurationError(
+                    f"No write permission for database directory: {db_dir}"
+                )
+        
+        # Validate artifact root
+        if not self._artifact_root:
+            raise MLflowConfigurationError("Artifact root cannot be empty")
+        
+        # Check artifact root path
+        artifact_path = Path(self._artifact_root)
+        if artifact_path.exists() and not artifact_path.is_dir():
+            raise MLflowConfigurationError(
+                f"Artifact root exists but is not a directory: {self._artifact_root}"
+            )
+    
+    def _ensure_directories(self) -> None:
+        """Ensure required directories exist with proper error handling.
+        
+        Raises:
+            MLflowConfigurationError: If directories cannot be created
+        """
+        try:
+            # Create database directory
+            if self._tracking_uri.startswith("sqlite:"):
+                db_path = self._tracking_uri.replace("sqlite:///", "")
+                Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+            
+            # Create artifact directory
+            Path(self._artifact_root).mkdir(parents=True, exist_ok=True)
+            
+        except PermissionError as e:
+            raise MLflowConfigurationError(
+                f"Permission denied creating directories: {str(e)}. "
+                "Check file system permissions."
+            )
+        except OSError as e:
+            raise MLflowConfigurationError(
+                f"OS error creating directories: {str(e)}. "
+                "Check disk space and file system."
+            )
+    
+    def validate_connection(self) -> Dict[str, Any]:
+        """Validate MLflow connection and return status.
+        
+        Returns:
+            Dictionary with connection status and details
+        """
+        if not self._initialized:
+            return {
+                "status": "NOT_INITIALIZED",
+                "message": "MLflow not initialized"
+            }
+        
+        try:
+            # Test basic connection
+            experiments = mlflow.search_experiments()
+            
+            # Test database access
+            if self._tracking_uri.startswith("sqlite:"):
+                db_path = self._tracking_uri.replace("sqlite:///", "")
+                if not Path(db_path).exists():
+                    return {
+                        "status": "DATABASE_MISSING",
+                        "message": f"Database file not found: {db_path}"
+                    }
+                
+                # Check database size
+                db_size = Path(db_path).stat().st_size
+                db_size_mb = db_size / (1024 * 1024)
+                
+                return {
+                    "status": "CONNECTED",
+                    "message": f"Connected successfully. {len(experiments)} experiments found.",
+                    "details": {
+                        "tracking_uri": self._tracking_uri,
+                        "artifact_root": self._artifact_root,
+                        "experiment_count": len(experiments),
+                        "database_size_mb": round(db_size_mb, 2)
+                    }
+                }
+            
+            return {
+                "status": "CONNECTED",
+                "message": f"Connected successfully. {len(experiments)} experiments found.",
+                "details": {
+                    "tracking_uri": self._tracking_uri,
+                    "artifact_root": self._artifact_root,
+                    "experiment_count": len(experiments)
+                }
+            }
+            
+        except Exception as e:
+            return {
+                "status": "CONNECTION_FAILED",
+                "message": f"Connection failed: {str(e)}",
+                "error_type": type(e).__name__
+            }
     
     @property
     def tracking_uri(self) -> str:

@@ -1,0 +1,1491 @@
+2025-07-17 09:20:57.644 | INFO     | utils.mlx_patch:apply_mlx_patches:77 - Applying MLX compatibility patches...
+2025-07-17 09:20:57.644 | INFO     | utils.mlx_patch:patch_mlx_astype:72 - Applied MLX astype() compatibility patch
+2025-07-17 09:20:57.644 | INFO     | utils.mlx_patch:apply_mlx_patches:79 - MLX compatibility patches applied successfully
+None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
+None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
+
+MLX Unified Training System
+============================================================
+
+Loading data...
+2025-07-17 09:21:01.246 | INFO     | data.mlx_dataloader:__init__:82 - Loading tokenizer: mlx-community/answerdotai-ModernBERT-base-4bit (backend: auto)
+2025-07-17 09:21:01.246 | INFO     | embeddings.mlx_adapter:_load_mlx_embeddings:55 - Loading MLX embeddings model: mlx-community/answerdotai-ModernBERT-base-4bit
+Fetching 6 files:   0%|          | 0/6 [00:00<?, ?it/s]Fetching 6 files: 100%|██████████| 6/6 [00:00<00:00, 9245.34it/s]
+2025-07-17 09:21:01.666 | INFO     | embeddings.mlx_adapter:_load_mlx_embeddings:58 - Successfully loaded MLX embeddings model
+2025-07-17 09:21:01.666 | INFO     | embeddings.tokenizer_wrapper:_initialize_backend:59 - Using MLX embeddings tokenizer
+2025-07-17 09:21:01.667 | DEBUG    | data.mlx_dataloader:_analyze_csv:133 - CSV columns: ['PassengerId', 'Survived', 'Pclass', 'Name', 'Sex', 'Age', 'SibSp', 'Parch', 'Ticket', 'Fare', 'Cabin', 'Embarked']
+2025-07-17 09:21:01.667 | DEBUG    | data.mlx_dataloader:_analyze_csv:134 - Text columns: ['Pclass', 'Name', 'Sex', 'Age', 'SibSp', 'Parch', 'Ticket', 'Fare', 'Embarked']
+2025-07-17 09:21:01.667 | DEBUG    | data.mlx_dataloader:_analyze_csv:135 - Has labels: True
+2025-07-17 09:21:01.667 | INFO     | data.mlx_dataloader:_preprocess_data:139 - Preprocessing data...
+2025-07-17 09:21:01.813 | INFO     | data.mlx_dataloader:_preprocess_data:173 - Preprocessed 891 samples
+2025-07-17 09:21:01.813 | INFO     | data.mlx_dataloader:__init__:104 - Initialized KaggleDataLoader: 891 samples, 55 batches
+2025-07-17 09:21:01.813 | INFO     | data.mlx_dataloader:__init__:82 - Loading tokenizer: mlx-community/answerdotai-ModernBERT-base-4bit (backend: auto)
+2025-07-17 09:21:01.813 | INFO     | embeddings.mlx_adapter:_load_mlx_embeddings:55 - Loading MLX embeddings model: mlx-community/answerdotai-ModernBERT-base-4bit
+Fetching 6 files:   0%|          | 0/6 [00:00<?, ?it/s]Fetching 6 files: 100%|██████████| 6/6 [00:00<00:00, 11032.80it/s]
+2025-07-17 09:21:01.980 | INFO     | embeddings.mlx_adapter:_load_mlx_embeddings:58 - Successfully loaded MLX embeddings model
+2025-07-17 09:21:01.980 | INFO     | embeddings.tokenizer_wrapper:_initialize_backend:59 - Using MLX embeddings tokenizer
+2025-07-17 09:21:01.981 | DEBUG    | data.mlx_dataloader:_analyze_csv:133 - CSV columns: ['PassengerId', 'Survived', 'Pclass', 'Name', 'Sex', 'Age', 'SibSp', 'Parch', 'Ticket', 'Fare', 'Cabin', 'Embarked']
+2025-07-17 09:21:01.981 | DEBUG    | data.mlx_dataloader:_analyze_csv:134 - Text columns: ['Pclass', 'Name', 'Sex', 'Age', 'SibSp', 'Parch', 'Ticket', 'Fare', 'Embarked']
+2025-07-17 09:21:01.981 | DEBUG    | data.mlx_dataloader:_analyze_csv:135 - Has labels: True
+2025-07-17 09:21:01.981 | INFO     | data.mlx_dataloader:_preprocess_data:139 - Preprocessing data...
+2025-07-17 09:21:02.010 | INFO     | data.mlx_dataloader:_preprocess_data:173 - Preprocessed 178 samples
+2025-07-17 09:21:02.010 | INFO     | data.mlx_dataloader:__init__:104 - Initialized KaggleDataLoader: 178 samples, 5 batches
+✓ Loaded ~896 training samples (56 batches)
+✓ Loaded ~192 validation samples (6 batches)
+2025-07-17 09:21:02.011 | INFO     | training.config:_validate_config:373 - Configuration validation passed
+                          Training Configuration                          
+┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Parameter             ┃ Value                                          ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ Model                 │ mlx-community/answerdotai-ModernBERT-base-4bit │
+│ Model Type            │ base                                           │
+│ Output Directory      │ output/run_20250717_092101                     │
+│ MLX Embeddings        │ Enabled                                        │
+│ Tokenizer Backend     │ auto                                           │
+│ Batch Size            │ 16                                             │
+│ Learning Rate         │ 2e-05                                          │
+│ Epochs                │ 3                                              │
+│ Gradient Accumulation │ 1                                              │
+│ MLflow                │ Enabled                                        │
+│ Early Stopping        │ 3                                              │
+└───────────────────────┴────────────────────────────────────────────────┘
+2025-07-17 09:21:02.015 | INFO     | models.embeddings.mlx_adapter:_load_mlx_embeddings:55 - Loading MLX embeddings model: mlx-community/answerdotai-ModernBERT-base-4bit
+Fetching 6 files:   0%|          | 0/6 [00:00<?, ?it/s]Fetching 6 files: 100%|██████████| 6/6 [00:00<00:00, 15042.33it/s]
+2025-07-17 09:21:02.218 | INFO     | models.embeddings.mlx_adapter:_load_mlx_embeddings:58 - Successfully loaded MLX embeddings model
+2025-07-17 09:21:02.218 | INFO     | models.embeddings.embedding_model:__init__:64 - Initialized EmbeddingModel: mlx-community/answerdotai-ModernBERT-base-4bit (hidden_size=768)
+2025-07-17 09:21:02.218 | INFO     | models.classification.titanic_classifier:__init__:64 - Initialized TitanicClassifier with mlx-community/answerdotai-ModernBERT-base-4bit
+2025-07-17 09:21:02.218 | INFO     | models.classification.factory:create_classifier:126 - Created titanic classifier with mlx-community/answerdotai-ModernBERT-base-4bit
+✓ Created New Architecture MLX Embeddings ModernBERT model
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+[32m2025-07-17 09:21:02[0m | [1mINFO    [0m | [36mtraining.memory_manager[0m:[36m__init__[0m:[36m82[0m - [1mMemory Manager initialized:
+  Apple Silicon: True
+  Unified Memory: 32.00 GB
+  Optimal Usage: 64.0%
+  Target Memory: 20.48 GB[0m
+[32m2025-07-17 09:21:02[0m | [1mINFO    [0m | [36mtraining.performance_profiler[0m:[36m__init__[0m:[36m101[0m - [1mPerformance Profiler initialized:
+  Apple Silicon: True
+  Neural Engine: True
+  Thermal Monitoring: True
+  Power Monitoring: True[0m
+2025/07/17 09:21:02 INFO mlflow.store.db.utils: Creating initial MLflow database tables...
+2025/07/17 09:21:02 INFO mlflow.store.db.utils: Updating database tables
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+[32m2025-07-17 09:21:02[0m | [1mINFO    [0m | [36mutils.mlflow_central[0m:[36minitialize[0m:[36m83[0m - [1mMLflow initialized with central configuration:
+  Tracking URI: sqlite:///mlruns/mlflow.db
+  Artifact Root: ./mlruns/artifacts
+  Experiment: mlx_unified[0m
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+[32m2025-07-17 09:21:03[0m | [33m[1mWARNING [0m | [36mtraining.monitoring[0m:[36m_log_config_params[0m:[36m242[0m - [33m[1mFailed to log config parameters: 'MemoryConfig' object has no attribute 'gradient_accumulation_steps'[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mtraining.monitoring[0m:[36m_initialize_mlflow[0m:[36m193[0m - [1mStarted MLflow run: c4f44f565a22407eae9c4ac6d1a13720[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mtraining.monitoring[0m:[36m__init__[0m:[36m597[0m - [1mInitialized comprehensive monitoring system[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36m_apply_apple_silicon_optimizations[0m:[36m1067[0m - [1mApplying Apple Silicon optimizations...[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36m__init__[0m:[36m146[0m - [1mInitialized Production MLX Trainer:
+  Model: TitanicClassifier
+  Optimization Level: auto
+  Batch Size: 16 (effective: 16)
+  Learning Rate: 2e-05
+  Epochs: 3
+  Apple Silicon: True
+  MLflow Enabled: True
+  Rich Console: False
+  Output Dir: output/run_20250717_092101[0m
+
+Starting training...
+
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36m__enter__[0m:[36m128[0m - [1m============================================================[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36m__enter__[0m:[36m129[0m - [1mStarting experiment: mlx_unified[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36m__enter__[0m:[36m130[0m - [1mStart time: 2025-07-17 09:21:03.091442[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36m__enter__[0m:[36m131[0m - [1m============================================================[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m99[0m - [1mHyperparameters:[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  epochs: 3[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  batch_size: 16[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  learning_rate: 2e-05[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  warmup_steps: 16[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  max_steps: None[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  model_name: answerdotai/ModernBERT-base[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  model_type: modernbert[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  max_length: 256[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  num_labels: None[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  train_path: data/titanic/train.csv[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  val_path: data/titanic/val.csv[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  test_path: None[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  target_column: None[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  optimizer: adamw[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  lr_schedule: cosine_warmup[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  loss_function: cross_entropy[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  optimization_level: auto[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  memory: {'enable_memory_profiling': True, 'memory_limit_gb': None, 'dynamic_batch_sizing': True, 'min_batch_size': 4, 'max_batch_size': 128, 'memory_check_interval': 100, 'unified_memory_fraction': 0.8, 'enable_memory_pool': True, 'force_garbage_collection': True, 'gc_interval': 500}[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  mlx_optimization: {'enable_lazy_evaluation': True, 'eval_frequency': 10, 'enable_gradient_checkpointing': False, 'gradient_accumulation_steps': 1, 'max_grad_norm': 1.0, 'device_placement_strategy': 'auto', 'enable_multi_device': False, 'mixed_precision': False, 'precision_dtype': 'float32', 'enable_jit': True, 'optimize_memory_layout': True}[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  monitoring: {'enable_mlflow': True, 'experiment_name': 'mlx_unified', 'run_name': 'base_20250717_092101', 'tracking_uri': None, 'log_level': 'INFO', 'log_to_file': True, 'log_file_path': 'output/run_20250717_092101/training.log', 'enable_rich_console': False, 'log_frequency': 10, 'eval_frequency': 500, 'save_frequency': 1000, 'enable_progress_bar': True, 'progress_bar_style': 'rich', 'track_gradients': False, 'track_weights': False, 'track_memory': True, 'track_performance': True}[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  checkpoint: {'enable_checkpointing': True, 'checkpoint_dir': 'output/run_20250717_092101/output/run_20250717_092101/checkpoints', 'checkpoint_frequency': 100, 'save_optimizer_state': True, 'save_scheduler_state': True, 'save_random_state': True, 'save_model_weights': True, 'max_checkpoints_to_keep': 5, 'save_best_model': True, 'best_model_metric': 'val_accuracy', 'best_model_mode': 'max', 'auto_resume': True, 'resume_from_checkpoint': None, 'use_safetensors': True, 'compress_checkpoints': False}[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  evaluation: {'eval_during_training': True, 'eval_steps': 100, 'eval_strategy': 'steps', 'primary_metric': 'accuracy', 'metrics_to_compute': ['accuracy', 'precision', 'recall', 'f1', 'auc'], 'enable_early_stopping': True, 'early_stopping_patience': 3, 'early_stopping_threshold': 0.001, 'early_stopping_metric': 'val_loss', 'early_stopping_mode': 'min', 'validation_split': 0.2, 'validation_batch_size': None, 'test_at_end': True, 'generate_predictions': True, 'save_predictions': True}[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  advanced: {'label_smoothing': 0.0, 'dropout_rate': 0.1, 'weight_decay': 0.01, 'enable_augmentation': True, 'augmentation_probability': 0.5, 'enable_curriculum_learning': False, 'curriculum_strategy': 'difficulty', 'curriculum_pace': 0.1, 'enable_ensembling': False, 'ensemble_size': 1, 'ensemble_strategy': 'averaging', 'enable_distillation': False, 'teacher_model_path': None, 'distillation_temperature': 3.0, 'distillation_alpha': 0.5, 'enable_hpo': False, 'hpo_backend': 'optuna', 'hpo_trials': 50, 'hpo_metric': 'val_accuracy'}[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  seed: 42[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  deterministic: True[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  output_dir: output/run_20250717_092101[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  experiment_name: mlx_unified[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  run_name: base_20250717_092101[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mtraining.config[0m:[36m_auto_configure_optimization[0m:[36m307[0m - [1mAuto-configuring optimization level...[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mtraining.config[0m:[36mupdate_from_dataset[0m:[36m497[0m - [1mAuto-configured optimization level: OptimizationLevel.DEVELOPMENT[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mtrain[0m:[36m652[0m - [1mTraining Configuration:
+  Steps per epoch: 56
+  Total steps: 168
+  Effective batch size: 16
+  Warmup steps: 16[0m
+[32m2025-07-17 09:21:03[0m | [1mINFO    [0m | [36mtraining.monitoring[0m:[36mstart_training[0m:[36m607[0m - [1mStarted training monitoring: 3 epochs, 56 steps/epoch[0m
+  Epoch 1/3 (Loss: nan, LR: 1.68e-05) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 0:00:00
+[32m2025-07-17 09:21:28[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mtrain[0m:[36m688[0m - [1mEpoch 1/3 completed: Loss=nan, Time=25.6s[0m
+[32m2025-07-17 09:21:48[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mevaluate[0m:[36m476[0m - [1mStarting validation evaluation[0m
+⠧ Epoch 2/3 (Loss: nan, LR: 8.35e-06) ━━━━━━━━━━━━━━━━━━━━━━╸        79% 0:00:06
+[32m2025-07-17 09:21:48[0m | [31m[1mERROR   [0m | [36mtraining.mlx_trainer[0m:[36mtrain[0m:[36m736[0m - [31m[1mTraining failed: Only one live display may be active at once[0m
+[32m2025-07-17 09:21:48[0m | [1mINFO    [0m | [36mtraining.monitoring[0m:[36mend_run[0m:[36m287[0m - [1mEnded MLflow run: c4f44f565a22407eae9c4ac6d1a13720 with status: FAILED[0m
+[32m2025-07-17 09:21:48[0m | [1mINFO    [0m | [36mtraining.monitoring[0m:[36mend_training[0m:[36m802[0m - [1mTraining monitoring ended with status: FAILED[0m
+[32m2025-07-17 09:21:48[0m | [1mINFO    [0m | [36mtraining.monitoring[0m:[36mend_training[0m:[36m803[0m - [1mTotal time: 45.4s, Steps: 100[0m
+[32m2025-07-17 09:21:48[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36m__exit__[0m:[36m142[0m - [1m============================================================[0m
+[32m2025-07-17 09:21:48[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36m__exit__[0m:[36m143[0m - [1mExperiment completed: mlx_unified[0m
+[32m2025-07-17 09:21:48[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36m__exit__[0m:[36m144[0m - [1mEnd time: 2025-07-17 09:21:48.552694[0m
+[32m2025-07-17 09:21:48[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36m__exit__[0m:[36m145[0m - [1mDuration: 0:00:45.461252[0m
+[32m2025-07-17 09:21:48[0m | [31m[1mERROR   [0m | [36mutils.logging_config[0m:[36m__exit__[0m:[36m148[0m - [31m[1mExperiment failed with error: Only one live display may be active at once[0m
+[32m2025-07-17 09:21:48[0m | [31m[1mERROR   [0m | [36mutils.logging_config[0m:[36m__exit__[0m:[36m149[0m - [31m[1mException details:[0m
+[33m[1mTraceback (most recent call last):[0m
+
+  File "[32m/Users/parkergabel/PycharmProjects/bert-playground/[0m[32m[1mmlx_bert_cli.py[0m", line [33m668[0m, in [35m<module>[0m
+    [1mapp[0m[1m([0m[1m)[0m
+    [36m└ [0m[36m[1m<typer.main.Typer object at 0x1073050f0>[0m
+
+  File "/Users/parkergabel/PycharmProjects/bert-playground/.venv/lib/python3.10/site-packages/typer/main.py", line 324, in __call__
+    return get_command(self)(*args, **kwargs)
+           │           │      │       └ {}
+           │           │      └ ()
+           │           └ <typer.main.Typer object at 0x1073050f0>
+           └ <function get_command at 0x1073dda20>
+  File "/Users/parkergabel/PycharmProjects/bert-playground/.venv/lib/python3.10/site-packages/click/core.py", line 1442, in __call__
+    return self.main(*args, **kwargs)
+           │    │     │       └ {}
+           │    │     └ ()
+           │    └ <function TyperGroup.main at 0x1073dc0d0>
+           └ <TyperGroup mlx-bert>
+  File "/Users/parkergabel/PycharmProjects/bert-playground/.venv/lib/python3.10/site-packages/typer/core.py", line 757, in main
+    return _main(
+           └ <function _main at 0x107347400>
+  File "/Users/parkergabel/PycharmProjects/bert-playground/.venv/lib/python3.10/site-packages/typer/core.py", line 195, in _main
+    rv = self.invoke(ctx)
+         │    │      └ <click.core.Context object at 0x12fb898a0>
+         │    └ <function Group.invoke at 0x101d37640>
+         └ <TyperGroup mlx-bert>
+  File "/Users/parkergabel/PycharmProjects/bert-playground/.venv/lib/python3.10/site-packages/click/core.py", line 1830, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+           │               │       │       │      └ <click.core.Context object at 0x1304e0fa0>
+           │               │       │       └ <function Command.invoke at 0x101d36b90>
+           │               │       └ <TyperCommand train>
+           │               └ <click.core.Context object at 0x1304e0fa0>
+           └ <function Group.invoke.<locals>._process_result at 0x1305c2cb0>
+  File "/Users/parkergabel/PycharmProjects/bert-playground/.venv/lib/python3.10/site-packages/click/core.py", line 1226, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           │   │      │    │           │   └ {'train_path': 'data/titanic/train.csv', 'val_path': 'data/titanic/val.csv', 'num_epochs': 3, 'batch_size': 16, 'use_mlx_embe...
+           │   │      │    │           └ <click.core.Context object at 0x1304e0fa0>
+           │   │      │    └ <function train at 0x10854a950>
+           │   │      └ <TyperCommand train>
+           │   └ <function Context.invoke at 0x101d35f30>
+           └ <click.core.Context object at 0x1304e0fa0>
+  File "/Users/parkergabel/PycharmProjects/bert-playground/.venv/lib/python3.10/site-packages/click/core.py", line 794, in invoke
+    return callback(*args, **kwargs)
+           │         │       └ {'train_path': 'data/titanic/train.csv', 'val_path': 'data/titanic/val.csv', 'num_epochs': 3, 'batch_size': 16, 'use_mlx_embe...
+           │         └ ()
+           └ <function train at 0x10854a950>
+  File "/Users/parkergabel/PycharmProjects/bert-playground/.venv/lib/python3.10/site-packages/typer/main.py", line 699, in wrapper
+    return callback(**use_params)
+           │          └ {'train_path': PosixPath('data/titanic/train.csv'), 'val_path': PosixPath('data/titanic/val.csv'), 'output_dir': PosixPath('o...
+           └ <function train at 0x10d184b80>
+
+  File "[32m/Users/parkergabel/PycharmProjects/bert-playground/[0m[32m[1mmlx_bert_cli.py[0m", line [33m345[0m, in [35mtrain[0m
+    [1mresults[0m [35m[1m=[0m [1mtrainer[0m[35m[1m.[0m[1mtrain[0m[1m([0m
+    [36m          │       └ [0m[36m[1m<function MLXTrainer.train at 0x1305c1fc0>[0m
+    [36m          └ [0m[36m[1m<training.mlx_trainer.MLXTrainer object at 0x12fa509d0>[0m
+
+> File "[32m/Users/parkergabel/PycharmProjects/bert-playground/training/[0m[32m[1mmlx_trainer.py[0m", line [33m684[0m, in [35mtrain[0m
+    [1mepoch_metrics[0m [35m[1m=[0m [1mself[0m[35m[1m.[0m[1m_train_epoch[0m[1m([0m[1mtrain_loader[0m[1m,[0m [1mval_loader[0m[1m,[0m [1mhistory[0m[1m)[0m
+    [36m                │    │            │             │           └ [0m[36m[1m{'train_loss': [nan], 'validation_metrics': [], 'learning_rates': [1.25e-06, 2.5e-06, 3.7500000000000005e-06, 5e-06, 6.25e-06...[0m
+    [36m                │    │            │             └ [0m[36m[1m<data.mlx_dataloader.KaggleDataLoader object at 0x11a2661d0>[0m
+    [36m                │    │            └ [0m[36m[1m<data.mlx_dataloader.KaggleDataLoader object at 0x1304e2320>[0m
+    [36m                │    └ [0m[36m[1m<function MLXTrainer._train_epoch at 0x1305c2050>[0m
+    [36m                └ [0m[36m[1m<training.mlx_trainer.MLXTrainer object at 0x12fa509d0>[0m
+
+  File "[32m/Users/parkergabel/PycharmProjects/bert-playground/training/[0m[32m[1mmlx_trainer.py[0m", line [33m821[0m, in [35m_train_epoch[0m
+    [1mval_metrics[0m [35m[1m=[0m [1mself[0m[35m[1m.[0m[1mevaluate[0m[1m([0m[1mval_loader[0m[1m,[0m [36m"validation"[0m[1m)[0m
+    [36m              │    │        └ [0m[36m[1m<data.mlx_dataloader.KaggleDataLoader object at 0x11a2661d0>[0m
+    [36m              │    └ [0m[36m[1m<function MLXTrainer.evaluate at 0x1305c1ea0>[0m
+    [36m              └ [0m[36m[1m<training.mlx_trainer.MLXTrainer object at 0x12fa509d0>[0m
+
+  File "[32m/Users/parkergabel/PycharmProjects/bert-playground/training/[0m[32m[1mmlx_trainer.py[0m", line [33m485[0m, in [35mevaluate[0m
+    [35m[1mwith[0m [1mProgress[0m[1m([0m
+    [36m     └ [0m[36m[1m<class 'rich.progress.Progress'>[0m
+
+  File "/Users/parkergabel/PycharmProjects/bert-playground/.venv/lib/python3.10/site-packages/rich/progress.py", line 1182, in __enter__
+    self.start()
+    │    └ <function Progress.start at 0x1083d4940>
+    └ <rich.progress.Progress object at 0x1416029b0>
+  File "/Users/parkergabel/PycharmProjects/bert-playground/.venv/lib/python3.10/site-packages/rich/progress.py", line 1173, in start
+    self.live.start(refresh=True)
+    │    │    └ <function Live.start at 0x1074b4b80>
+    │    └ <rich.live.Live object at 0x141603220>
+    └ <rich.progress.Progress object at 0x1416029b0>
+  File "/Users/parkergabel/PycharmProjects/bert-playground/.venv/lib/python3.10/site-packages/rich/live.py", line 113, in start
+    self.console.set_live(self)
+    │    │       │        └ <rich.live.Live object at 0x141603220>
+    │    │       └ <function Console.set_live at 0x106feff40>
+    │    └ <console width=80 None>
+    └ <rich.live.Live object at 0x141603220>
+  File "/Users/parkergabel/PycharmProjects/bert-playground/.venv/lib/python3.10/site-packages/rich/console.py", line 837, in set_live
+    raise errors.LiveError("Only one live display may be active at once")
+          │      └ <class 'rich.errors.LiveError'>
+          └ <module 'rich.errors' from '/Users/parkergabel/PycharmProjects/bert-playground/.venv/lib/python3.10/site-packages/rich/errors...
+
+[31m[1mrich.errors.LiveError[0m:[1m Only one live display may be active at once[0m
+[32m2025-07-17 09:21:48[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36m__exit__[0m:[36m153[0m - [1m============================================================[0m
+╭───────────────────── Traceback (most recent call last) ──────────────────────╮
+│ /Users/parkergabel/PycharmProjects/bert-playground/mlx_bert_cli.py:345 in    │
+│ train                                                                        │
+│                                                                              │
+│   342 │   console.print("\n[bold green]Starting training...[/bold green]\n") │
+│   343 │                                                                      │
+│   344 │   start_time = time.time()                                           │
+│ ❱ 345 │   results = trainer.train(                                           │
+│   346 │   │   train_loader=train_loader,                                     │
+│   347 │   │   val_loader=val_loader,                                         │
+│   348 │   │   resume_from_checkpoint=resume_from,                            │
+│                                                                              │
+│ ╭───────────────────────────────── locals ─────────────────────────────────╮ │
+│ │                 augment = True                                           │ │
+│ │              batch_size = 16                                             │ │
+│ │       batch_size_config = 16                                             │ │
+│ │        cnn_kernel_sizes = '2,3,4,5'                                      │ │
+│ │         cnn_num_filters = 128                                            │ │
+│ │                  config = None                                           │ │
+│ │        config_overrides = {}                                             │ │
+│ │            config_table = <rich.table.Table object at 0x130562cb0>       │ │
+│ │          disable_mlflow = False                                          │ │
+│ │ early_stopping_patience = 3                                              │ │
+│ │ enable_dynamic_batching = True                                           │ │
+│ │         eval_batch_size = 32                                             │ │
+│ │              eval_steps = 100                                            │ │
+│ │         experiment_name = 'mlx_unified'                                  │ │
+│ │                       f = <_io.TextIOWrapper                             │ │
+│ │                           name='output/run_20250717_092101/training_con… │ │
+│ │                           mode='w' encoding='UTF-8'>                     │ │
+│ │             full_config = {                                              │ │
+│ │                           │   'model':                                   │ │
+│ │                           'mlx-community/answerdotai-ModernBERT-base-4b… │ │
+│ │                           │   'model_type': 'base',                      │ │
+│ │                           │   'use_mlx_embeddings': True,                │ │
+│ │                           │   'tokenizer_backend': 'auto',               │ │
+│ │                           │   'train_path': 'data/titanic/train.csv',    │ │
+│ │                           │   'val_path': 'data/titanic/val.csv',        │ │
+│ │                           │   'timestamp': '20250717_092101',            │ │
+│ │                           │   'learning_rate': 2e-05,                    │ │
+│ │                           │   'epochs': 3,                               │ │
+│ │                           │   'batch_size': 16,                          │ │
+│ │                           │   ... +9                                     │ │
+│ │                           }                                              │ │
+│ │   gradient_accumulation = 1                                              │ │
+│ │           gradient_clip = 1.0                                            │ │
+│ │         label_smoothing = 0.0                                            │ │
+│ │           learning_rate = 2e-05                                          │ │
+│ │          max_batch_size = 64                                             │ │
+│ │   max_batch_size_config = 64                                             │ │
+│ │              max_length = 256                                            │ │
+│ │                   model = TitanicClassifier(                             │ │
+│ │                             (embedding_model): EmbeddingModel(           │ │
+│ │                           │   (embedding_model): Model(                  │ │
+│ │                           │     (model): ModernBertModel(                │ │
+│ │                           │   │   (embeddings): ModernBertEmbeddings(    │ │
+│ │                           │   │     (tok_embeddings):                    │ │
+│ │                           QuantizedEmbedding(50368, 768, group_size=64,  │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     (norm): LayerNorm(768, eps=1e-05,    │ │
+│ │                           affine=True)                                   │ │
+│ │                           │   │     (drop): Dropout(p=0.0)               │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.0): ModernBertEncoderLayer(    │ │
+│ │                           │   │     (attn_norm): Identity()              │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.1): ModernBertEncoderLayer(    │ │
+│ │                           │   │     (attn_norm): LayerNorm(768,          │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.2): ModernBertEncoderLayer(    │ │
+│ │                           │   │     (attn_norm): LayerNorm(768,          │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.3): ModernBertEncoderLayer(    │ │
+│ │                           │   │     (attn_norm): LayerNorm(768,          │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.4): ModernBertEncoderLayer(    │ │
+│ │                           │   │     (attn_norm): LayerNorm(768,          │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.5): ModernBertEncoderLayer(    │ │
+│ │                           │   │     (attn_norm): LayerNorm(768,          │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.6): ModernBertEncoderLayer(    │ │
+│ │                           │   │     (attn_norm): LayerNorm(768,          │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.7): ModernBertEncoderLayer(    │ │
+│ │                           │   │     (attn_norm): LayerNorm(768,          │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.8): ModernBertEncoderLayer(    │ │
+│ │                           │   │     (attn_norm): LayerNorm(768,          │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.9): ModernBertEncoderLayer(    │ │
+│ │                           │   │     (attn_norm): LayerNorm(768,          │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.10): ModernBertEncoderLayer(   │ │
+│ │                           │   │     (attn_norm): LayerNorm(768,          │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.11): ModernBertEncoderLayer(   │ │
+│ │                           │   │     (attn_norm): LayerNorm(768,          │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.12): ModernBertEncoderLayer(   │ │
+│ │                           │   │     (attn_norm): LayerNorm(768,          │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.13): ModernBertEncoderLayer(   │ │
+│ │                           │   │     (attn_norm): LayerNorm(768,          │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.14): ModernBertEncoderLayer(   │ │
+│ │                           │   │     (attn_norm): LayerNorm(768,          │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.15): ModernBertEncoderLayer(   │ │
+│ │                           │   │     (attn_norm): LayerNorm(768,          │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.16): ModernBertEncoderLayer(   │ │
+│ │                           │   │     (attn_norm): LayerNorm(768,          │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.17): ModernBertEncoderLayer(   │ │
+│ │                           │   │     (attn_norm): LayerNorm(768,          │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.18): ModernBertEncoderLayer(   │ │
+│ │                           │   │     (attn_norm): LayerNorm(768,          │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.19): ModernBertEncoderLayer(   │ │
+│ │                           │   │     (attn_norm): LayerNorm(768,          │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.20): ModernBertEncoderLayer(   │ │
+│ │                           │   │     (attn_norm): LayerNorm(768,          │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (layers.21): ModernBertEncoderLayer(   │ │
+│ │                           │   │     (attn_norm): LayerNorm(768,          │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │     (attn): ModernBertAttention(         │ │
+│ │                           │   │   │   (Wqkv):                            │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (rotary_emb): RoPE(64,             │ │
+│ │                           traditional=False)                             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (out_drop): Identity()             │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp): ModernBertMLP(                │ │
+│ │                           │   │   │   (Wi):                              │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=2304, bias=False, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   │   (act): GELU()                      │ │
+│ │                           │   │   │   (drop): Dropout(p=0.0)             │ │
+│ │                           │   │   │   (Wo):                              │ │
+│ │                           QuantizedLinear(input_dims=1152,               │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │     )                                    │ │
+│ │                           │   │     (mlp_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │   │   )                                      │ │
+│ │                           │   │   (final_norm): LayerNorm(768,           │ │
+│ │                           eps=1e-05, affine=True)                        │ │
+│ │                           │     )                                        │ │
+│ │                           │     (head): ModernBertPredictionHead(        │ │
+│ │                           │   │   (dense):                               │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=768, bias=False, group_size=64,    │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   │   (act): GELU()                          │ │
+│ │                           │   │   (norm): LayerNorm(768, eps=1e-05,      │ │
+│ │                           affine=True)                                   │ │
+│ │                           │     )                                        │ │
+│ │                           │     (decoder):                               │ │
+│ │                           QuantizedLinear(input_dims=768,                │ │
+│ │                           output_dims=50368, bias=True, group_size=64,   │ │
+│ │                           bits=4)                                        │ │
+│ │                           │   )                                          │ │
+│ │                             )                                            │ │
+│ │                             (classification_head):                       │ │
+│ │                           BinaryClassificationHead(                      │ │
+│ │                           │   (classifier): Sequential(                  │ │
+│ │                           │     (layers.0):                              │ │
+│ │                           Dropout(p=0.09999999999999998)                 │ │
+│ │                           │     (layers.1): Linear(input_dims=768,       │ │
+│ │                           output_dims=2, bias=True)                      │ │
+│ │                           │   )                                          │ │
+│ │                             )                                            │ │
+│ │                           )                                              │ │
+│ │              model_desc = 'New Architecture MLX Embeddings ModernBERT'   │ │
+│ │              model_name = 'mlx-community/answerdotai-ModernBERT-base-4b… │ │
+│ │              model_type = 'base'                                         │ │
+│ │              num_epochs = 3                                              │ │
+│ │             num_workers = 4                                              │ │
+│ │               optimizer = <mlx.optimizers.optimizers.AdamW object at     │ │
+│ │                           0x11a3aebc0>                                   │ │
+│ │              output_dir = PosixPath('output')                            │ │
+│ │           prefetch_size = 4                                              │ │
+│ │             resume_from = None                                           │ │
+│ │                 run_dir = PosixPath('output/run_20250717_092101')        │ │
+│ │                run_name = None                                           │ │
+│ │              save_steps = 100                                            │ │
+│ │              start_time = 1752769263.09135                               │ │
+│ │               timestamp = '20250717_092101'                              │ │
+│ │       tokenizer_backend = 'auto'                                         │ │
+│ │            train_loader = <data.mlx_dataloader.KaggleDataLoader object   │ │
+│ │                           at 0x1304e2320>                                │ │
+│ │              train_path = PosixPath('data/titanic/train.csv')            │ │
+│ │           train_samples = 896                                            │ │
+│ │                 trainer = <training.mlx_trainer.MLXTrainer object at     │ │
+│ │                           0x12fa509d0>                                   │ │
+│ │         training_config = TrainingConfig(                                │ │
+│ │                           │   epochs=3,                                  │ │
+│ │                           │   batch_size=16,                             │ │
+│ │                           │   learning_rate=2e-05,                       │ │
+│ │                           │   warmup_steps=16,                           │ │
+│ │                           │   max_steps=None,                            │ │
+│ │                           │   model_name='answerdotai/ModernBERT-base',  │ │
+│ │                           │   model_type='modernbert',                   │ │
+│ │                           │   max_length=256,                            │ │
+│ │                           │   num_labels=1,                              │ │
+│ │                           │   train_path='data/titanic/train.csv',       │ │
+│ │                           │   val_path='data/titanic/val.csv',           │ │
+│ │                           │   test_path=None,                            │ │
+│ │                           │   target_column=None,                        │ │
+│ │                           │   optimizer=<OptimizerType.ADAMW: 'adamw'>,  │ │
+│ │                           │                                              │ │
+│ │                           lr_schedule=<LearningRateSchedule.COSINE_WARM… │ │
+│ │                           'cosine_warmup'>,                              │ │
+│ │                           │   loss_function=<LossFunction.CROSS_ENTROPY: │ │
+│ │                           'cross_entropy'>,                              │ │
+│ │                           │                                              │ │
+│ │                           optimization_level=<OptimizationLevel.DEVELOP… │ │
+│ │                           'development'>,                                │ │
+│ │                           │   memory=MemoryConfig(                       │ │
+│ │                           │   │   enable_memory_profiling=False,         │ │
+│ │                           │   │   memory_limit_gb=None,                  │ │
+│ │                           │   │   dynamic_batch_sizing=False,            │ │
+│ │                           │   │   min_batch_size=4,                      │ │
+│ │                           │   │   max_batch_size=128,                    │ │
+│ │                           │   │   memory_check_interval=100,             │ │
+│ │                           │   │   unified_memory_fraction=0.8,           │ │
+│ │                           │   │   enable_memory_pool=True,               │ │
+│ │                           │   │   force_garbage_collection=True,         │ │
+│ │                           │   │   gc_interval=500                        │ │
+│ │                           │   ),                                         │ │
+│ │                           │   mlx_optimization=MLXOptimizationConfig(    │ │
+│ │                           │   │   enable_lazy_evaluation=True,           │ │
+│ │                           │   │   eval_frequency=5,                      │ │
+│ │                           │   │   enable_gradient_checkpointing=False,   │ │
+│ │                           │   │   gradient_accumulation_steps=1,         │ │
+│ │                           │   │   max_grad_norm=1.0,                     │ │
+│ │                           │   │   device_placement_strategy='auto',      │ │
+│ │                           │   │   enable_multi_device=False,             │ │
+│ │                           │   │   mixed_precision=False,                 │ │
+│ │                           │   │   precision_dtype='float32',             │ │
+│ │                           │   │   enable_jit=True,                       │ │
+│ │                           │   │   optimize_memory_layout=True            │ │
+│ │                           │   ),                                         │ │
+│ │                           │   monitoring=MonitoringConfig(               │ │
+│ │                           │   │   enable_mlflow=True,                    │ │
+│ │                           │   │   experiment_name='mlx_unified',         │ │
+│ │                           │   │   run_name='base_20250717_092101',       │ │
+│ │                           │   │   tracking_uri=None,                     │ │
+│ │                           │   │   log_level='INFO',                      │ │
+│ │                           │   │   log_to_file=True,                      │ │
+│ │                           │   │                                          │ │
+│ │                           log_file_path='output/run_20250717_092101/tra… │ │
+│ │                           │   │   enable_rich_console=False,             │ │
+│ │                           │   │   log_frequency=5,                       │ │
+│ │                           │   │   eval_frequency=500,                    │ │
+│ │                           │   │   save_frequency=1000,                   │ │
+│ │                           │   │   enable_progress_bar=True,              │ │
+│ │                           │   │   progress_bar_style='rich',             │ │
+│ │                           │   │   track_gradients=False,                 │ │
+│ │                           │   │   track_weights=False,                   │ │
+│ │                           │   │   track_memory=True,                     │ │
+│ │                           │   │   track_performance=True                 │ │
+│ │                           │   ),                                         │ │
+│ │                           │   checkpoint=CheckpointConfig(               │ │
+│ │                           │   │   enable_checkpointing=True,             │ │
+│ │                           │   │                                          │ │
+│ │                           checkpoint_dir='output/run_20250717_092101/ou… │ │
+│ │                           │   │   checkpoint_frequency=100,              │ │
+│ │                           │   │   save_optimizer_state=True,             │ │
+│ │                           │   │   save_scheduler_state=True,             │ │
+│ │                           │   │   save_random_state=True,                │ │
+│ │                           │   │   save_model_weights=True,               │ │
+│ │                           │   │   max_checkpoints_to_keep=5,             │ │
+│ │                           │   │   save_best_model=True,                  │ │
+│ │                           │   │   best_model_metric='val_accuracy',      │ │
+│ │                           │   │   best_model_mode='max',                 │ │
+│ │                           │   │   auto_resume=True,                      │ │
+│ │                           │   │   resume_from_checkpoint=None,           │ │
+│ │                           │   │   use_safetensors=True,                  │ │
+│ │                           │   │   compress_checkpoints=False             │ │
+│ │                           │   ),                                         │ │
+│ │                           │   evaluation=EvaluationConfig(               │ │
+│ │                           │   │   eval_during_training=True,             │ │
+│ │                           │   │   eval_steps=100,                        │ │
+│ │                           │   │   eval_strategy='steps',                 │ │
+│ │                           │   │   primary_metric='accuracy',             │ │
+│ │                           │   │   metrics_to_compute=[                   │ │
+│ │                           │   │   │   'accuracy',                        │ │
+│ │                           │   │   │   'precision',                       │ │
+│ │                           │   │   │   'recall',                          │ │
+│ │                           │   │   │   'f1',                              │ │
+│ │                           │   │   │   'auc'                              │ │
+│ │                           │   │   ],                                     │ │
+│ │                           │   │   enable_early_stopping=True,            │ │
+│ │                           │   │   early_stopping_patience=3,             │ │
+│ │                           │   │   early_stopping_threshold=0.001,        │ │
+│ │                           │   │   early_stopping_metric='val_loss',      │ │
+│ │                           │   │   early_stopping_mode='min',             │ │
+│ │                           │   │   validation_split=0.2,                  │ │
+│ │                           │   │   validation_batch_size=None,            │ │
+│ │                           │   │   test_at_end=True,                      │ │
+│ │                           │   │   generate_predictions=True,             │ │
+│ │                           │   │   save_predictions=True                  │ │
+│ │                           │   ),                                         │ │
+│ │                           │   advanced=AdvancedFeatures(                 │ │
+│ │                           │   │   label_smoothing=0.0,                   │ │
+│ │                           │   │   dropout_rate=0.1,                      │ │
+│ │                           │   │   weight_decay=0.01,                     │ │
+│ │                           │   │   enable_augmentation=True,              │ │
+│ │                           │   │   augmentation_probability=0.5,          │ │
+│ │                           │   │   enable_curriculum_learning=False,      │ │
+│ │                           │   │   curriculum_strategy='difficulty',      │ │
+│ │                           │   │   curriculum_pace=0.1,                   │ │
+│ │                           │   │   enable_ensembling=False,               │ │
+│ │                           │   │   ensemble_size=1,                       │ │
+│ │                           │   │   ensemble_strategy='averaging',         │ │
+│ │                           │   │   enable_distillation=False,             │ │
+│ │                           │   │   teacher_model_path=None,               │ │
+│ │                           │   │   distillation_temperature=3.0,          │ │
+│ │                           │   │   distillation_alpha=0.5,                │ │
+│ │                           │   │   enable_hpo=False,                      │ │
+│ │                           │   │   hpo_backend='optuna',                  │ │
+│ │                           │   │   hpo_trials=50,                         │ │
+│ │                           │   │   hpo_metric='val_accuracy'              │ │
+│ │                           │   ),                                         │ │
+│ │                           │   seed=42,                                   │ │
+│ │                           │   deterministic=True,                        │ │
+│ │                           │   output_dir='output/run_20250717_092101',   │ │
+│ │                           │   experiment_name='mlx_unified',             │ │
+│ │                           │   run_name='base_20250717_092101'            │ │
+│ │                           )                                              │ │
+│ │        use_dilated_conv = True                                           │ │
+│ │      use_mlx_embeddings = True                                           │ │
+│ │              val_loader = <data.mlx_dataloader.KaggleDataLoader object   │ │
+│ │                           at 0x11a2661d0>                                │ │
+│ │                val_path = PosixPath('data/titanic/val.csv')              │ │
+│ │             val_samples = 192                                            │ │
+│ │            warmup_ratio = 0.1                                            │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│                                                                              │
+│ /Users/parkergabel/PycharmProjects/bert-playground/training/mlx_trainer.py:6 │
+│ 84 in train                                                                  │
+│                                                                              │
+│    681 │   │   │   │   │   if self.config.memory.dynamic_batch_sizing:       │
+│    682 │   │   │   │   │   │   self.adjust_batch_size_dynamically()          │
+│    683 │   │   │   │   │                                                     │
+│ ❱  684 │   │   │   │   │   epoch_metrics = self._train_epoch(train_loader, v │
+│    685 │   │   │   │   │                                                     │
+│    686 │   │   │   │   │   # Log epoch summary                               │
+│    687 │   │   │   │   │   epoch_time = time.time() - epoch_start_time       │
+│                                                                              │
+│ ╭───────────────────────────────── locals ─────────────────────────────────╮ │
+│ │                  epoch = 1                                               │ │
+│ │          epoch_metrics = {                                               │ │
+│ │                          │   'avg_loss': nan,                            │ │
+│ │                          │   'avg_step_time':                            │ │
+│ │                          np.float64(0.45231832351003376),                │ │
+│ │                          │   'throughput': np.float64(35.37331823269608) │ │
+│ │                          }                                               │ │
+│ │       epoch_start_time = 1752769288.728866                               │ │
+│ │             epoch_time = 25.63435959815979                               │ │
+│ │        experiment_name = 'mlx_unified'                                   │ │
+│ │                history = {                                               │ │
+│ │                          │   'train_loss': [nan],                        │ │
+│ │                          │   'validation_metrics': [],                   │ │
+│ │                          │   'learning_rates': [                         │ │
+│ │                          │   │   1.25e-06,                               │ │
+│ │                          │   │   2.5e-06,                                │ │
+│ │                          │   │   3.7500000000000005e-06,                 │ │
+│ │                          │   │   5e-06,                                  │ │
+│ │                          │   │   6.25e-06,                               │ │
+│ │                          │   │   7.500000000000001e-06,                  │ │
+│ │                          │   │   8.750000000000001e-06,                  │ │
+│ │                          │   │   1e-05,                                  │ │
+│ │                          │   │   1.125e-05,                              │ │
+│ │                          │   │   1.25e-05,                               │ │
+│ │                          │   │   ... +90                                 │ │
+│ │                          │   ],                                          │ │
+│ │                          │   'memory_usage': [                           │ │
+│ │                          │   │   0.0,                                    │ │
+│ │                          │   │   0.0,                                    │ │
+│ │                          │   │   0.0,                                    │ │
+│ │                          │   │   0.0,                                    │ │
+│ │                          │   │   0.0,                                    │ │
+│ │                          │   │   0.0,                                    │ │
+│ │                          │   │   0.0,                                    │ │
+│ │                          │   │   0.0,                                    │ │
+│ │                          │   │   0.0,                                    │ │
+│ │                          │   │   0.0,                                    │ │
+│ │                          │   │   ... +90                                 │ │
+│ │                          │   ],                                          │ │
+│ │                          │   'batch_sizes': [                            │ │
+│ │                          │   │   16,                                     │ │
+│ │                          │   │   16,                                     │ │
+│ │                          │   │   16,                                     │ │
+│ │                          │   │   16,                                     │ │
+│ │                          │   │   16,                                     │ │
+│ │                          │   │   16,                                     │ │
+│ │                          │   │   16,                                     │ │
+│ │                          │   │   16,                                     │ │
+│ │                          │   │   16,                                     │ │
+│ │                          │   │   16,                                     │ │
+│ │                          │   │   ... +90                                 │ │
+│ │                          │   ]                                           │ │
+│ │                          }                                               │ │
+│ │ resume_from_checkpoint = None                                            │ │
+│ │                   self = <training.mlx_trainer.MLXTrainer object at      │ │
+│ │                          0x12fa509d0>                                    │ │
+│ │             start_time = 1752769263.093421                               │ │
+│ │        steps_per_epoch = 56                                              │ │
+│ │            test_loader = None                                            │ │
+│ │           train_loader = <data.mlx_dataloader.KaggleDataLoader object at │ │
+│ │                          0x1304e2320>                                    │ │
+│ │             val_loader = <data.mlx_dataloader.KaggleDataLoader object at │ │
+│ │                          0x11a2661d0>                                    │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│                                                                              │
+│ /Users/parkergabel/PycharmProjects/bert-playground/training/mlx_trainer.py:8 │
+│ 21 in _train_epoch                                                           │
+│                                                                              │
+│    818 │   │   │   │   │   val_loader                                        │
+│    819 │   │   │   │   │   and self.global_step % self.config.evaluation.eva │
+│    820 │   │   │   │   ):                                                    │
+│ ❱  821 │   │   │   │   │   val_metrics = self.evaluate(val_loader, "validati │
+│    822 │   │   │   │   │   history["validation_metrics"].append(val_metrics) │
+│    823 │   │   │   │   │                                                     │
+│    824 │   │   │   │   │   # Check for best model                            │
+│                                                                              │
+│ ╭───────────────────────────────── locals ─────────────────────────────────╮ │
+│ │   _batch_idx = 43                                                        │ │
+│ │        batch = {                                                         │ │
+│ │                │   'input_ids': array([[50281, 49, 2437, ..., 50283,     │ │
+│ │                50283, 50283],                                            │ │
+│ │                │      [50281, 49, 2437, ..., 50283, 50283, 50283],       │ │
+│ │                │      [50281, 49, 2437, ..., 50283, 50283, 50283],       │ │
+│ │                │      ...,                                               │ │
+│ │                │      [50281, 49, 2437, ..., 50283, 50283, 50283],       │ │
+│ │                │      [50281, 49, 2437, ..., 50283, 50283, 50283],       │ │
+│ │                │      [50281, 49, 2437, ..., 50283, 50283, 50283]],      │ │
+│ │                dtype=int32),                                             │ │
+│ │                │   'attention_mask': array([[1, 1, 1, ..., 0, 0, 0],     │ │
+│ │                │      [1, 1, 1, ..., 0, 0, 0],                           │ │
+│ │                │      [1, 1, 1, ..., 0, 0, 0],                           │ │
+│ │                │      ...,                                               │ │
+│ │                │      [1, 1, 1, ..., 0, 0, 0],                           │ │
+│ │                │      [1, 1, 1, ..., 0, 0, 0],                           │ │
+│ │                │      [1, 1, 1, ..., 0, 0, 0]], dtype=int32),            │ │
+│ │                │   'labels': array([1, 0, 1, ..., 0, 1, 0], dtype=int32) │ │
+│ │                }                                                         │ │
+│ │   epoch_loss = nan                                                       │ │
+│ │      history = {                                                         │ │
+│ │                │   'train_loss': [nan],                                  │ │
+│ │                │   'validation_metrics': [],                             │ │
+│ │                │   'learning_rates': [                                   │ │
+│ │                │   │   1.25e-06,                                         │ │
+│ │                │   │   2.5e-06,                                          │ │
+│ │                │   │   3.7500000000000005e-06,                           │ │
+│ │                │   │   5e-06,                                            │ │
+│ │                │   │   6.25e-06,                                         │ │
+│ │                │   │   7.500000000000001e-06,                            │ │
+│ │                │   │   8.750000000000001e-06,                            │ │
+│ │                │   │   1e-05,                                            │ │
+│ │                │   │   1.125e-05,                                        │ │
+│ │                │   │   1.25e-05,                                         │ │
+│ │                │   │   ... +90                                           │ │
+│ │                │   ],                                                    │ │
+│ │                │   'memory_usage': [                                     │ │
+│ │                │   │   0.0,                                              │ │
+│ │                │   │   0.0,                                              │ │
+│ │                │   │   0.0,                                              │ │
+│ │                │   │   0.0,                                              │ │
+│ │                │   │   0.0,                                              │ │
+│ │                │   │   0.0,                                              │ │
+│ │                │   │   0.0,                                              │ │
+│ │                │   │   0.0,                                              │ │
+│ │                │   │   0.0,                                              │ │
+│ │                │   │   0.0,                                              │ │
+│ │                │   │   ... +90                                           │ │
+│ │                │   ],                                                    │ │
+│ │                │   'batch_sizes': [                                      │ │
+│ │                │   │   16,                                               │ │
+│ │                │   │   16,                                               │ │
+│ │                │   │   16,                                               │ │
+│ │                │   │   16,                                               │ │
+│ │                │   │   16,                                               │ │
+│ │                │   │   16,                                               │ │
+│ │                │   │   16,                                               │ │
+│ │                │   │   16,                                               │ │
+│ │                │   │   16,                                               │ │
+│ │                │   │   16,                                               │ │
+│ │                │   │   ... +90                                           │ │
+│ │                │   ]                                                     │ │
+│ │                }                                                         │ │
+│ │         loss = nan                                                       │ │
+│ │      metrics = {                                                         │ │
+│ │                │   'loss': nan,                                          │ │
+│ │                │   'learning_rate': np.float64(8.35405409719266e-06),    │ │
+│ │                │   'batch_size': 16,                                     │ │
+│ │                │   'memory_usage': 0.0,                                  │ │
+│ │                │   'epoch': 1,                                           │ │
+│ │                │   'step': 100,                                          │ │
+│ │                │   'step_time': 0.44119715690612793,                     │ │
+│ │                │   'samples_per_second': 36.26496623912803,              │ │
+│ │                │   'tokens_per_second': 9283.831357216775                │ │
+│ │                }                                                         │ │
+│ │  num_updates = 44                                                        │ │
+│ │     progress = <rich.progress.Progress object at 0x14174c820>            │ │
+│ │         self = <training.mlx_trainer.MLXTrainer object at 0x12fa509d0>   │ │
+│ │   step_start = 1752769308.027209                                         │ │
+│ │    step_time = 0.47934985160827637                                       │ │
+│ │   step_times = [                                                         │ │
+│ │                │   0.4427928924560547,                                   │ │
+│ │                │   0.4416377544403076,                                   │ │
+│ │                │   0.4420750141143799,                                   │ │
+│ │                │   0.48503708839416504,                                  │ │
+│ │                │   0.4408700466156006,                                   │ │
+│ │                │   0.44133615493774414,                                  │ │
+│ │                │   0.44181323051452637,                                  │ │
+│ │                │   0.4416658878326416,                                   │ │
+│ │                │   0.48347973823547363,                                  │ │
+│ │                │   0.4409220218658447,                                   │ │
+│ │                │   ... +34                                               │ │
+│ │                ]                                                         │ │
+│ │ train_loader = <data.mlx_dataloader.KaggleDataLoader object at           │ │
+│ │                0x1304e2320>                                              │ │
+│ │   train_task = 0                                                         │ │
+│ │   val_loader = <data.mlx_dataloader.KaggleDataLoader object at           │ │
+│ │                0x11a2661d0>                                              │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│                                                                              │
+│ /Users/parkergabel/PycharmProjects/bert-playground/training/mlx_trainer.py:4 │
+│ 85 in evaluate                                                               │
+│                                                                              │
+│    482 │   │   num_batches = 0                                               │
+│    483 │   │                                                                 │
+│    484 │   │   # Progress tracking                                           │
+│ ❱  485 │   │   with Progress(                                                │
+│    486 │   │   │   SpinnerColumn(),                                          │
+│    487 │   │   │   TextColumn("[progress.description]{task.description}"),   │
+│    488 │   │   │   BarColumn(),                                              │
+│                                                                              │
+│ ╭───────────────────────────────── locals ─────────────────────────────────╮ │
+│ │        all_labels = []                                                   │ │
+│ │   all_predictions = []                                                   │ │
+│ │ all_probabilities = []                                                   │ │
+│ │        dataloader = <data.mlx_dataloader.KaggleDataLoader object at      │ │
+│ │                     0x11a2661d0>                                         │ │
+│ │       max_batches = None                                                 │ │
+│ │       num_batches = 0                                                    │ │
+│ │             phase = 'validation'                                         │ │
+│ │              self = <training.mlx_trainer.MLXTrainer object at           │ │
+│ │                     0x12fa509d0>                                         │ │
+│ │        total_loss = 0.0                                                  │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│                                                                              │
+│ /Users/parkergabel/PycharmProjects/bert-playground/.venv/lib/python3.10/site │
+│ -packages/rich/progress.py:1182 in __enter__                                 │
+│                                                                              │
+│   1179 │   │   │   self.console.print()                                      │
+│   1180 │                                                                     │
+│   1181 │   def __enter__(self) -> Self:                                      │
+│ ❱ 1182 │   │   self.start()                                                  │
+│   1183 │   │   return self                                                   │
+│   1184 │                                                                     │
+│   1185 │   def __exit__(                                                     │
+│                                                                              │
+│ ╭─────────────────────── locals ────────────────────────╮                    │
+│ │ self = <rich.progress.Progress object at 0x1416029b0> │                    │
+│ ╰───────────────────────────────────────────────────────╯                    │
+│                                                                              │
+│ /Users/parkergabel/PycharmProjects/bert-playground/.venv/lib/python3.10/site │
+│ -packages/rich/progress.py:1173 in start                                     │
+│                                                                              │
+│   1170 │   def start(self) -> None:                                          │
+│   1171 │   │   """Start the progress display."""                             │
+│   1172 │   │   if not self.disable:                                          │
+│ ❱ 1173 │   │   │   self.live.start(refresh=True)                             │
+│   1174 │                                                                     │
+│   1175 │   def stop(self) -> None:                                           │
+│   1176 │   │   """Stop the progress display."""                              │
+│                                                                              │
+│ ╭─────────────────────── locals ────────────────────────╮                    │
+│ │ self = <rich.progress.Progress object at 0x1416029b0> │                    │
+│ ╰───────────────────────────────────────────────────────╯                    │
+│                                                                              │
+│ /Users/parkergabel/PycharmProjects/bert-playground/.venv/lib/python3.10/site │
+│ -packages/rich/live.py:113 in start                                          │
+│                                                                              │
+│   110 │   │   with self._lock:                                               │
+│   111 │   │   │   if self._started:                                          │
+│   112 │   │   │   │   return                                                 │
+│ ❱ 113 │   │   │   self.console.set_live(self)                                │
+│   114 │   │   │   self._started = True                                       │
+│   115 │   │   │   if self._screen:                                           │
+│   116 │   │   │   │   self._alt_screen = self.console.set_alt_screen(True)   │
+│                                                                              │
+│ ╭───────────────────── locals ─────────────────────╮                         │
+│ │ refresh = True                                   │                         │
+│ │    self = <rich.live.Live object at 0x141603220> │                         │
+│ ╰──────────────────────────────────────────────────╯                         │
+│                                                                              │
+│ /Users/parkergabel/PycharmProjects/bert-playground/.venv/lib/python3.10/site │
+│ -packages/rich/console.py:837 in set_live                                    │
+│                                                                              │
+│    834 │   │   """                                                           │
+│    835 │   │   with self._lock:                                              │
+│    836 │   │   │   if self._live is not None:                                │
+│ ❱  837 │   │   │   │   raise errors.LiveError("Only one live display may be  │
+│    838 │   │   │   self._live = live                                         │
+│    839 │                                                                     │
+│    840 │   def clear_live(self) -> None:                                     │
+│                                                                              │
+│ ╭─────────────────── locals ────────────────────╮                            │
+│ │ live = <rich.live.Live object at 0x141603220> │                            │
+│ │ self = <console width=80 None>                │                            │
+│ ╰───────────────────────────────────────────────╯                            │
+╰──────────────────────────────────────────────────────────────────────────────╯
+LiveError: Only one live display may be active at once

@@ -92,8 +92,6 @@ class MLXTrainer:
         self.steps_since_eval = 0
         self.total_steps = 0
         
-        # MLflow tracking
-        self.mlflow_run = None
 
         # Advanced memory management
         memory_thresholds = MemoryThresholds(
@@ -797,9 +795,6 @@ class MLXTrainer:
                             train_task_id, advance=1, description=description
                         )
 
-                    # Log to MLflow
-                    if self.config.monitoring.enable_mlflow and self.mlflow_run:
-                        self._log_metrics_to_mlflow(metrics)
 
                     # Add to history
                     history["learning_rates"].append(metrics["learning_rate"])
@@ -832,9 +827,6 @@ class MLXTrainer:
                             if self.config.checkpoint.save_best_model:
                                 self._save_checkpoint("best_model")
 
-                    # Log validation metrics
-                    if self.config.monitoring.enable_mlflow and self.mlflow_run:
-                        self._log_metrics_to_mlflow(val_metrics)
 
                 # Checkpoint saving
                 if (
@@ -892,39 +884,6 @@ class MLXTrainer:
 
         return final_metrics
 
-    def _setup_mlflow_tracking(self) -> None:
-        """Setup MLflow experiment tracking."""
-        try:
-            import mlflow
-
-            # Set tracking URI
-            if self.config.monitoring.tracking_uri:
-                mlflow.set_tracking_uri(self.config.monitoring.tracking_uri)
-
-            # Set experiment
-            experiment_name = self.config.monitoring.experiment_name
-            mlflow.set_experiment(experiment_name)
-
-            logger.info(f"MLflow tracking setup for experiment: {experiment_name}")
-
-        except ImportError:
-            logger.warning("MLflow not available, skipping tracking setup")
-            self.config.monitoring.enable_mlflow = False
-
-    def _log_metrics_to_mlflow(self, metrics: dict[str, Any]) -> None:
-        """Log metrics to MLflow."""
-        try:
-            import mlflow
-
-            # Filter out non-numeric metrics
-            numeric_metrics = {
-                k: v
-                for k, v in metrics.items()
-                if isinstance(v, int | float) and not isinstance(v, bool)
-            }
-            mlflow.log_metrics(numeric_metrics, step=self.global_step)
-        except Exception as e:
-            logger.warning(f"Failed to log metrics to MLflow: {e}")
 
     def _save_checkpoint(self, checkpoint_name: str) -> None:
         """Save model checkpoint with comprehensive state."""

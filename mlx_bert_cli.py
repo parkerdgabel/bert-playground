@@ -25,7 +25,13 @@ apply_mlx_patches()
 from models.factory import create_model
 from models.modernbert_cnn_hybrid import create_cnn_hybrid_model
 from data import KaggleDataLoader, create_kaggle_dataloader
-from models.classification import TitanicClassifier
+# Import the unified TitanicClassifier from the main classification.py file
+# (not from models/classification/titanic_classifier.py which expects EmbeddingModel)
+import importlib.util
+spec = importlib.util.spec_from_file_location("classification", "/Users/parkergabel/PycharmProjects/bert-playground/models/classification.py")
+classification_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(classification_module)
+UnifiedTitanicClassifier = classification_module.TitanicClassifier
 from training.mlx_trainer import MLXTrainer
 from training.config import TrainingConfig
 from utils.mlflow_central import setup_central_mlflow
@@ -284,12 +290,12 @@ def train(
 
             # For CNN model, override config hidden_size
             bert_model.config.hidden_size = bert_model.output_hidden_size
-            model = TitanicClassifier(bert_model)
+            model = UnifiedTitanicClassifier(bert_model)
         else:
-            # Create base model
+            # Create standard model and wrap with classifier
             bert_model = create_model("standard")
-            model_desc = "OptimizedModernBertMLX"
-            model = TitanicClassifier(bert_model)
+            model = UnifiedTitanicClassifier(bert_model)
+            model_desc = "ModernBERT with TitanicClassifier"
 
     console.print(f"[green]✓ Created {model_desc} model[/green]")
 
@@ -424,10 +430,10 @@ def predict(
                 use_dilated_conv=train_config.get("use_dilated_conv", True),
             )
             bert_model.config.hidden_size = bert_model.output_hidden_size
+            model = UnifiedTitanicClassifier(bert_model)
         else:
             bert_model = create_model("standard")
-
-        model = TitanicClassifier(bert_model)
+            model = UnifiedTitanicClassifier(bert_model)
         
         # Load weights
         model.load_pretrained(str(checkpoint))
@@ -508,10 +514,10 @@ def benchmark(
                 num_labels=2,
             )
             bert_model.config.hidden_size = bert_model.output_hidden_size
+            model = UnifiedTitanicClassifier(bert_model)
         else:
             bert_model = create_model("standard")
-
-        model = TitanicClassifier(bert_model)
+            model = UnifiedTitanicClassifier(bert_model)
 
     # Create optimizer
     optimizer = optim.AdamW(learning_rate=2e-5)
@@ -638,6 +644,116 @@ def export(
         console.print(f"[green]✓ Exported to MLX format at {output_path}[/green]")
     else:
         console.print(f"[red]Format {format} not yet supported[/red]")
+
+
+@app.command()
+def mlflow_health():
+    """Check MLflow health and configuration."""
+    console.print("\n[bold blue]MLflow Health Check[/bold blue]")
+    console.print("=" * 60)
+    
+    from utils.mlflow_health import MLflowHealthChecker
+    
+    health_checker = MLflowHealthChecker()
+    results = health_checker.run_full_check()
+    
+    # Display results
+    for check_name, result in results.items():
+        status = "[green]✓ PASS[/green]" if result["status"] == "PASS" else "[red]✗ FAIL[/red]"
+        console.print(f"{status} {check_name}: {result['message']}")
+        
+        if result["status"] == "FAIL" and result.get("suggestions"):
+            console.print(f"  [yellow]Suggestions:[/yellow]")
+            for suggestion in result["suggestions"]:
+                console.print(f"    • {suggestion}")
+    
+    # Summary
+    passed = sum(1 for r in results.values() if r["status"] == "PASS")
+    total = len(results)
+    
+    if passed == total:
+        console.print(f"\n[bold green]✓ All {total} checks passed![/bold green]")
+    else:
+        failed = total - passed
+        console.print(f"\n[bold red]✗ {failed} of {total} checks failed[/bold red]")
+        console.print("[yellow]Run the suggestions above to fix issues[/yellow]")
+
+
+@app.command()
+def mlflow_test(
+    output: Optional[Path] = typer.Option(
+        None, "--output", "-o", help="Output file for detailed report"
+    ),
+    category: Optional[str] = typer.Option(
+        None, "--category", "-c", help="Run specific test category (health, unit, integration, performance, configuration)"
+    ),
+):
+    """Run comprehensive MLflow test suite."""
+    console.print("\n[bold blue]MLflow Comprehensive Test Suite[/bold blue]")
+    console.print("=" * 60)
+    
+    from tests.mlflow_test_runner import MLflowTestRunner
+    
+    # Create test runner
+    runner = MLflowTestRunner()
+    
+    if category:
+        # Run specific category
+        category_map = {
+            "health": runner._run_health_check,
+            "unit": runner._run_unit_tests,
+            "integration": runner._run_integration_tests,
+            "performance": runner._run_performance_tests,
+            "configuration": runner._run_configuration_tests
+        }
+        
+        if category in category_map:
+            console.print(f"\n[bold blue]Running {category} tests only[/bold blue]")
+            result = category_map[category]()
+            runner.results[category] = result
+            runner._generate_summary_report()
+        else:
+            console.print(f"[red]Unknown category: {category}[/red]")
+            return
+    else:
+        # Run all tests
+        runner.run_all_tests()
+    
+    # Save report if requested
+    if output:
+        runner.save_report(str(output))
+    else:
+        runner.save_report("mlflow_test_report.json")
+    
+    # Check overall status
+    overall_status = all(r.get("status") == "PASS" for r in runner.results.values())
+    if not overall_status:
+        console.print("\n[bold red]Some tests failed. Please address the issues above.[/bold red]")
+        raise typer.Exit(1)
+    else:
+        console.print("\n[bold green]All tests passed! MLflow is ready for training.[/bold green]")
+
+
+@app.command()
+def mlflow_dashboard(
+    refresh_interval: float = typer.Option(
+        5.0, "--refresh", "-r", help="Dashboard refresh interval in seconds"
+    )
+):
+    """Launch MLflow real-time dashboard."""
+    console.print("\n[bold blue]Starting MLflow Dashboard[/bold blue]")
+    console.print("=" * 60)
+    
+    from utils.mlflow_dashboard import MLflowDashboard
+    
+    # Create and start dashboard
+    dashboard = MLflowDashboard(refresh_interval=refresh_interval)
+    
+    try:
+        dashboard.start()
+    except KeyboardInterrupt:
+        dashboard.stop()
+        console.print("\n[yellow]Dashboard stopped[/yellow]")
 
 
 @app.command()
