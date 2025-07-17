@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from training.config import TrainingConfig, OptimizationLevel, OptimizerType, LearningRateSchedule
-from training.mlx_trainer_v2 import MLXTrainerV2
+from training.mlx_trainer import MLXTrainer
 
 
 # Mock model for testing
@@ -72,7 +72,7 @@ class MockDataLoader:
         return self.num_batches
 
 
-class TestMLXTrainerV2:
+class TestMLXTrainer:
     """Test the next-generation MLX trainer."""
     
     @pytest.fixture
@@ -99,8 +99,8 @@ class TestMLXTrainerV2:
     
     def test_trainer_initialization(self, mock_model, training_config):
         """Test trainer initialization."""
-        with patch("training.mlx_trainer_v2.LoggingConfig"):
-            trainer = MLXTrainerV2(mock_model, training_config)
+        with patch("training.mlx_trainer.LoggingConfig"):
+            trainer = MLXTrainer(mock_model, training_config)
             
             assert trainer.model == mock_model
             assert trainer.config == training_config
@@ -122,27 +122,27 @@ class TestMLXTrainerV2:
         for optimizer_type, expected_class in test_cases:
             training_config.optimizer = optimizer_type
             
-            with patch("training.mlx_trainer_v2.LoggingConfig"):
-                trainer = MLXTrainerV2(mock_model, training_config)
+            with patch("training.mlx_trainer.LoggingConfig"):
+                trainer = MLXTrainer(mock_model, training_config)
                 assert isinstance(trainer.optimizer, expected_class)
     
     def test_custom_optimizer(self, mock_model, training_config):
         """Test providing a custom optimizer."""
         custom_optimizer = optim.Adam(learning_rate=1e-3)
         
-        with patch("training.mlx_trainer_v2.LoggingConfig"):
-            trainer = MLXTrainerV2(mock_model, training_config, custom_optimizer)
+        with patch("training.mlx_trainer.LoggingConfig"):
+            trainer = MLXTrainer(mock_model, training_config, custom_optimizer)
             assert trainer.optimizer == custom_optimizer
     
     def test_memory_usage_tracking(self, mock_model, training_config):
         """Test memory usage tracking."""
-        with patch("training.mlx_trainer_v2.LoggingConfig"), \
+        with patch("training.mlx_trainer.LoggingConfig"), \
              patch("psutil.virtual_memory") as mock_memory:
             
             # Mock memory info
             mock_memory.return_value = MagicMock(total=16 * 1024**3, available=8 * 1024**3)
             
-            trainer = MLXTrainerV2(mock_model, training_config)
+            trainer = MLXTrainer(mock_model, training_config)
             memory_usage = trainer.get_memory_usage()
             
             assert 0.0 <= memory_usage <= 1.0
@@ -150,8 +150,8 @@ class TestMLXTrainerV2:
     
     def test_memory_usage_fallback(self, mock_model, training_config):
         """Test memory usage tracking fallback when psutil unavailable."""
-        with patch("training.mlx_trainer_v2.LoggingConfig"):
-            trainer = MLXTrainerV2(mock_model, training_config)
+        with patch("training.mlx_trainer.LoggingConfig"):
+            trainer = MLXTrainer(mock_model, training_config)
             
             # Mock the psutil import to raise ImportError
             with patch("psutil.virtual_memory", side_effect=ImportError("No module named 'psutil'")):
@@ -166,8 +166,8 @@ class TestMLXTrainerV2:
         training_config.memory.max_batch_size = 64
         training_config.memory.unified_memory_fraction = 0.8
         
-        with patch("training.mlx_trainer_v2.LoggingConfig"):
-            trainer = MLXTrainerV2(mock_model, training_config)
+        with patch("training.mlx_trainer.LoggingConfig"):
+            trainer = MLXTrainer(mock_model, training_config)
             trainer.dynamic_batch_size = 16
             
             # Test increasing batch size (low memory usage)
@@ -187,8 +187,8 @@ class TestMLXTrainerV2:
         training_config.learning_rate = base_lr
         training_config.warmup_steps = 10
         
-        with patch("training.mlx_trainer_v2.LoggingConfig"):
-            trainer = MLXTrainerV2(mock_model, training_config)
+        with patch("training.mlx_trainer.LoggingConfig"):
+            trainer = MLXTrainer(mock_model, training_config)
             trainer.total_steps = 100
             
             # Test warmup phase
@@ -218,8 +218,8 @@ class TestMLXTrainerV2:
     
     def test_loss_computation(self, mock_model, training_config):
         """Test loss computation with label smoothing."""
-        with patch("training.mlx_trainer_v2.LoggingConfig"):
-            trainer = MLXTrainerV2(mock_model, training_config)
+        with patch("training.mlx_trainer.LoggingConfig"):
+            trainer = MLXTrainer(mock_model, training_config)
             
             # Create mock batch
             batch = {
@@ -244,8 +244,8 @@ class TestMLXTrainerV2:
         """Test gradient clipping functionality."""
         training_config.mlx_optimization.max_grad_norm = 1.0
         
-        with patch("training.mlx_trainer_v2.LoggingConfig"):
-            trainer = MLXTrainerV2(mock_model, training_config)
+        with patch("training.mlx_trainer.LoggingConfig"):
+            trainer = MLXTrainer(mock_model, training_config)
             
             # Create mock gradients with large norms
             large_grads = {
@@ -265,8 +265,8 @@ class TestMLXTrainerV2:
         """Test a single training step."""
         training_config.mlx_optimization.gradient_accumulation_steps = 1
         
-        with patch("training.mlx_trainer_v2.LoggingConfig"):
-            trainer = MLXTrainerV2(mock_model, training_config)
+        with patch("training.mlx_trainer.LoggingConfig"):
+            trainer = MLXTrainer(mock_model, training_config)
             trainer.total_steps = 100
             
             # Get a batch from the mock dataloader
@@ -286,8 +286,8 @@ class TestMLXTrainerV2:
         """Test gradient accumulation functionality."""
         training_config.mlx_optimization.gradient_accumulation_steps = 2
         
-        with patch("training.mlx_trainer_v2.LoggingConfig"):
-            trainer = MLXTrainerV2(mock_model, training_config)
+        with patch("training.mlx_trainer.LoggingConfig"):
+            trainer = MLXTrainer(mock_model, training_config)
             trainer.total_steps = 100
             
             batch = next(iter(mock_dataloader))
@@ -304,8 +304,8 @@ class TestMLXTrainerV2:
     
     def test_evaluation(self, mock_model, training_config, mock_dataloader):
         """Test model evaluation."""
-        with patch("training.mlx_trainer_v2.LoggingConfig"):
-            trainer = MLXTrainerV2(mock_model, training_config)
+        with patch("training.mlx_trainer.LoggingConfig"):
+            trainer = MLXTrainer(mock_model, training_config)
             
             # Run evaluation
             metrics = trainer.evaluate(mock_dataloader, "test")
@@ -323,8 +323,8 @@ class TestMLXTrainerV2:
         training_config.evaluation.early_stopping_threshold = 0.01
         training_config.evaluation.early_stopping_mode = "max"  # Test improvement mode
         
-        with patch("training.mlx_trainer_v2.LoggingConfig"):
-            trainer = MLXTrainerV2(mock_model, training_config)
+        with patch("training.mlx_trainer.LoggingConfig"):
+            trainer = MLXTrainer(mock_model, training_config)
             
             # Test improvement case
             assert not trainer.should_stop_early(0.8)  # First metric
@@ -345,8 +345,8 @@ class TestMLXTrainerV2:
         with tempfile.TemporaryDirectory() as temp_dir:
             training_config.checkpoint.checkpoint_dir = temp_dir
             
-            with patch("training.mlx_trainer_v2.LoggingConfig"):
-                trainer = MLXTrainerV2(mock_model, training_config)
+            with patch("training.mlx_trainer.LoggingConfig"):
+                trainer = MLXTrainer(mock_model, training_config)
                 
                 # Set some state
                 trainer.global_step = 100
@@ -363,7 +363,7 @@ class TestMLXTrainerV2:
                 assert (checkpoint_path / "trainer_state.json").exists()
                 
                 # Create new trainer and load checkpoint
-                trainer2 = MLXTrainerV2(mock_model, training_config)
+                trainer2 = MLXTrainer(mock_model, training_config)
                 success = trainer2._load_checkpoint(str(checkpoint_path))
                 
                 assert success
@@ -378,8 +378,8 @@ class TestMLXTrainerV2:
             # Test development config
             dev_config = TrainingConfig(optimization_level=OptimizationLevel.DEVELOPMENT)
             
-            with patch("training.mlx_trainer_v2.LoggingConfig"):
-                trainer = MLXTrainerV2(mock_model, dev_config)
+            with patch("training.mlx_trainer.LoggingConfig"):
+                trainer = MLXTrainer(mock_model, dev_config)
                 
                 assert trainer.config.optimization_level == OptimizationLevel.DEVELOPMENT
                 assert not trainer.config.memory.dynamic_batch_sizing
@@ -388,8 +388,8 @@ class TestMLXTrainerV2:
             # Test production config
             prod_config = TrainingConfig(optimization_level=OptimizationLevel.PRODUCTION)
             
-            with patch("training.mlx_trainer_v2.LoggingConfig"):
-                trainer = MLXTrainerV2(mock_model, prod_config)
+            with patch("training.mlx_trainer.LoggingConfig"):
+                trainer = MLXTrainer(mock_model, prod_config)
                 
                 assert trainer.config.optimization_level == OptimizationLevel.PRODUCTION
                 assert trainer.config.memory.dynamic_batch_sizing
@@ -400,11 +400,11 @@ class TestMLXTrainerV2:
         training_config.monitoring.enable_mlflow = True
         training_config.monitoring.experiment_name = "test_experiment"
         
-        with patch("training.mlx_trainer_v2.LoggingConfig"), \
+        with patch("training.mlx_trainer.LoggingConfig"), \
              patch("mlflow.set_experiment") as mock_set_exp, \
              patch("mlflow.log_metrics") as mock_log_metrics:
             
-            trainer = MLXTrainerV2(mock_model, training_config)
+            trainer = MLXTrainer(mock_model, training_config)
             trainer._setup_mlflow_tracking()
             
             mock_set_exp.assert_called_with("test_experiment")
@@ -415,7 +415,7 @@ class TestMLXTrainerV2:
             
             mock_log_metrics.assert_called_with(metrics, step=trainer.global_step)
     
-    @patch("training.mlx_trainer_v2.ExperimentLogger")
+    @patch("training.mlx_trainer.ExperimentLogger")
     def test_training_loop_integration(self, mock_exp_logger, mock_model, training_config, mock_dataloader):
         """Test the complete training loop."""
         # Configure for minimal training
@@ -424,8 +424,8 @@ class TestMLXTrainerV2:
         training_config.checkpoint.checkpoint_frequency = 10
         training_config.monitoring.enable_mlflow = False
         
-        with patch("training.mlx_trainer_v2.LoggingConfig"):
-            trainer = MLXTrainerV2(mock_model, training_config)
+        with patch("training.mlx_trainer.LoggingConfig"):
+            trainer = MLXTrainer(mock_model, training_config)
             
             # Mock the experiment logger context manager
             mock_exp_logger.return_value.__enter__.return_value = MagicMock()

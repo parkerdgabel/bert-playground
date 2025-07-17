@@ -13,7 +13,8 @@ from loguru import logger
 
 from models.factory import create_model
 from models.classification import TitanicClassifier
-from training.mlx_trainer import MLXTrainer, UnifiedTrainingConfig
+from training.mlx_trainer import MLXTrainer
+from training.config import TrainingConfig
 from utils.mlflow_central import MLflowCentral
 
 
@@ -101,26 +102,13 @@ def titanic_classifier(base_model):
 
 
 @pytest.fixture
-def training_config(temp_dir: Path) -> UnifiedTrainingConfig:
+def training_config(temp_dir: Path) -> TrainingConfig:
     """Create a minimal training configuration for testing."""
-    return UnifiedTrainingConfig(
+    return TrainingConfig(
         learning_rate=2e-5,
-        num_epochs=1,
-        base_batch_size=4,
-        max_batch_size=4,
-        enable_dynamic_batching=False,
-        gradient_accumulation_steps=1,
-        eval_steps=2,
-        save_steps=2,
-        early_stopping_patience=0,
-        enable_mlflow=False,
-        enable_profiling=False,
-        enable_visualization=False,
-        output_dir=str(temp_dir / "output"),
-        checkpoint_dir=str(temp_dir / "checkpoints"),
-        cache_dir=str(temp_dir / "cache"),
-        num_workers=1,
-        prefetch_size=1,
+        epochs=1,
+        batch_size=4,
+        output_dir=str(temp_dir / "output")
     )
 
 
