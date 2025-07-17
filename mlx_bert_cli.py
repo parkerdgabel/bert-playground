@@ -21,7 +21,8 @@ from models.factory import create_model
 from models.modernbert_cnn_hybrid import create_cnn_hybrid_model
 from data.unified_loader import create_unified_dataloaders, UnifiedTitanicDataPipeline
 from models.classification import TitanicClassifier
-from training.mlx_trainer import MLXTrainer, UnifiedTrainingConfig
+from training.mlx_trainer import MLXTrainer
+from training.config import TrainingConfig
 from utils.mlflow_central import setup_central_mlflow
 import mlx.optimizers as optim
 
@@ -129,7 +130,7 @@ def train(
     run_dir.mkdir(parents=True, exist_ok=True)
 
     # Create unified training config
-    training_config = UnifiedTrainingConfig(
+    training_config = TrainingConfig(
         # Basic parameters
         learning_rate=config_overrides.get("learning_rate", learning_rate),
         num_epochs=config_overrides.get("num_epochs", num_epochs),
