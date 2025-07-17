@@ -64,7 +64,7 @@ mlx_optimization:
 monitoring:
   enable_mlflow: true
   experiment_name: titanic_best_classifier
-  run_name: "modernbert_optimized_${TIMESTAMP}"  # Environment variable substitution
+  run_name: null  # Auto-generate based on timestamp
   tracking_uri: null  # Use default
   log_level: INFO
   log_to_file: true

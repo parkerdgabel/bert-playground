@@ -1,0 +1,30 @@
+{
+  "total_steps": 112,
+  "time_span_minutes": 0.6436812480290731,
+  "step_time": {
+    "average_seconds": 0.32481902837753296,
+    "min_seconds": 0.19816184043884277,
+    "max_seconds": 0.43201208114624023,
+    "std_seconds": 0.032313105886881376
+  },
+  "throughput": {
+    "average_samples_per_second": 24.688629328461086,
+    "min_samples_per_second": 15.139140781879586,
+    "max_samples_per_second": 32.20819391091171
+  },
+  "memory": {
+    "average_usage_percent": 49.033035714285724,
+    "peak_usage_percent": 49.2,
+    "min_usage_percent": 41.1
+  },
+  "warnings": {
+    "total_warnings": 0,
+    "critical_warnings": 0,
+    "warning_types": []
+  },
+  "apple_silicon": {
+    "neural_engine_avg_utilization": 0.0,
+    "gpu_avg_utilization": 0.0,
+    "thermal_warnings": 0
+  }
+}

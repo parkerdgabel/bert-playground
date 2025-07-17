@@ -1,0 +1,46 @@
+{
+  "system_info": {
+    "apple_silicon": true,
+    "unified_memory_gb": 32.0,
+    "thresholds": {
+      "critical": 0.8800000000000001,
+      "high": 0.8,
+      "optimal": 0.6400000000000001,
+      "low": 0.4
+    }
+  },
+  "current_metrics": {
+    "timestamp": 1752781201.248991,
+    "total_memory_gb": 32.0,
+    "used_memory_gb": 20.558319091796875,
+    "available_memory_gb": 11.441680908203125,
+    "memory_percentage": 0.6424474716186523,
+    "mlx_cache_size_mb": 0.0,
+    "mlx_allocated_arrays": 0,
+    "process_memory_gb": 2.3351898193359375,
+    "process_memory_percentage": 0.07297468185424805,
+    "memory_bandwidth_gb_s": 0.0,
+    "cache_hit_rate": 0.0
+  },
+  "gc_stats": {
+    "collections": 0,
+    "time_spent": 0.0
+  },
+  "recommendations": {
+    "current_usage": "64.2%",
+    "status": "optimal",
+    "actions": [],
+    "apple_silicon": {
+      "unified_memory_size": "32.00 GB",
+      "recommended_usage": "64.0%",
+      "current_efficiency": 1.003824174404144
+    }
+  },
+  "history_summary": {
+    "samples": 62,
+    "min_usage": 0.30202198028564453,
+    "max_usage": 0.8114328384399414,
+    "avg_usage": 0.7850872547395767,
+    "time_span_minutes": 1.1509074330329896
+  }
+}

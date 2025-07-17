@@ -258,9 +258,11 @@ class MLflowTracker:
             mlflow.log_param(
                 "mixed_precision", self.config.mlx_optimization.mixed_precision
             )
-            mlflow.log_param(
-                "memory_pool_size", self.config.mlx_optimization.memory_pool_size
-            )
+            # Memory pool configuration is in memory config, not mlx_optimization
+            if hasattr(self.config.memory, "enable_memory_pool"):
+                mlflow.log_param(
+                    "enable_memory_pool", self.config.memory.enable_memory_pool
+                )
 
             # Advanced features
             mlflow.log_param("label_smoothing", self.config.advanced.label_smoothing)
