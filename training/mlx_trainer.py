@@ -410,6 +410,7 @@ class MLXTrainer:
                 step=self.global_step,
                 epoch=self.current_epoch,
                 train_loss=loss_value,
+                train_accuracy=None,  # Will be set by evaluation
                 learning_rate=new_lr,
                 batch_size=self.dynamic_batch_size,
             )
@@ -428,7 +429,17 @@ class MLXTrainer:
 
             return loss_value, metrics
         else:
-            # Still accumulating
+            # Still accumulating - but need to update progress
+            # Call monitor to update progress display even during accumulation
+            self.monitor.log_step(
+                step=self.global_step,
+                epoch=self.current_epoch,
+                train_loss=float(self.accumulated_loss / self.accumulation_step),  # Average loss so far
+                train_accuracy=None,
+                learning_rate=self.get_learning_rate(),
+                batch_size=self.dynamic_batch_size,
+            )
+            
             return 0.0, {
                 "accumulating": True,
                 "accumulation_step": self.accumulation_step,

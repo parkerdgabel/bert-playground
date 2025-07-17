@@ -802,11 +802,10 @@ class ComprehensiveMonitor:
 
             self.mlflow_tracker.log_metrics(mlflow_metrics, step)
 
-        # Update console display
-        if step % self.console_monitor.update_frequency == 0:
-            self.console_monitor.update_training_progress(
-                epoch, step % 1000, self.metrics, self.memory_manager, self.profiler
-            )
+        # Update console display on every step for smooth progress
+        self.console_monitor.update_training_progress(
+            epoch, step, self.metrics, self.memory_manager, self.profiler
+        )
 
     def log_validation(
         self,
