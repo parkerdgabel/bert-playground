@@ -461,7 +461,7 @@ class UniversalKaggleLoader:
             "max_length": self.max_length,
             "batch_size": self.batch_size,
             "text_strategy": self.text_strategy.value,
-            "augment": self.augment,
+            "augment": bool(self.augment),  # Ensure it's a Python bool
         }
         
         with open(config_path, 'w') as f:

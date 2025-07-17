@@ -45,8 +45,8 @@ class TestUniversalTextGenerator:
             strategy=TextGenerationStrategy.AUTO,
         )
         
-        # Should select structured for general datasets
-        assert generator.strategy == TextGenerationStrategy.STRUCTURED
+        # Should select narrative for datasets with text columns
+        assert generator.strategy == TextGenerationStrategy.NARRATIVE
     
     def test_titanic_strategy_selection(self):
         """Test that Titanic dataset gets template-based strategy."""

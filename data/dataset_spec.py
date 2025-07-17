@@ -125,7 +125,9 @@ class KaggleDatasetSpec:
             if target_series.dtype in ['int64', 'float64']:
                 if unique_values == 2:
                     problem_type = ProblemType.BINARY_CLASSIFICATION
-                elif unique_values <= 20:  # Heuristic for multiclass
+                elif unique_values <= 10 and target_series.dtype == 'int64':  # Integer multiclass
+                    problem_type = ProblemType.MULTICLASS_CLASSIFICATION
+                elif unique_values / len(target_series) < 0.1:  # Low cardinality
                     problem_type = ProblemType.MULTICLASS_CLASSIFICATION
                 else:
                     problem_type = ProblemType.REGRESSION
@@ -156,9 +158,10 @@ class KaggleDatasetSpec:
                 continue
                 
             # Check for ID columns (unique values, often named with 'id')
-            if (series.nunique() == len(series) or 
-                'id' in col.lower() or 
-                col.lower().endswith('_id')):
+            # But exclude columns that look like text (Name, Title, etc.)
+            if (series.nunique() == len(series) and 
+                ('id' in col.lower() or col.lower().endswith('_id')) and
+                col.lower() not in ['name', 'title', 'description']):
                 id_columns.append(col)
                 continue
                 
@@ -241,9 +244,9 @@ class KaggleDatasetSpec:
             "text_template_strategy": self.text_template_strategy,
             "primary_text_features": self.primary_text_features,
             "optimization_profile": self.optimization_profile.value,
-            "has_missing_values": self.has_missing_values,
+            "has_missing_values": bool(self.has_missing_values),  # Ensure Python bool
             "missing_value_strategy": self.missing_value_strategy,
-            "expected_size": self.expected_size,
+            "expected_size": int(self.expected_size) if self.expected_size is not None else None,
             "memory_usage_hint": self.memory_usage_hint,
         }
     
