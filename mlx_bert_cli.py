@@ -111,7 +111,7 @@ def train(
         None, "--resume", help="Resume from checkpoint"
     ),
     config: Optional[Path] = typer.Option(
-        None, "--config", "-c", help="Load config from JSON file"
+        None, "--config", "-c", help="Load config from YAML or JSON file"
     ),
     # CNN-specific options
     cnn_kernel_sizes: str = typer.Option(
@@ -138,8 +138,8 @@ def train(
     # Load config if provided
     config_overrides = {}
     if config and config.exists():
-        with open(config) as f:
-            config_overrides = json.load(f)
+        from utils.config_loader import ConfigLoader
+        config_overrides = ConfigLoader.load(config)
         console.print(f"[green]Loaded config from {config}[/green]")
 
     # Create output directory
@@ -191,44 +191,62 @@ def train(
         console.print(f"[green]✓ Loaded ~{val_samples} validation samples ({len(val_loader)} batches)[/green]")
 
     # Create unified training config with correct warmup steps
-    from training.config import EvaluationConfig, CheckpointConfig, MonitoringConfig, MLXOptimizationConfig, AdvancedFeatures
+    from training.config import (TrainingConfig, EvaluationConfig, CheckpointConfig, 
+                                  MonitoringConfig, MLXOptimizationConfig, AdvancedFeatures)
     
-    training_config = TrainingConfig(
-        # Basic parameters
-        learning_rate=config_overrides.get("learning_rate", learning_rate),
-        epochs=config_overrides.get("epochs", num_epochs),
-        warmup_steps=int(config_overrides.get("warmup_ratio", warmup_ratio) * len(train_loader) * num_epochs),
-        batch_size=batch_size_config,
-        # Data configuration
-        train_path=str(train_path),
-        val_path=str(val_path) if val_path else None,
-        # Output
-        output_dir=str(run_dir),
-        experiment_name=config_overrides.get("experiment_name", experiment_name),
-        run_name=run_name or f"{model_type}_{timestamp}",
-        # Sub-configurations
-        evaluation=EvaluationConfig(
-            early_stopping_patience=config_overrides.get("early_stopping_patience", early_stopping_patience),
-            eval_steps=config_overrides.get("eval_steps", eval_steps),
-        ),
-        checkpoint=CheckpointConfig(
-            checkpoint_dir=str(run_dir / "checkpoints"),
-            checkpoint_frequency=config_overrides.get("save_steps", save_steps),
-        ),
-        monitoring=MonitoringConfig(
-            enable_mlflow=not disable_mlflow,
+    # If we have a full config from YAML, use it directly
+    if config and "memory" in config_overrides:
+        # This is a full TrainingConfig in YAML format
+        training_config = TrainingConfig.from_dict(config_overrides)
+        # Override with CLI parameters if provided
+        if run_name:
+            training_config.run_name = run_name
+        training_config.output_dir = str(run_dir)
+        training_config.train_path = str(train_path)
+        training_config.val_path = str(val_path) if val_path else None
+        
+        # Update checkpoint dir
+        if hasattr(training_config, 'checkpoint') and training_config.checkpoint:
+            training_config.checkpoint.checkpoint_dir = str(run_dir / "checkpoints")
+    else:
+        # Build config from CLI parameters with overrides
+        training_config = TrainingConfig(
+            # Basic parameters
+            learning_rate=config_overrides.get("learning_rate", learning_rate),
+            epochs=config_overrides.get("epochs", num_epochs),
+            warmup_steps=config_overrides.get("warmup_steps", 
+                int(config_overrides.get("warmup_ratio", warmup_ratio) * len(train_loader) * num_epochs)),
+            batch_size=batch_size_config,
+            # Data configuration
+            train_path=str(train_path),
+            val_path=str(val_path) if val_path else None,
+            # Output
+            output_dir=str(run_dir),
             experiment_name=config_overrides.get("experiment_name", experiment_name),
             run_name=run_name or f"{model_type}_{timestamp}",
-            enable_rich_console=False,  # Disable Rich console to avoid conflicts
-        ),
-        mlx_optimization=MLXOptimizationConfig(
-            gradient_accumulation_steps=config_overrides.get("gradient_accumulation", gradient_accumulation),
-            max_grad_norm=config_overrides.get("gradient_clip", gradient_clip),
-        ),
-        advanced=AdvancedFeatures(
-            label_smoothing=config_overrides.get("label_smoothing", label_smoothing),
-        ),
-    )
+            # Sub-configurations
+            evaluation=EvaluationConfig(
+                early_stopping_patience=config_overrides.get("early_stopping_patience", early_stopping_patience),
+                eval_steps=config_overrides.get("eval_steps", eval_steps),
+            ),
+            checkpoint=CheckpointConfig(
+                checkpoint_dir=str(run_dir / "checkpoints"),
+                checkpoint_frequency=config_overrides.get("save_steps", save_steps),
+            ),
+            monitoring=MonitoringConfig(
+                enable_mlflow=not disable_mlflow,
+                experiment_name=config_overrides.get("experiment_name", experiment_name),
+                run_name=run_name or f"{model_type}_{timestamp}",
+                enable_rich_console=False,  # Disable Rich console to avoid conflicts
+            ),
+            mlx_optimization=MLXOptimizationConfig(
+                gradient_accumulation_steps=config_overrides.get("gradient_accumulation", gradient_accumulation),
+                max_grad_norm=config_overrides.get("gradient_clip", gradient_clip),
+            ),
+            advanced=AdvancedFeatures(
+                label_smoothing=config_overrides.get("label_smoothing", label_smoothing),
+            ),
+        )
 
     # Display configuration
     config_table = Table(title="Training Configuration")

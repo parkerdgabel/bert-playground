@@ -25,6 +25,7 @@ Requires-Dist: python-dotenv>=1.0.1
 Requires-Dist: typer>=0.15.0
 Requires-Dist: click>=8.1.0
 Requires-Dist: psutil>=5.9.0
+Requires-Dist: pyyaml>=6.0.2
 Provides-Extra: dev
 Requires-Dist: pytest>=8.0.0; extra == "dev"
 Requires-Dist: pytest-cov>=6.0.0; extra == "dev"

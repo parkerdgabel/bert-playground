@@ -9,9 +9,12 @@ import json
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, Optional, Union
 
 from loguru import logger
+
+# Import the new config loader
+from utils.config_loader import ConfigLoader
 
 
 class OptimizationLevel(Enum):
@@ -422,11 +425,25 @@ class TrainingConfig:
 
     @classmethod
     def load(cls, config_path: str | Path) -> "TrainingConfig":
-        """Load configuration from file."""
+        """Load configuration from file (auto-detects format)."""
         config_path = Path(config_path)
-
-        with open(config_path) as f:
-            config_dict = json.load(f)
+        
+        # Auto-detect format based on extension
+        if config_path.suffix.lower() in ['.yaml', '.yml']:
+            return cls.load_yaml(config_path)
+        elif config_path.suffix.lower() == '.json':
+            with open(config_path) as f:
+                config_dict = json.load(f)
+        else:
+            # Try JSON by default for backward compatibility
+            try:
+                with open(config_path) as f:
+                    config_dict = json.load(f)
+            except json.JSONDecodeError:
+                raise ValueError(
+                    f"Could not load configuration from {config_path}. "
+                    "Please use .json or .yaml/.yml extension."
+                )
 
         # Convert enum strings back to enums
         def restore_enums(data: dict[str, Any]) -> dict[str, Any]:
@@ -463,6 +480,108 @@ class TrainingConfig:
 
         logger.info(f"Configuration loaded from: {config_path}")
         return cls(**config_dict)
+
+    def save_yaml(self, config_path: Union[str, Path]) -> None:
+        """Save configuration to YAML file."""
+        config_dict = self.to_dict()
+        ConfigLoader.save(config_dict, config_path, format='yaml')
+
+    @classmethod
+    def load_yaml(cls, config_path: Union[str, Path]) -> "TrainingConfig":
+        """Load configuration from YAML file."""
+        config_dict = ConfigLoader.load(config_path, format='yaml')
+        return cls.from_dict(config_dict)
+
+    @classmethod
+    def from_dict(cls, config_dict: Dict[str, Any]) -> "TrainingConfig":
+        """Create TrainingConfig from dictionary.
+        
+        This method handles the conversion of dictionaries to dataclass instances
+        and enum strings to enum values.
+        """
+        # Convert enum strings back to enums
+        def restore_enums(data: Dict[str, Any]) -> Dict[str, Any]:
+            enum_mappings = {
+                "optimization_level": OptimizationLevel,
+                "optimizer": OptimizerType,
+                "lr_schedule": LearningRateSchedule,
+                "loss_function": LossFunction,
+            }
+            
+            for key, enum_class in enum_mappings.items():
+                if key in data and isinstance(data[key], str):
+                    try:
+                        data[key] = enum_class(data[key])
+                    except ValueError:
+                        logger.warning(f"Invalid enum value for {key}: {data[key]}")
+            
+            return data
+        
+        config_dict = restore_enums(config_dict)
+        
+        # Reconstruct sub-configurations
+        if "memory" in config_dict and isinstance(config_dict["memory"], dict):
+            config_dict["memory"] = MemoryConfig(**config_dict["memory"])
+        if "mlx_optimization" in config_dict and isinstance(config_dict["mlx_optimization"], dict):
+            config_dict["mlx_optimization"] = MLXOptimizationConfig(
+                **config_dict["mlx_optimization"]
+            )
+        if "monitoring" in config_dict and isinstance(config_dict["monitoring"], dict):
+            # Handle None values in monitoring config
+            monitoring_dict = config_dict["monitoring"].copy()
+            if monitoring_dict.get("log_file_path") is None:
+                monitoring_dict.pop("log_file_path", None)
+            if monitoring_dict.get("tracking_uri") is None:
+                monitoring_dict.pop("tracking_uri", None)
+            config_dict["monitoring"] = MonitoringConfig(**monitoring_dict)
+        if "checkpoint" in config_dict and isinstance(config_dict["checkpoint"], dict):
+            # Handle None values in checkpoint config
+            checkpoint_dict = config_dict["checkpoint"].copy()
+            if checkpoint_dict.get("checkpoint_dir") is None:
+                checkpoint_dict["checkpoint_dir"] = "checkpoints"  # Use default
+            if checkpoint_dict.get("resume_from_checkpoint") is None:
+                checkpoint_dict.pop("resume_from_checkpoint", None)
+            config_dict["checkpoint"] = CheckpointConfig(**checkpoint_dict)
+        if "evaluation" in config_dict and isinstance(config_dict["evaluation"], dict):
+            config_dict["evaluation"] = EvaluationConfig(**config_dict["evaluation"])
+        if "advanced" in config_dict and isinstance(config_dict["advanced"], dict):
+            config_dict["advanced"] = AdvancedFeatures(**config_dict["advanced"])
+        
+        # Filter out any extra fields not defined in TrainingConfig
+        valid_fields = {f.name for f in cls.__dataclass_fields__.values()}
+        filtered_dict = {k: v for k, v in config_dict.items() if k in valid_fields}
+        
+        # Log any fields that were filtered out
+        extra_fields = set(config_dict.keys()) - valid_fields
+        if extra_fields:
+            logger.debug(f"Filtered out extra fields from config: {extra_fields}")
+        
+        # Type conversions for numeric fields that might come as strings
+        numeric_fields = {
+            "learning_rate": float,
+            "epochs": int,
+            "batch_size": int,
+            "warmup_steps": int,
+            "max_length": int,
+            "num_labels": int,
+            "seed": int,
+        }
+        
+        for field, converter in numeric_fields.items():
+            if field in filtered_dict and isinstance(filtered_dict[field], str):
+                try:
+                    filtered_dict[field] = converter(filtered_dict[field])
+                except ValueError:
+                    logger.warning(f"Failed to convert {field} value: {filtered_dict[field]}")
+        
+        # Remove None values for optional fields that shouldn't be None
+        optional_fields = ["train_path", "val_path", "test_path", "target_column", 
+                          "max_steps", "experiment_name", "run_name"]
+        for field in optional_fields:
+            if field in filtered_dict and filtered_dict[field] is None:
+                filtered_dict.pop(field)
+        
+        return cls(**filtered_dict)
 
     def get_effective_batch_size(self) -> int:
         """Get the effective batch size considering gradient accumulation."""
