@@ -137,8 +137,8 @@ class ModelEvaluator:
     
     def evaluate_model(
         self,
-        model: Optional[Any] = None,
         data: Union[pd.DataFrame, Dict[str, np.ndarray]],
+        model: Optional[Any] = None,
         model_type: str = "classifier",
         evaluators: Optional[List[str]] = None,
         custom_metrics: Optional[List[EvaluationMetric]] = None,
@@ -148,8 +148,8 @@ class ModelEvaluator:
         """Evaluate model with comprehensive metrics and visualizations.
         
         Args:
-            model: Model to evaluate (if None, uses model_uri)
             data: Evaluation data (DataFrame or dict with X, y)
+            model: Model to evaluate (if None, uses model_uri)
             model_type: Type of model ("classifier" or "regressor")
             evaluators: Optional list of evaluators to use
             custom_metrics: Optional list of custom metrics
@@ -481,8 +481,8 @@ def evaluate_with_cross_validation(
             evaluator = ModelEvaluator()
             with mlflow.start_run(nested=True, run_name=f"fold_{fold + 1}"):
                 results = evaluator.evaluate_model(
-                    model=model,
                     data=eval_data,
+                    model=model,
                     custom_metrics=custom_metrics,
                     plot_results=(fold == 0),  # Only plot for first fold
                 )

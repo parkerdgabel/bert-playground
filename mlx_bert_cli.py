@@ -3,7 +3,7 @@
 
 import typer
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 import mlx.core as mx
 import mlx.nn as nn
 from rich.console import Console
