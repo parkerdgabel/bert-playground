@@ -423,7 +423,7 @@ class RichConsoleMonitor:
             if self.training_task_id:
                 self.display_manager.update_progress_task(
                     self.training_task_id, advance=0, 
-                    description=f"Epoch {epoch} - Overall Progress"
+                    description=f"Epoch {epoch + 1} - Overall Progress"
                 )
             if self.epoch_task_id:
                 self.display_manager.update_progress_task(
@@ -444,6 +444,33 @@ class RichConsoleMonitor:
             # Fallback to console logging
             loss_str = f"{metrics.train_loss.values[-1]:.4f}" if metrics.train_loss.values else "N/A"
             self.console.print(f"[dim]Epoch {epoch}, Step {step}, Loss: {loss_str}[/dim]")
+    
+    def advance_epoch_progress(self):
+        """Advance the training progress by one epoch."""
+        if not self.enabled:
+            return
+            
+        if self.display_manager and self.training_task_id:
+            self.display_manager.update_progress_task(
+                self.training_task_id, advance=1, 
+                description="Epoch completed"
+            )
+    
+    def reset_epoch_progress(self, epoch: int, total_epochs: int):
+        """Reset epoch progress for the current epoch."""
+        if not self.enabled:
+            return
+            
+        if self.display_manager and self.epoch_task_id:
+            # Reset epoch progress to 0
+            self.display_manager.update_progress_task(
+                self.epoch_task_id, advance=0, 
+                description=f"Epoch {epoch + 1}/{total_epochs} - Starting"
+            )
+            # Reset to beginning of epoch
+            if self.epoch_task_id in self.display_manager.progress_tasks:
+                rich_task_id = self.display_manager.progress_tasks[self.epoch_task_id]
+                self.display_manager.progress_instance.reset(rich_task_id)
     
     def _extract_metrics_dict(
         self,
@@ -825,6 +852,14 @@ class ComprehensiveMonitor:
                 logger.info(f"  Best val_accuracy: {val_accuracy:.4f}")
 
         return loss_improved or acc_improved
+    
+    def advance_epoch_progress(self):
+        """Advance epoch progress in monitoring display."""
+        self.console_monitor.advance_epoch_progress()
+    
+    def reset_epoch_progress(self, epoch: int, total_epochs: int):
+        """Reset epoch progress for the current epoch."""
+        self.console_monitor.reset_epoch_progress(epoch, total_epochs)
 
     def save_checkpoint_artifacts(
         self,

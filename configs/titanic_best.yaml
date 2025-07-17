@@ -12,7 +12,7 @@ num_labels: 2   # Binary classification
 epochs: 15
 batch_size: 32
 learning_rate: 3e-05  # Slightly higher for faster convergence
-warmup_steps: 200     # 10% of total steps for 15 epochs
+warmup_steps: 50     # 10% of total steps for 15 epochs
 max_steps: null       # Train for full epochs
 
 # Optimizer configuration
@@ -153,7 +153,7 @@ metadata:
     - Early stopping to prevent overfitting
     - MLflow tracking for experiment management
     - Best model only saving to reduce storage usage
-    
+
   expected_performance:
     validation_accuracy: 0.83-0.86
     training_time: ~10-15 minutes on M1/M2 Mac

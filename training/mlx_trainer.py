@@ -714,12 +714,18 @@ class MLXTrainer:
                 for epoch in range(self.current_epoch, self.config.epochs):
                     self.current_epoch = epoch
                     epoch_start_time = time.time()
+                    
+                    # Reset epoch progress in monitoring system
+                    self.monitor.reset_epoch_progress(epoch, self.config.epochs)
 
                     # Dynamic batch size adjustment
                     if self.config.memory.dynamic_batch_sizing:
                         self.adjust_batch_size_dynamically()
 
                     epoch_metrics = self._train_epoch(train_loader, val_loader, history)
+                    
+                    # Advance epoch progress in monitoring system
+                    self.monitor.advance_epoch_progress()
 
                     # Log epoch summary
                     epoch_time = time.time() - epoch_start_time
@@ -849,14 +855,8 @@ class MLXTrainer:
         num_updates = 0
         step_times = []
 
-        # Progress tracking
-        train_task_id = None
-        if self.display_manager:
-            train_task_id = self.display_manager.create_progress_task(
-                f"train_epoch_{self.current_epoch}",
-                f"Epoch {self.current_epoch + 1}/{self.config.epochs}",
-                len(train_loader)
-            )
+        # Progress tracking is handled by the monitoring system
+        # No need to create additional progress tasks here
 
         try:
             for _batch_idx, batch in enumerate(train_loader):
@@ -875,20 +875,8 @@ class MLXTrainer:
                     epoch_loss += metrics["loss"]
                     num_updates += 1
 
-                # Update progress on every step (not just when parameters update)
-                if train_task_id:
-                    if "loss" in metrics:
-                        # Full update with loss information
-                        description = f"Epoch {self.current_epoch + 1}/{self.config.epochs} " \
-                                    f"(Loss: {metrics['loss']:.4f}, LR: {metrics['learning_rate']:.2e})"
-                    else:
-                        # Accumulation step
-                        description = f"Epoch {self.current_epoch + 1}/{self.config.epochs} " \
-                                    f"(Accumulating {metrics.get('accumulation_step', 0)}/{self.config.mlx_optimization.gradient_accumulation_steps})"
-                    
-                    self.display_manager.update_progress_task(
-                        train_task_id, advance=1, description=description
-                    )
+                # Progress updates are handled by the monitoring system
+                # which gets called via monitor.log_step() below
 
                 # Add to history only when we have actual metrics
                 if "loss" in metrics:
@@ -952,9 +940,8 @@ class MLXTrainer:
                             logger.warning(f"Failed to log model to MLflow: {e}")
 
         finally:
-            # Clean up progress task
-            if train_task_id:
-                self.display_manager.remove_progress_task(train_task_id)
+            # Progress cleanup is handled by the monitoring system
+            pass
 
         # Epoch metrics
         avg_loss = epoch_loss / max(1, num_updates)

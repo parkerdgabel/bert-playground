@@ -261,6 +261,9 @@ class RichDisplayManager:
                 advance=advance,
                 description=description
             )
+            
+            # Update layout to reflect progress changes
+            self._update_layout()
     
     def remove_progress_task(self, task_id: str):
         """Remove a progress task."""
