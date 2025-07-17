@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from models.factory import create_model
 from models.modernbert_cnn_hybrid import create_cnn_hybrid_model
-from data.unified_loader import create_unified_dataloaders, UnifiedTitanicDataPipeline
+from data import KaggleDataLoader, create_kaggle_dataloader
 from models.classification import TitanicClassifier
 from training.mlx_trainer import MLXTrainer
 from training.config import TrainingConfig
@@ -129,40 +129,85 @@ def train(
     run_dir = output_dir / f"run_{timestamp}"
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create unified training config
+    # Create placeholder config for data loading
+    batch_size_config = config_overrides.get("batch_size", batch_size)
+    max_batch_size_config = config_overrides.get("max_batch_size", max_batch_size)
+    eval_batch_size = min(batch_size_config * 2, max_batch_size_config)
+
+    # Create data loaders
+    console.print("\n[yellow]Loading data...[/yellow]")
+    
+    # Create MLX-native Kaggle data loader
+    train_loader = create_kaggle_dataloader(
+        dataset_name="titanic",
+        csv_path=str(train_path),
+        tokenizer_name=model_name,
+        batch_size=batch_size_config,
+        max_length=max_length,
+        shuffle=True,
+        shuffle_buffer_size=1000 if augment else 100,
+        prefetch_size=config_overrides.get("prefetch_size", prefetch_size),
+        num_workers=config_overrides.get("num_workers", num_workers),
+    )
+    
+    # Create validation loader if needed
+    val_loader = None
+    if val_path:
+        val_loader = create_kaggle_dataloader(
+            dataset_name="titanic",
+            csv_path=str(val_path),
+            tokenizer_name=model_name,
+            batch_size=eval_batch_size,
+            max_length=max_length,
+            shuffle=False,
+            prefetch_size=2,
+            num_workers=2,
+        )
+
+    train_samples = len(train_loader) * batch_size_config
+    console.print(f"[green]✓ Loaded ~{train_samples} training samples ({len(train_loader)} batches)[/green]")
+    if val_loader:
+        val_samples = len(val_loader) * eval_batch_size
+        console.print(f"[green]✓ Loaded ~{val_samples} validation samples ({len(val_loader)} batches)[/green]")
+
+    # Create unified training config with correct warmup steps
+    from training.config import EvaluationConfig, CheckpointConfig, MonitoringConfig, MLXOptimizationConfig, AdvancedFeatures
+    
     training_config = TrainingConfig(
         # Basic parameters
         learning_rate=config_overrides.get("learning_rate", learning_rate),
-        num_epochs=config_overrides.get("num_epochs", num_epochs),
-        warmup_ratio=config_overrides.get("warmup_ratio", warmup_ratio),
-        early_stopping_patience=config_overrides.get(
-            "early_stopping_patience", early_stopping_patience
-        ),
-        # Batch sizes
-        base_batch_size=config_overrides.get("batch_size", batch_size),
-        max_batch_size=config_overrides.get("max_batch_size", max_batch_size),
-        enable_dynamic_batching=config_overrides.get(
-            "enable_dynamic_batching", enable_dynamic_batching
-        ),
-        gradient_accumulation_steps=config_overrides.get(
-            "gradient_accumulation", gradient_accumulation
-        ),
-        # Data pipeline
-        num_workers=config_overrides.get("num_workers", num_workers),
-        prefetch_size=config_overrides.get("prefetch_size", prefetch_size),
-        # MLflow
-        enable_mlflow=not disable_mlflow,
-        experiment_name=config_overrides.get("experiment_name", experiment_name),
-        run_name=run_name or f"{model_type}_{timestamp}",
-        # Advanced
-        gradient_clip_val=config_overrides.get("gradient_clip", gradient_clip),
-        label_smoothing=config_overrides.get("label_smoothing", label_smoothing),
-        # Evaluation
-        eval_steps=config_overrides.get("eval_steps", eval_steps),
-        save_steps=config_overrides.get("save_steps", save_steps),
+        epochs=config_overrides.get("epochs", num_epochs),
+        warmup_steps=int(config_overrides.get("warmup_ratio", warmup_ratio) * len(train_loader) * num_epochs),
+        batch_size=batch_size_config,
+        # Data configuration
+        train_path=str(train_path),
+        val_path=str(val_path) if val_path else None,
         # Output
         output_dir=str(run_dir),
-        checkpoint_dir=str(run_dir / "checkpoints"),
+        experiment_name=config_overrides.get("experiment_name", experiment_name),
+        run_name=run_name or f"{model_type}_{timestamp}",
+        # Sub-configurations
+        evaluation=EvaluationConfig(
+            early_stopping_patience=config_overrides.get("early_stopping_patience", early_stopping_patience),
+            eval_steps=config_overrides.get("eval_steps", eval_steps),
+        ),
+        checkpoint=CheckpointConfig(
+            checkpoint_dir=str(run_dir / "checkpoints"),
+            checkpoint_frequency=config_overrides.get("save_steps", save_steps),
+        ),
+        monitoring=MonitoringConfig(
+            enable_mlflow=not disable_mlflow,
+            experiment_name=config_overrides.get("experiment_name", experiment_name),
+            run_name=run_name or f"{model_type}_{timestamp}",
+            enable_rich_console=False,  # Disable Rich console to avoid conflicts
+        ),
+        mlx_optimization=MLXOptimizationConfig(
+            gradient_accumulation_steps=config_overrides.get("gradient_accumulation", gradient_accumulation),
+            max_grad_norm=config_overrides.get("gradient_clip", gradient_clip),
+        ),
+        advanced=AdvancedFeatures(
+            label_smoothing=config_overrides.get("label_smoothing", label_smoothing),
+        ),
     )
 
     # Display configuration
@@ -173,57 +218,14 @@ def train(
     config_table.add_row("Model", model_name)
     config_table.add_row("Model Type", model_type)
     config_table.add_row("Output Directory", str(run_dir))
-    config_table.add_row("Batch Size", f"{training_config.base_batch_size}-{training_config.max_batch_size}")
+    config_table.add_row("Batch Size", str(batch_size_config))
     config_table.add_row("Learning Rate", str(training_config.learning_rate))
-    config_table.add_row("Epochs", str(training_config.num_epochs))
-    config_table.add_row("Gradient Accumulation", str(training_config.gradient_accumulation_steps))
-    config_table.add_row("MLflow", "Enabled" if training_config.enable_mlflow else "Disabled")
-    config_table.add_row("Early Stopping", str(training_config.early_stopping_patience))
+    config_table.add_row("Epochs", str(training_config.epochs))
+    config_table.add_row("Gradient Accumulation", str(training_config.mlx_optimization.gradient_accumulation_steps))
+    config_table.add_row("MLflow", "Enabled" if training_config.monitoring.enable_mlflow else "Disabled")
+    config_table.add_row("Early Stopping", str(training_config.evaluation.early_stopping_patience))
 
     console.print(config_table)
-
-    # Create data loaders
-    console.print("\n[yellow]Loading data...[/yellow]")
-    if model_type == "cnn_hybrid":
-        # Use optimized loader for CNN-hybrid model
-        train_loader = UnifiedTitanicDataPipeline(
-            data_path=str(train_path),
-            tokenizer_name=model_name,
-            batch_size=training_config.base_batch_size,
-            max_length=max_length,
-            is_training=True,
-            augment=augment,
-            num_threads=training_config.num_workers,
-            prefetch_size=training_config.prefetch_size,
-        )
-
-        val_loader = None
-        if val_path:
-            val_loader = UnifiedTitanicDataPipeline(
-                data_path=str(val_path),
-                tokenizer_name=model_name,
-                batch_size=training_config.eval_batch_size,
-                max_length=max_length,
-                is_training=False,
-                augment=False,
-                num_threads=2,
-                prefetch_size=2,
-            )
-    else:
-        # Use standard loader for base model
-        train_loader, val_loader = create_unified_dataloaders(
-            train_path=str(train_path),
-            val_path=str(val_path) if val_path else None,
-            tokenizer_name=model_name,
-            batch_size=training_config.base_batch_size,
-            max_length=max_length,
-        )
-
-    train_samples = len(train_loader.texts) if hasattr(train_loader, 'texts') else len(train_loader) * batch_size
-    console.print(f"[green]✓ Loaded {train_samples} training samples ({len(train_loader)} batches)[/green]")
-    if val_loader:
-        val_samples = len(val_loader.texts) if hasattr(val_loader, 'texts') else len(val_loader) * batch_size
-        console.print(f"[green]✓ Loaded {val_samples} validation samples ({len(val_loader)} batches)[/green]")
 
     # Create model
     with console.status("[yellow]Creating model...[/yellow]"):
@@ -257,7 +259,7 @@ def train(
     # Create optimizer
     optimizer = optim.AdamW(
         learning_rate=training_config.learning_rate,
-        weight_decay=training_config.weight_decay,
+        weight_decay=0.01,  # Default weight decay
     )
 
     # Create unified trainer
@@ -274,7 +276,18 @@ def train(
         "train_path": str(train_path),
         "val_path": str(val_path) if val_path else None,
         "timestamp": timestamp,
-        **training_config.__dict__,
+        "learning_rate": training_config.learning_rate,
+        "epochs": training_config.epochs,
+        "batch_size": training_config.batch_size,
+        "warmup_steps": training_config.warmup_steps,
+        "output_dir": training_config.output_dir,
+        "gradient_accumulation_steps": training_config.mlx_optimization.gradient_accumulation_steps,
+        "max_grad_norm": training_config.mlx_optimization.max_grad_norm,
+        "early_stopping_patience": training_config.evaluation.early_stopping_patience,
+        "eval_steps": training_config.evaluation.eval_steps,
+        "save_steps": training_config.checkpoint.checkpoint_frequency,
+        "mlflow_enabled": training_config.monitoring.enable_mlflow,
+        "label_smoothing": training_config.advanced.label_smoothing,
     }
 
     if model_type == "cnn_hybrid":
@@ -292,8 +305,8 @@ def train(
 
     start_time = time.time()
     results = trainer.train(
-        train_dataloader=train_loader,
-        val_dataloader=val_loader,
+        train_loader=train_loader,
+        val_loader=val_loader,
         resume_from_checkpoint=resume_from,
     )
     
@@ -322,7 +335,7 @@ def train(
     
     console.print(f"\n[green]Results saved to: {run_dir}[/green]")
     
-    if training_config.enable_mlflow:
+    if training_config.monitoring.enable_mlflow:
         console.print("\n[cyan]View results with: mlflow ui[/cyan]")
 
 
@@ -375,23 +388,30 @@ def predict(
 
     console.print(f"[green]✓ Loaded model from {checkpoint}[/green]")
 
-    # Create data loader
-    test_loader = UnifiedTitanicDataPipeline(
-        data_path=str(test_path),
+    # Create data loader for test data
+    test_loader = create_kaggle_dataloader(
+        dataset_name="titanic",
+        csv_path=str(test_path),
         tokenizer_name=model_name,
         batch_size=batch_size,
         max_length=max_length,
-        is_training=False,
-        augment=False,
-        has_labels=False,
+        shuffle=False,
+        prefetch_size=4,
+        num_workers=4,
     )
 
-    console.print(f"[green]✓ Loaded {len(test_loader)} test samples[/green]")
+    console.print(f"[green]✓ Loaded {len(test_loader)} test batches[/green]")
 
     # Generate predictions
     predictions = []
     with console.status("[yellow]Generating predictions...[/yellow]"):
-        for batch in test_loader.get_dataloader():
+        test_stream = test_loader.create_stream(is_training=False)
+        for batch in test_stream:
+            # Convert numpy arrays to MLX arrays if needed
+            if not isinstance(batch["input_ids"], mx.array):
+                batch["input_ids"] = mx.array(batch["input_ids"])
+                batch["attention_mask"] = mx.array(batch["attention_mask"])
+            
             outputs = model(
                 input_ids=batch["input_ids"],
                 attention_mask=batch["attention_mask"],

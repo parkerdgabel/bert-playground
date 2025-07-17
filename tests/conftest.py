@@ -60,6 +60,9 @@ def sample_titanic_data(temp_dir: Path) -> Path:
     
     df = pd.DataFrame(data)
     csv_path = temp_dir / "train.csv"
+    # Convert all columns to strings and fill NA to ensure MLX CSV reader compatibility
+    for col in df.columns:
+        df[col] = df[col].astype(str).replace('nan', '')
     df.to_csv(csv_path, index=False)
     
     return csv_path
@@ -84,6 +87,9 @@ def sample_test_data(temp_dir: Path) -> Path:
     
     df = pd.DataFrame(data)
     csv_path = temp_dir / "test.csv"
+    # Convert all columns to strings and fill NA to ensure MLX CSV reader compatibility
+    for col in df.columns:
+        df[col] = df[col].astype(str).replace('nan', '')
     df.to_csv(csv_path, index=False)
     
     return csv_path

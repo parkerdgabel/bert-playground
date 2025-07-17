@@ -1,29 +1,31 @@
-"""Unit tests for data loaders."""
+"""Unit tests for V2 data loaders."""
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+import tempfile
 
 import mlx.core as mx
+import mlx.data as dx
 import pandas as pd
 import pytest
+import numpy as np
 
-from data.unified_loader import UnifiedTitanicDataPipeline, create_unified_dataloaders
-from data.enhanced_unified_loader import EnhancedUnifiedDataPipeline
-from data.text_templates import TitanicTextTemplates as DataToTextConverter
+from data.dataloader import MLXTabularTextDataLoader, create_cached_dataloader, create_titanic_dataloader
+from data.text_templates import TitanicTextTemplates
 
 
-class TestDataToTextConverter:
-    """Test DataToTextConverter functionality."""
+class TestTitanicTextTemplates:
+    """Test TitanicTextTemplates functionality."""
     
     def test_initialization(self):
         """Test converter initialization."""
-        converter = DataToTextConverter()
+        converter = TitanicTextTemplates()
         assert hasattr(converter, 'templates')
         assert len(converter.templates) > 0
     
     def test_get_age_description(self):
         """Test age description."""
-        converter = DataToTextConverter()
+        converter = TitanicTextTemplates()
         
         assert converter.get_age_description(5) == "child"
         assert converter.get_age_description(15) == "teenager"
@@ -34,7 +36,7 @@ class TestDataToTextConverter:
     
     def test_get_fare_description(self):
         """Test fare description."""
-        converter = DataToTextConverter()
+        converter = TitanicTextTemplates()
         
         assert converter.get_fare_description(5) == "They paid a modest fare of $5.00."
         assert converter.get_fare_description(15) == "They paid a moderate fare of $15.00."
@@ -44,7 +46,7 @@ class TestDataToTextConverter:
     
     def test_convert_row_to_text(self):
         """Test converting a data row to text."""
-        converter = DataToTextConverter()
+        converter = TitanicTextTemplates()
         
         row = pd.Series({
             "Sex": "male",
@@ -67,308 +69,133 @@ class TestDataToTextConverter:
         assert "25" in text or "young" in text
 
 
-class TestUnifiedTitanicDataPipeline:
-    """Test UnifiedTitanicDataPipeline."""
+class TestMLXTabularTextDataLoader:
+    """Test MLXTabularTextDataLoader V2 implementation."""
     
     def test_initialization(self, sample_titanic_data, tokenizer_name):
-        """Test pipeline initialization."""
-        pipeline = UnifiedTitanicDataPipeline(
-            data_path=str(sample_titanic_data),
+        """Test dataloader initialization."""
+        loader = MLXTabularTextDataLoader(
+            csv_path=str(sample_titanic_data),
             tokenizer_name=tokenizer_name,
             batch_size=4,
             max_length=128,
-            augment=False,  # Disable augmentation for predictable counts
+            label_column="Survived",
         )
         
-        assert pipeline.batch_size == 4
-        assert pipeline.max_length == 128
-        assert len(pipeline.texts) == 10  # Sample data has 10 rows
-        assert len(pipeline.labels) == 10
+        assert loader.batch_size == 4
+        assert loader.max_length == 128
+        assert loader.label_column == "Survived"
+        assert loader.tokenizer is not None
+        assert loader.tokenizer_info is not None
     
-    def test_optimization_levels(self, sample_titanic_data, tokenizer_name):
-        """Test different optimization levels."""
-        # Basic optimization
-        pipeline_basic = UnifiedTitanicDataPipeline(
-            data_path=str(sample_titanic_data),
+    def test_analyze_csv(self, sample_titanic_data, tokenizer_name):
+        """Test CSV analysis functionality."""
+        loader = MLXTabularTextDataLoader(
+            csv_path=str(sample_titanic_data),
             tokenizer_name=tokenizer_name,
-            optimization_level="basic",
-            use_mlx_data=False,  # Disable MLX data for this test
+            label_column="Survived",  # Specify label column
         )
-        assert pipeline_basic.optimization_level.value == "basic"
         
-        # Standard optimization
-        pipeline_standard = UnifiedTitanicDataPipeline(
-            data_path=str(sample_titanic_data),
-            tokenizer_name=tokenizer_name,
-            optimization_level="standard",
-            use_mlx_data=False,  # Disable MLX data for this test
-        )
-        assert pipeline_standard.optimization_level.value == "standard"
+        # Should have analyzed columns
+        assert len(loader.all_columns) > 0
+        assert "Survived" in loader.all_columns
+        assert len(loader.text_columns) > 0
+        assert "Survived" not in loader.text_columns  # Label column excluded
     
-    def test_prepare_data(self, sample_titanic_data, tokenizer_name):
-        """Test data preparation."""
-        pipeline = UnifiedTitanicDataPipeline(
-            data_path=str(sample_titanic_data),
+    def test_record_to_text(self, sample_titanic_data, tokenizer_name):
+        """Test record to text transformation."""
+        loader = MLXTabularTextDataLoader(
+            csv_path=str(sample_titanic_data),
             tokenizer_name=tokenizer_name,
-            augment=False,  # Disable augmentation for predictable behavior
+            label_column="Survived",
         )
         
-        # Check texts are generated
-        assert all(isinstance(text, str) for text in pipeline.texts)
-        assert all(len(text) > 0 for text in pipeline.texts)
+        # Create sample record
+        sample = {
+            "Pclass": 2,
+            "Name": "Smith, Mr. John",
+            "Sex": "male",
+            "Age": 25.0,
+            "SibSp": 1,
+            "Parch": 0,
+            "Fare": 50.0,
+            "Embarked": "S",
+            "Survived": 1
+        }
         
-        # Check labels match survived column
-        df = pd.read_csv(sample_titanic_data)
-        assert list(pipeline.labels) == df["Survived"].tolist()
+        result = loader._record_to_text(sample)
+        
+        assert "text" in result
+        assert isinstance(result["text"], str)
+        assert len(result["text"]) > 0
+        assert "labels" in result
+        assert result["labels"] == 1
     
-    def test_tokenization(self, sample_titanic_data, tokenizer_name):
-        """Test tokenization process."""
-        pipeline = UnifiedTitanicDataPipeline(
-            data_path=str(sample_titanic_data),
+    def test_padding_and_mask(self, sample_titanic_data, tokenizer_name):
+        """Test padding and attention mask creation."""
+        loader = MLXTabularTextDataLoader(
+            csv_path=str(sample_titanic_data),
             tokenizer_name=tokenizer_name,
-            batch_size=4,
             max_length=128,
         )
         
-        # Get a batch
-        dataloader = pipeline.get_dataloader()
-        batch = next(iter(dataloader))
+        # Create sample with tokenized input
+        sample = {
+            "input_ids": [101, 2023, 2003, 1037, 3231, 102],  # Example token IDs
+            "labels": 1
+        }
         
-        assert "input_ids" in batch
-        assert "attention_mask" in batch
-        assert "labels" in batch
+        result = loader._add_padding_and_mask(sample)
+        
+        assert "input_ids" in result
+        assert "attention_mask" in result
+        assert "labels" in result
         
         # Check shapes
-        assert batch["input_ids"].shape == (4, 128)
-        assert batch["attention_mask"].shape == (4, 128)
-        assert batch["labels"].shape == (4,)
+        assert len(result["input_ids"]) == 128
+        assert len(result["attention_mask"]) == 128
+        
+        # Check padding - we have 6 original tokens + 2 special tokens (CLS/SEP) = 8 total
+        # So positions 0-7 should have attention mask 1, rest should be 0
+        assert result["attention_mask"][7] == 1  # Last non-padded position
+        assert result["attention_mask"][8] == 0  # First padded position
+        assert result["attention_mask"][-1] == 0  # Last position (padded)
     
-    @pytest.mark.skip(reason="MLX data pipeline has initialization issue")
-    def test_mlx_data_pipeline(self, sample_titanic_data, tokenizer_name):
-        """Test MLX data pipeline mode."""
-        pipeline = UnifiedTitanicDataPipeline(
-            data_path=str(sample_titanic_data),
-            tokenizer_name=tokenizer_name,
-            use_mlx_data=True,
-            batch_size=4,
-        )
-        
-        assert pipeline.use_mlx_data == True
-        
-        # Get dataloader
-        dataloader = pipeline.get_dataloader()
-        assert dataloader is not None
     
-    def test_test_data_without_labels(self, sample_test_data, tokenizer_name):
-        """Test loading test data without labels."""
-        pipeline = UnifiedTitanicDataPipeline(
-            data_path=str(sample_test_data),
-            tokenizer_name=tokenizer_name,
-            is_training=False,
-            augment=False,  # Disable augmentation for test data
-        )
-        
-        # Labels should be -1 for test data (no Survived column)
-        assert all(label == -1 for label in pipeline.labels)
-        assert len(pipeline.texts) == 5  # Test data has 5 rows
-        
-        # Get a batch
-        dataloader = pipeline.get_dataloader()
-        batch = next(iter(dataloader))
-        
-        assert "labels" in batch
-        assert all(batch["labels"] == -1)  # All labels should be -1
-        assert "input_ids" in batch
-        assert "attention_mask" in batch
-    
-    def test_data_augmentation(self, sample_titanic_data, tokenizer_name):
-        """Test data augmentation."""
-        # Without augmentation
-        pipeline_no_aug = UnifiedTitanicDataPipeline(
-            data_path=str(sample_titanic_data),
-            tokenizer_name=tokenizer_name,
-            augment=False,
-        )
-        
-        # With augmentation (should produce different texts)
-        pipeline_aug = UnifiedTitanicDataPipeline(
-            data_path=str(sample_titanic_data),
-            tokenizer_name=tokenizer_name,
-            augment=True,
-        )
-        
-        # With augmentation, should have 3x more texts
-        assert len(pipeline_aug.texts) == 3 * len(pipeline_no_aug.texts)
-    
-    def test_get_num_batches(self, sample_titanic_data, tokenizer_name):
-        """Test batch count calculation."""
-        pipeline = UnifiedTitanicDataPipeline(
-            data_path=str(sample_titanic_data),
-            tokenizer_name=tokenizer_name,
-            batch_size=3,
-            augment=False,
-        )
-        
-        # 10 samples / 3 batch_size = 4 batches (last batch has 1 sample)
-        assert pipeline.get_num_batches() == 4
-    
-    def test_len_method(self, sample_titanic_data, tokenizer_name):
-        """Test __len__ method."""
-        pipeline = UnifiedTitanicDataPipeline(
-            data_path=str(sample_titanic_data),
-            tokenizer_name=tokenizer_name,
-            augment=False,
-            batch_size=32,  # Default batch size
-        )
-        
-        # __len__ returns number of batches, not samples
-        expected_batches = (10 + 32 - 1) // 32  # 10 samples, batch size 32 = 1 batch
-        assert len(pipeline) == expected_batches
-
-
-class TestEnhancedUnifiedDataPipeline:
-    """Test EnhancedUnifiedDataPipeline."""
-    
-    def test_inheritance(self, sample_titanic_data, tokenizer_name):
-        """Test that enhanced pipeline inherits from base."""
-        pipeline = EnhancedUnifiedDataPipeline(
-            data_path=str(sample_titanic_data),
-            tokenizer_name=tokenizer_name,
-        )
-        
-        assert isinstance(pipeline, UnifiedTitanicDataPipeline)
-    
-    def test_persistent_cache(self, sample_titanic_data, tokenizer_name, temp_dir):
-        """Test persistent caching functionality."""
-        cache_dir = temp_dir / "cache"
-        
-        # First load - should create cache
-        pipeline1 = EnhancedUnifiedDataPipeline(
-            data_path=str(sample_titanic_data),
-            tokenizer_name=tokenizer_name,
-            cache_dir=str(cache_dir),
-            persistent_cache=True,  # Use persistent_cache parameter
-            pre_tokenize=True,  # Enable pre-tokenization for caching
-            optimization_level="optimized",  # Use optimized level
-        )
-        
-        # Check cache was created
-        assert cache_dir.exists()
-        assert len(list(cache_dir.glob("*.pkl"))) > 0
-        
-        # Second load - should use cache
-        with patch.object(EnhancedUnifiedDataPipeline, '_pretokenize_all') as mock_tokenize:
-            pipeline2 = EnhancedUnifiedDataPipeline(
-                data_path=str(sample_titanic_data),
-                tokenizer_name=tokenizer_name,
-                cache_dir=str(cache_dir),
-                persistent_cache=True,
-                pre_tokenize=True,
-                optimization_level="optimized",
-            )
-            
-            # Pre-tokenization should not be called when loading from cache
-            mock_tokenize.assert_not_called()
-    
-    def test_update_batch_size(self, sample_titanic_data, tokenizer_name):
-        """Test dynamic batch size update."""
-        pipeline = EnhancedUnifiedDataPipeline(
-            data_path=str(sample_titanic_data),
+    def test_create_stream(self, sample_titanic_data, tokenizer_name):
+        """Test stream creation."""
+        loader = MLXTabularTextDataLoader(
+            csv_path=str(sample_titanic_data),
             tokenizer_name=tokenizer_name,
             batch_size=4,
-            enable_dynamic_batch=True,  # Must enable dynamic batch updates
-            augment=False,  # Disable augmentation for predictable batch sizes
+            max_length=128,
         )
         
-        # Update batch size
-        pipeline.update_batch_size(8)
-        assert pipeline.batch_size == 8
+        # Create training stream
+        stream = loader.create_stream(is_training=True)
+        assert isinstance(stream, dx.Stream)
         
-        # Get new dataloader with updated batch size
-        dataloader = pipeline.get_dataloader()
-        batch = next(iter(dataloader))
-        # With 10 samples and batch size 8, first batch should have 8 samples
-        assert batch["input_ids"].shape[0] == 8
-
-
-class TestCreateUnifiedDataloaders:
-    """Test create_unified_dataloaders helper function."""
+        # Create evaluation stream
+        stream_eval = loader.create_stream(is_training=False)
+        assert isinstance(stream_eval, dx.Stream)
     
-    def test_create_train_only(self, sample_titanic_data, tokenizer_name):
-        """Test creating train loader only."""
-        # The factory function always creates both train and val loaders
-        # if val_path is provided
-        try:
-            train_loader, val_loader = create_unified_dataloaders(
-                train_path=str(sample_titanic_data),
-                val_path=None,  # This will cause an error
-                tokenizer_name=tokenizer_name,
-                batch_size=4,
-            )
-            # Should not reach here
-            assert False, "Expected error when val_path is None"
-        except (TypeError, AttributeError):
-            # Expected - the function requires both paths
-            pass
-        
-        # Create with both paths to test properly
-        train_loader, val_loader = create_unified_dataloaders(
-            train_path=str(sample_titanic_data),
-            val_path=str(sample_titanic_data),  # Use same file for testing
-            tokenizer_name=tokenizer_name,
-            batch_size=4,
-        )
-        
-        assert train_loader is not None
-        assert val_loader is not None
-        assert train_loader.batch_size == 4
-    
-    def test_create_train_and_val(self, sample_titanic_data, tokenizer_name):
-        """Test creating both train and val loaders."""
-        train_loader, val_loader = create_unified_dataloaders(
-            train_path=str(sample_titanic_data),
-            val_path=str(sample_titanic_data),  # Use same file for testing
-            tokenizer_name=tokenizer_name,
-            batch_size=4,
-        )
-        
-        assert train_loader is not None
-        assert val_loader is not None
-        assert train_loader.is_training == True
-        assert val_loader.is_training == False
-    
-    def test_optimization_level_propagation(self, sample_titanic_data, tokenizer_name):
-        """Test optimization level is properly set."""
-        train_loader, val_loader = create_unified_dataloaders(
-            train_path=str(sample_titanic_data),
-            val_path=str(sample_titanic_data),  # Required parameter
-            tokenizer_name=tokenizer_name,
-            optimization_level="optimized",
-        )
-        
-        assert train_loader.optimization_level.value == "optimized"
-
-
-@pytest.mark.integration
-class TestDataLoadersIntegration:
-    """Integration tests for data loaders."""
-    
-    def test_full_data_pipeline(self, sample_titanic_data, tokenizer_name):
-        """Test complete data loading pipeline."""
-        # Create pipeline
-        pipeline = UnifiedTitanicDataPipeline(
-            data_path=str(sample_titanic_data),
+    def test_stream_iteration(self, sample_titanic_data, tokenizer_name):
+        """Test iterating through the stream."""
+        loader = MLXTabularTextDataLoader(
+            csv_path=str(sample_titanic_data),
             tokenizer_name=tokenizer_name,
             batch_size=3,
             max_length=128,
-            is_training=True,
-            augment=True,
-            use_mlx_data=False,
         )
         
-        # Iterate through all batches
+        # Get stream
+        stream = loader.create_stream(is_training=False)  # No shuffle for predictable results
+        
+        # Iterate and collect batches
         batches = []
-        for batch in pipeline.get_dataloader():
+        for i, batch in enumerate(stream):
+            if i >= 5:  # Limit iterations for testing
+                break
             batches.append(batch)
             
             # Verify batch structure
@@ -376,15 +203,195 @@ class TestDataLoadersIntegration:
             assert "attention_mask" in batch
             assert "labels" in batch
             
-            # Verify types
-            assert isinstance(batch["input_ids"], mx.array)
-            assert isinstance(batch["attention_mask"], mx.array)
-            assert isinstance(batch["labels"], mx.array)
+            # Verify types - MLX-data returns numpy arrays
+            assert isinstance(batch["input_ids"], np.ndarray)
+            assert isinstance(batch["attention_mask"], np.ndarray)
+            assert isinstance(batch["labels"], np.ndarray)
+            
+            # Verify shapes
+            assert batch["input_ids"].shape[1] == 128  # max_length
+            assert batch["attention_mask"].shape[1] == 128
+            assert len(batch["labels"].shape) == 1
         
-        # Should have correct number of batches
-        assert len(batches) == pipeline.get_num_batches()
+        assert len(batches) > 0
+    
+    def test_create_buffer(self, sample_titanic_data, tokenizer_name):
+        """Test buffer creation for small datasets."""
+        loader = MLXTabularTextDataLoader(
+            csv_path=str(sample_titanic_data),
+            tokenizer_name=tokenizer_name,
+            batch_size=4,
+            max_length=128,
+        )
         
-        # Verify all samples are covered
-        total_samples = sum(batch["labels"].shape[0] for batch in batches)
-        # With augmentation (3x), we should have 30 samples
-        assert total_samples == 30  # 10 rows * 3 augmentations
+        # Create buffer
+        buffer = loader.create_buffer()
+        assert isinstance(buffer, dx.Buffer)
+    
+    def test_dataloader_len(self, sample_titanic_data, tokenizer_name):
+        """Test __len__ method."""
+        loader = MLXTabularTextDataLoader(
+            csv_path=str(sample_titanic_data),
+            tokenizer_name=tokenizer_name,
+            batch_size=3,
+        )
+        
+        # Should return approximate number of batches
+        # 10 samples / 3 batch_size = 4 batches
+        assert len(loader) == 4
+    
+    def test_dataloader_iter(self, sample_titanic_data, tokenizer_name):
+        """Test __iter__ method."""
+        loader = MLXTabularTextDataLoader(
+            csv_path=str(sample_titanic_data),
+            tokenizer_name=tokenizer_name,
+            batch_size=4,
+        )
+        
+        # Should be iterable
+        assert hasattr(loader, '__iter__')
+        iterator = iter(loader)
+        assert iterator is not None
+
+
+class TestCreateTitanicDataloader:
+    """Test the create_titanic_dataloader helper function."""
+    
+    def test_create_titanic_dataloader(self, sample_titanic_data):
+        """Test creating Titanic-specific dataloader."""
+        stream = create_titanic_dataloader(
+            data_path=str(sample_titanic_data),
+            batch_size=4,
+            max_length=128,
+            is_training=True
+        )
+        
+        assert isinstance(stream, dx.Stream)
+        
+        # Get first batch to verify
+        batch = next(iter(stream))
+        assert "input_ids" in batch
+        assert "attention_mask" in batch
+        assert "labels" in batch
+
+
+class TestCachedDataloader:
+    """Test cached dataloader functionality."""
+    
+    def test_create_cached_dataloader(self, sample_titanic_data, tokenizer_name, temp_dir):
+        """Test cached dataloader creation."""
+        cache_path = temp_dir / "cache"
+        
+        # Create cached dataloader
+        loader = create_cached_dataloader(
+            csv_path=str(sample_titanic_data),
+            cache_path=str(cache_path),
+            tokenizer_name=tokenizer_name,
+            batch_size=4,
+            max_length=128,
+        )
+        
+        assert isinstance(loader, MLXTabularTextDataLoader)
+        assert cache_path.exists()
+
+
+class TestDataLoaderWithTestData:
+    """Test dataloader with test data (no labels)."""
+    
+    def test_test_data_without_labels(self, sample_test_data, tokenizer_name):
+        """Test loading test data without labels."""
+        loader = MLXTabularTextDataLoader(
+            csv_path=str(sample_test_data),
+            tokenizer_name=tokenizer_name,
+            batch_size=4,
+            max_length=128,
+            label_column="Survived",  # Column doesn't exist in test data
+        )
+        
+        # Get stream
+        stream = loader.create_stream(is_training=False)
+        
+        # Get a batch
+        batch = next(iter(stream))
+        
+        assert "labels" in batch
+        assert np.all(batch["labels"] == 0)  # Default label when column missing
+        assert "input_ids" in batch
+        assert "attention_mask" in batch
+
+
+@pytest.mark.integration
+class TestDataLoadersIntegration:
+    """Integration tests for V2 data loaders."""
+    
+    def test_full_data_pipeline(self, sample_titanic_data, tokenizer_name):
+        """Test complete data loading pipeline."""
+        # Create dataloader
+        loader = MLXTabularTextDataLoader(
+            csv_path=str(sample_titanic_data),
+            tokenizer_name=tokenizer_name,
+            batch_size=3,
+            max_length=128,
+            label_column="Survived",
+        )
+        
+        # Create stream
+        stream = loader.create_stream(is_training=True)
+        
+        # Iterate through batches
+        batches = []
+        total_samples = 0
+        
+        for i, batch in enumerate(stream):
+            if i >= 10:  # Limit iterations
+                break
+                
+            batches.append(batch)
+            total_samples += batch["labels"].shape[0]
+            
+            # Verify batch structure
+            assert "input_ids" in batch
+            assert "attention_mask" in batch
+            assert "labels" in batch
+            
+            # Verify types - MLX-data returns numpy arrays
+            assert isinstance(batch["input_ids"], np.ndarray)
+            assert isinstance(batch["attention_mask"], np.ndarray)
+            assert isinstance(batch["labels"], np.ndarray)
+            
+            # Verify shapes
+            assert batch["input_ids"].shape[1] == 128
+            assert batch["attention_mask"].shape[1] == 128
+        
+        assert len(batches) > 0
+        assert total_samples > 0
+    
+    def test_performance_comparison(self, sample_titanic_data, tokenizer_name):
+        """Test that V2 dataloader works efficiently."""
+        import time
+        
+        loader = MLXTabularTextDataLoader(
+            csv_path=str(sample_titanic_data),
+            tokenizer_name=tokenizer_name,
+            batch_size=4,
+            max_length=128,
+            prefetch_size=2,
+        )
+        
+        stream = loader.create_stream(is_training=False)
+        
+        # Time the iteration
+        start_time = time.time()
+        batch_count = 0
+        
+        for i, batch in enumerate(stream):
+            if i >= 5:
+                break
+            batch_count += 1
+            # Force evaluation
+            _ = batch["input_ids"].shape
+        
+        elapsed_time = time.time() - start_time
+        
+        assert batch_count > 0
+        assert elapsed_time < 10.0  # Should be fast for small dataset

@@ -27,7 +27,8 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-from data.universal_loader import UniversalKaggleLoader
+# Import protocols for flexible typing
+from training.protocols import DataLoaderProtocol, OptimizerProtocol, ModelProtocol
 from training.config import TrainingConfig
 from training.memory_manager import (
     AppleSiliconMemoryManager,
@@ -93,6 +94,9 @@ class MLXTrainer:
         self.accumulation_step = 0
         self.steps_since_eval = 0
         self.total_steps = 0
+        
+        # MLflow tracking
+        self.mlflow_run = None
 
         # Advanced memory management
         memory_thresholds = MemoryThresholds(
@@ -464,7 +468,7 @@ class MLXTrainer:
 
     def evaluate(
         self,
-        dataloader: UniversalKaggleLoader,
+        dataloader: DataLoaderProtocol,
         phase: str = "validation",
         max_batches: int | None = None,
     ) -> dict[str, float]:
@@ -618,9 +622,9 @@ class MLXTrainer:
 
     def train(
         self,
-        train_loader: UniversalKaggleLoader,
-        val_loader: UniversalKaggleLoader | None = None,
-        test_loader: UniversalKaggleLoader | None = None,
+        train_loader: DataLoaderProtocol,
+        val_loader: DataLoaderProtocol | None = None,
+        test_loader: DataLoaderProtocol | None = None,
         resume_from_checkpoint: str | None = None,
     ) -> dict[str, Any]:
         """Main training loop with comprehensive features."""
@@ -711,7 +715,8 @@ class MLXTrainer:
                 }
 
                 # Save final checkpoint
-                final_checkpoint = self.save_checkpoint("final")
+                self._save_checkpoint("final")
+                final_checkpoint = Path(self.config.checkpoint.checkpoint_dir) / "final"
 
                 # Save monitoring artifacts
                 self.monitor.save_checkpoint_artifacts(
@@ -748,8 +753,8 @@ class MLXTrainer:
 
     def _train_epoch(
         self,
-        train_loader: UniversalKaggleLoader,
-        val_loader: UniversalKaggleLoader | None,
+        train_loader: DataLoaderProtocol,
+        val_loader: DataLoaderProtocol | None,
         history: dict[str, list],
     ) -> dict[str, Any]:
         """Train for one epoch."""
@@ -867,8 +872,8 @@ class MLXTrainer:
 
     def _final_evaluation(
         self,
-        val_loader: UniversalKaggleLoader | None,
-        test_loader: UniversalKaggleLoader | None,
+        val_loader: DataLoaderProtocol | None,
+        test_loader: DataLoaderProtocol | None,
     ) -> dict[str, float]:
         """Run final evaluation on validation and test sets."""
         final_metrics = {}

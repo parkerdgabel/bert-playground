@@ -1,62 +1,45 @@
-"""Data loading and processing modules for MLX-based BERT training."""
+"""Data loading and processing modules for MLX-based Kaggle competitions."""
 
-# New universal system
-from .dataset_spec import (
-    KaggleDatasetSpec,
+# Core MLX DataLoader
+from .mlx_dataloader import (
+    KaggleDataLoader,
+    create_kaggle_dataloader,
+    create_titanic_dataloader,
+)
+
+# Dataset specifications and registry
+from .datasets import (
+    DatasetSpec,
     ProblemType,
-    FeatureType,
-    OptimizationProfile,
+    dataset_registry,
     get_dataset_spec,
-    register_dataset_spec,
-    TITANIC_SPEC,
+    register_dataset,
+    list_datasets,
 )
 
-from .mlx_streaming import (
-    MLXStreamConfig,
-    MLXCSVStreamer,
-    MLXDataPipeline,
-    create_mlx_pipeline,
+# Text generation utilities
+from .text_generation import (
+    TextGenerator,
+    TabularTextGenerator,
+    TitanicTextGenerator,
+    get_text_generator,
 )
-
-from .universal_loader import (
-    UniversalKaggleLoader,
-    UniversalTextGenerator,
-    TextGenerationStrategy,
-    create_universal_loader,
-    create_titanic_loader,
-)
-
-# Legacy components (still available)
-from .unified_loader import (
-    UnifiedTitanicDataPipeline,
-    OptimizationLevel,
-)
-
-from .enhanced_unified_loader import EnhancedUnifiedDataPipeline
-
-from .text_templates import TitanicTextTemplates
 
 __all__ = [
-    # New universal system
-    "KaggleDatasetSpec",
-    "ProblemType", 
-    "FeatureType",
-    "OptimizationProfile",
+    # Core DataLoader
+    "KaggleDataLoader",
+    "create_kaggle_dataloader",
+    "create_titanic_dataloader",
+    # Dataset management
+    "DatasetSpec",
+    "ProblemType",
+    "dataset_registry",
     "get_dataset_spec",
-    "register_dataset_spec",
-    "TITANIC_SPEC",
-    "MLXStreamConfig",
-    "MLXCSVStreamer", 
-    "MLXDataPipeline",
-    "create_mlx_pipeline",
-    "UniversalKaggleLoader",
-    "UniversalTextGenerator",
-    "TextGenerationStrategy",
-    "create_universal_loader",
-    "create_titanic_loader",
-    # Legacy components
-    "UnifiedTitanicDataPipeline",
-    "EnhancedUnifiedDataPipeline",
-    "OptimizationLevel",
-    "TitanicTextTemplates",
+    "register_dataset",
+    "list_datasets",
+    # Text generation
+    "TextGenerator",
+    "TabularTextGenerator", 
+    "TitanicTextGenerator",
+    "get_text_generator",
 ]

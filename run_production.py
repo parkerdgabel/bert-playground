@@ -96,32 +96,34 @@ def main():
         "uv",
         "run",
         "python",
-        "train_titanic_v2.py",
-        "--train_path",
+        "mlx_bert_cli.py",
+        "train",
+        "--train",
         "data/titanic/train.csv",
-        "--val_path",
+        "--val",
         "data/titanic/val.csv",
-        "--model_name",
+        "--model",
         "answerdotai/ModernBERT-base",
-        "--batch_size",
+        "--batch-size",
         str(config["batch_size"]),
-        "--learning_rate",
+        "--lr",
         str(config["learning_rate"]),
-        "--num_epochs",
+        "--epochs",
         str(config["num_epochs"]),
-        "--output_dir",
+        "--output",
         output_dir,
-        "--experiment_name",
+        "--experiment",
         args.experiment_name,
-        "--run_name",
+        "--run-name",
         f"{args.config}_{timestamp}",
-        "--log_level",
-        "INFO",
-        "--do_train",
+        "--eval-steps",
+        str(config["eval_steps"]),
+        "--warmup-ratio",
+        str(config["warmup_steps"] / (config["num_epochs"] * 891 // config["batch_size"])),
     ]
 
     if not args.enable_mlflow:
-        cmd.append("--disable_mlflow")
+        cmd.append("--no-mlflow")
 
     # Run training
     print("Starting training...")
@@ -136,26 +138,37 @@ def main():
     # Run prediction if requested
     if args.predict:
         print("\nRunning predictions on test set...")
-        pred_cmd = [
-            "uv",
-            "run",
-            "python",
-            "train_titanic_v2.py",
-            "--test_path",
-            "data/titanic/test.csv",
-            "--checkpoint_path",
-            f"{output_dir}/best_model_accuracy",
-            "--output_dir",
-            output_dir,
-            "--do_predict",
-        ]
+        # Find the best checkpoint
+        checkpoint_dir = Path(output_dir) / "checkpoints"
+        best_checkpoint = None
+        if checkpoint_dir.exists():
+            checkpoints = list(checkpoint_dir.glob("best_model_*"))
+            if checkpoints:
+                best_checkpoint = checkpoints[0]
+        
+        if best_checkpoint:
+            pred_cmd = [
+                "uv",
+                "run",
+                "python",
+                "mlx_bert_cli.py",
+                "predict",
+                "--test",
+                "data/titanic/test.csv",
+                "--checkpoint",
+                str(best_checkpoint),
+                "--output",
+                f"{output_dir}/submission.csv",
+            ]
 
-        pred_result = subprocess.run(pred_cmd, capture_output=False, text=True)
+            pred_result = subprocess.run(pred_cmd, capture_output=False, text=True)
 
-        if pred_result.returncode == 0:
-            print(f"\nPredictions saved to: {output_dir}/submission.csv")
+            if pred_result.returncode == 0:
+                print(f"\nPredictions saved to: {output_dir}/submission.csv")
+            else:
+                print("\nPrediction failed!")
         else:
-            print("\nPrediction failed!")
+            print("\nNo checkpoint found for predictions!")
 
     # Print summary
     history_path = Path(output_dir) / "training_history.json"
