@@ -250,7 +250,7 @@ class MLflowTracker:
             )
             mlflow.log_param(
                 "gradient_accumulation_steps",
-                self.config.memory.gradient_accumulation_steps,
+                self.config.mlx_optimization.gradient_accumulation_steps,
             )
 
             # MLX optimization
