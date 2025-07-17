@@ -17,6 +17,10 @@ import sys
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+# Apply MLX compatibility patches for mlx-embeddings
+from utils.mlx_patch import apply_mlx_patches
+apply_mlx_patches()
+
 from models.factory import create_model
 from models.modernbert_cnn_hybrid import create_cnn_hybrid_model
 from data import KaggleDataLoader, create_kaggle_dataloader

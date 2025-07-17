@@ -217,9 +217,15 @@ class KaggleDataLoader:
         # Convert to MLX arrays
         def convert_batch_to_mlx(batch):
             """Convert batch arrays to MLX format."""
-            input_ids = np.array(batch['input_ids'], dtype=np.int32)
-            attention_mask = np.array(batch['attention_mask'], dtype=np.int32)
-            labels = np.array(batch['labels'], dtype=np.int32)
+            # Extract individual arrays from batch
+            input_ids_batch = batch['input_ids']
+            attention_mask_batch = batch['attention_mask']
+            labels_batch = batch['labels']
+            
+            # Ensure they are numpy arrays with correct dtype
+            input_ids = np.array(input_ids_batch, dtype=np.int32)
+            attention_mask = np.array(attention_mask_batch, dtype=np.int32)
+            labels = np.array(labels_batch, dtype=np.int32)
             
             # Remove extra dimensions if present
             if input_ids.ndim > 2:
@@ -229,11 +235,17 @@ class KaggleDataLoader:
             if labels.ndim > 1:
                 labels = labels.squeeze()
             
-            return {
+            # Convert to MLX arrays
+            result = {
                 'input_ids': mx.array(input_ids),
                 'attention_mask': mx.array(attention_mask),
                 'labels': mx.array(labels)
             }
+            
+            # Debug: verify conversion
+            logger.debug(f"Converted batch to MLX: input_ids type={type(result['input_ids'])}, dtype={result['input_ids'].dtype}")
+            
+            return result
         
         stream = stream.sample_transform(convert_batch_to_mlx)
         
@@ -244,7 +256,16 @@ class KaggleDataLoader:
     
     def __iter__(self) -> Iterator[Dict[str, mx.array]]:
         """Make the dataloader iterable."""
-        return iter(self.create_stream())
+        for batch in self.create_stream():
+            # Ensure we're returning MLX arrays
+            if not isinstance(batch['input_ids'], mx.array):
+                logger.debug(f"Converting batch to MLX arrays in __iter__: {type(batch['input_ids'])}")
+                batch = {
+                    'input_ids': mx.array(batch['input_ids']),
+                    'attention_mask': mx.array(batch['attention_mask']),
+                    'labels': mx.array(batch['labels'])
+                }
+            yield batch
     
     def __len__(self) -> int:
         """Get number of batches."""

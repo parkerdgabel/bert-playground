@@ -91,14 +91,14 @@ class EmbeddingModel(nn.Module):
                 **kwargs
             )
             
-            # Extract embeddings based on pooling strategy
-            if hasattr(outputs, 'text_embeds'):
-                # Use pre-computed text embeddings if available
-                embeddings = outputs.text_embeds
-                hidden_states = outputs.last_hidden_state if hasattr(outputs, 'last_hidden_state') else None
-            else:
-                # Manual pooling
+            # Always use manual pooling for consistent results
+            # The text_embeds from mlx-embeddings is not properly pooled
+            if hasattr(outputs, 'last_hidden_state'):
                 hidden_states = outputs.last_hidden_state
+                embeddings = self._pool_embeddings(hidden_states, attention_mask)
+            else:
+                # Fallback: use text_embeds but still apply pooling
+                hidden_states = outputs.text_embeds if hasattr(outputs, 'text_embeds') else outputs
                 embeddings = self._pool_embeddings(hidden_states, attention_mask)
         else:
             # Fallback: return random embeddings for testing

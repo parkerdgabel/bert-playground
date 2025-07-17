@@ -2,12 +2,15 @@ Metadata-Version: 2.4
 Name: bert-playground
 Version: 0.1.0
 Summary: MLX-based ModernBERT implementation for Kaggle competitions
-Requires-Python: >=3.13
+Requires-Python: <3.11,>=3.10
 Description-Content-Type: text/markdown
-Requires-Dist: mlx>=0.22.0
+Requires-Dist: mlx<0.25.0,>=0.22.0
 Requires-Dist: mlx-data>=0.0.7
 Requires-Dist: mlx-lm>=0.20.0
-Requires-Dist: transformers>=4.47.0
+Requires-Dist: mlx-vlm<0.4.0,>=0.1.21
+Requires-Dist: mlx-embeddings@ git+https://github.com/Blaizzy/mlx-embeddings.git
+Requires-Dist: numba>=0.57.0
+Requires-Dist: transformers[sentencepiece]>=4.44.0
 Requires-Dist: pandas>=2.2.0
 Requires-Dist: numpy>=1.26.0
 Requires-Dist: scikit-learn>=1.5.0
@@ -21,6 +24,7 @@ Requires-Dist: loguru>=0.7.2
 Requires-Dist: python-dotenv>=1.0.1
 Requires-Dist: typer>=0.15.0
 Requires-Dist: click>=8.1.0
+Requires-Dist: psutil>=5.9.0
 Provides-Extra: dev
 Requires-Dist: pytest>=8.0.0; extra == "dev"
 Requires-Dist: pytest-cov>=6.0.0; extra == "dev"

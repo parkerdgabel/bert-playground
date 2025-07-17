@@ -105,24 +105,46 @@ class MLXEmbeddingsAdapter:
         
         # Use batch encoding if available
         if hasattr(self.tokenizer, 'batch_encode_plus'):
-            encoded = self.tokenizer.batch_encode_plus(
-                texts,
-                return_tensors="pt",  # mlx-embeddings uses PyTorch format internally
-                padding=padding,
-                truncation=truncation,
-                max_length=max_length,
-                **kwargs
-            )
+            try:
+                # Try numpy first since we don't have PyTorch
+                encoded = self.tokenizer.batch_encode_plus(
+                    texts,
+                    return_tensors="np",
+                    padding=padding,
+                    truncation=truncation,
+                    max_length=max_length,
+                    **kwargs
+                )
+            except ImportError:
+                # Fall back to Python lists
+                encoded = self.tokenizer.batch_encode_plus(
+                    texts,
+                    return_tensors=None,
+                    padding=padding,
+                    truncation=truncation,
+                    max_length=max_length,
+                    **kwargs
+                )
         else:
             # Fallback to single encoding
-            encoded = self.tokenizer(
-                texts,
-                return_tensors="pt",
-                padding=padding,
-                truncation=truncation,
-                max_length=max_length,
-                **kwargs
-            )
+            try:
+                encoded = self.tokenizer(
+                    texts,
+                    return_tensors="np",
+                    padding=padding,
+                    truncation=truncation,
+                    max_length=max_length,
+                    **kwargs
+                )
+            except ImportError:
+                encoded = self.tokenizer(
+                    texts,
+                    return_tensors=None,
+                    padding=padding,
+                    truncation=truncation,
+                    max_length=max_length,
+                    **kwargs
+                )
         
         # Convert to MLX arrays
         result = {}

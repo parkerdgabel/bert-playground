@@ -93,6 +93,8 @@ class TokenizerWrapper:
             cache_dir=self.cache_dir,
             trust_remote_code=True
         )
+        # Ensure we don't use PyTorch tensors by default
+        self._tokenizer.model_max_length = 512  # Set reasonable default
     
     def encode(
         self,
@@ -168,15 +170,27 @@ class TokenizerWrapper:
                 **kwargs
             )
         else:
-            # HuggingFace backend
-            encoded = self._tokenizer.batch_encode_plus(
-                texts,
-                padding=padding,
-                truncation=truncation,
-                max_length=max_length,
-                return_tensors="np" if return_tensors == "mlx" else return_tensors,
-                **kwargs
-            )
+            # HuggingFace backend - avoid PyTorch tensors completely
+            try:
+                # Try using numpy first
+                encoded = self._tokenizer.batch_encode_plus(
+                    texts,
+                    padding=padding,
+                    truncation=truncation,
+                    max_length=max_length,
+                    return_tensors="np",
+                    **kwargs
+                )
+            except ImportError:
+                # Fall back to Python lists if numpy isn't available
+                encoded = self._tokenizer.batch_encode_plus(
+                    texts,
+                    padding=padding,
+                    truncation=truncation,
+                    max_length=max_length,
+                    return_tensors=None,
+                    **kwargs
+                )
             
             # Convert to MLX if needed
             if return_tensors == "mlx":
@@ -185,7 +199,7 @@ class TokenizerWrapper:
                     if hasattr(value, 'numpy'):
                         result[key] = mx.array(value.numpy())
                     elif isinstance(value, (list, tuple)):
-                        result[key] = value
+                        result[key] = mx.array(value)
                     else:
                         result[key] = mx.array(value)
                 return result
