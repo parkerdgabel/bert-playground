@@ -155,6 +155,7 @@ class CheckpointConfig:
     # Checkpoint management
     max_checkpoints_to_keep: int = 5
     save_best_model: bool = True
+    save_best_only: bool = False  # Only save best model, skip regular checkpoints
     best_model_metric: str = "val_accuracy"
     best_model_mode: str = "max"  # "max" or "min"
 

@@ -91,6 +91,7 @@ checkpoint:
   save_model_weights: true
   max_checkpoints_to_keep: 5
   save_best_model: true
+  save_best_only: true  # Save only the best model to reduce storage usage
   best_model_metric: val_accuracy
   best_model_mode: max
   auto_resume: true
@@ -151,6 +152,7 @@ metadata:
     - Comprehensive evaluation metrics
     - Early stopping to prevent overfitting
     - MLflow tracking for experiment management
+    - Best model only saving to reduce storage usage
     
   expected_performance:
     validation_accuracy: 0.83-0.86

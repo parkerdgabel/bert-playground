@@ -75,6 +75,12 @@ uv run python mlx_bert_cli.py train \
     --augment \
     --experiment titanic_prod
 
+# Training with best model only (saves storage)
+uv run python mlx_bert_cli.py train \
+    --train data/titanic/train.csv \
+    --val data/titanic/val.csv \
+    --config configs/best_model_only.yaml
+
 # Quick test run
 uv run python run_production.py --config quick
 
@@ -149,6 +155,36 @@ bert-playground/
 3. **Workers**: Use 4-8 workers for data loading
 4. **Gradient Accumulation**: Use when memory is limited
 5. **Mixed Precision**: MLX handles this automatically
+
+## Checkpoint Management
+
+### Best Model Only Mode
+To save storage space, you can configure training to save only the best model instead of regular checkpoints:
+
+```yaml
+checkpoint:
+  enable_checkpointing: true
+  save_best_model: true
+  save_best_only: true  # Skip regular checkpoints
+  best_model_metric: "val_accuracy"
+  best_model_mode: "max"
+```
+
+**Benefits:**
+- Reduces storage usage significantly
+- Focuses on keeping only the highest-performing model
+- Still logs models to MLflow for experiment tracking
+
+**Usage:**
+```bash
+# Use pre-configured best model only config
+uv run python mlx_bert_cli.py train \
+    --train data/titanic/train.csv \
+    --val data/titanic/val.csv \
+    --config configs/best_model_only.yaml
+```
+
+**Note:** Regular checkpoints are still saved during training when `save_best_only: false` (default).
 
 ## Common Issues and Solutions
 

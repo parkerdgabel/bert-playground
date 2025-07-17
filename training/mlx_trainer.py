@@ -668,7 +668,8 @@ class MLXTrainer:
                 f"  Steps per epoch: {steps_per_epoch}\n"
                 f"  Total steps: {self.total_steps}\n"
                 f"  Effective batch size: {self.effective_batch_size}\n"
-                f"  Warmup steps: {self.config.warmup_steps}"
+                f"  Warmup steps: {self.config.warmup_steps}\n"
+                f"  Checkpoint mode: {'Best model only' if self.config.checkpoint.save_best_only else 'Regular + best model'}"
             )
 
             # Start comprehensive monitoring
@@ -763,9 +764,14 @@ class MLXTrainer:
                     "training_history": history,
                 }
 
-                # Save final checkpoint
-                self._save_checkpoint("final")
-                final_checkpoint = Path(self.config.checkpoint.checkpoint_dir) / "final"
+                # Save final checkpoint (only if not save_best_only or no best model saved)
+                final_checkpoint = None
+                if not self.config.checkpoint.save_best_only or self.best_metric_step == 0:
+                    self._save_checkpoint("final")
+                    final_checkpoint = Path(self.config.checkpoint.checkpoint_dir) / "final"
+                else:
+                    # Use best model as final checkpoint when save_best_only is enabled
+                    final_checkpoint = Path(self.config.checkpoint.checkpoint_dir) / "best_model"
 
                 # Save monitoring artifacts
                 self.monitor.save_checkpoint_artifacts(
@@ -926,13 +932,24 @@ class MLXTrainer:
                                         logger.warning(f"Failed to log best model to MLflow: {e}")
 
 
-                # Checkpoint saving
+                # Checkpoint saving (only if not save_best_only)
                 if (
                     self.config.checkpoint.enable_checkpointing
+                    and not self.config.checkpoint.save_best_only
                     and self.global_step % self.config.checkpoint.checkpoint_frequency
                     == 0
                 ):
-                    self._save_checkpoint(f"checkpoint-step-{self.global_step}")
+                    checkpoint_name = f"checkpoint-step-{self.global_step}"
+                    self._save_checkpoint(checkpoint_name)
+                    
+                    # Log model to MLflow if enabled
+                    if self.config.monitoring.enable_mlflow:
+                        try:
+                            checkpoint_path = Path(self.config.checkpoint.checkpoint_dir) / checkpoint_name
+                            self._log_model_to_mlflow(checkpoint_path)
+                            logger.info(f"Model logged to MLflow at step {self.global_step}")
+                        except Exception as e:
+                            logger.warning(f"Failed to log model to MLflow: {e}")
 
         finally:
             # Clean up progress task

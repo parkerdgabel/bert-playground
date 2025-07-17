@@ -92,9 +92,30 @@ class MLflowCentral:
             experiment = experiment_name or self.DEFAULT_EXPERIMENT
             mlflow.set_experiment(experiment)
         except Exception as e:
-            raise MLflowConfigurationError(
-                f"Failed to set experiment '{experiment}': {str(e)}"
-            )
+            # Handle deleted experiment case
+            if "deleted experiment" in str(e):
+                logger.warning(f"Experiment '{experiment}' is deleted. Attempting to restore it.")
+                try:
+                    # Try to restore the experiment
+                    client = mlflow.MlflowClient()
+                    experiment_obj = client.get_experiment_by_name(experiment)
+                    if experiment_obj and experiment_obj.lifecycle_stage == "deleted":
+                        client.restore_experiment(experiment_obj.experiment_id)
+                        logger.info(f"Restored experiment '{experiment}'")
+                        mlflow.set_experiment(experiment)
+                    else:
+                        # If restore fails, create a new experiment
+                        logger.info(f"Creating new experiment '{experiment}'")
+                        mlflow.set_experiment(experiment)
+                except Exception as restore_error:
+                    logger.error(f"Failed to restore experiment '{experiment}': {restore_error}")
+                    raise MLflowConfigurationError(
+                        f"Failed to set experiment '{experiment}': {str(e)}"
+                    )
+            else:
+                raise MLflowConfigurationError(
+                    f"Failed to set experiment '{experiment}': {str(e)}"
+                )
         
         self._initialized = True
         
