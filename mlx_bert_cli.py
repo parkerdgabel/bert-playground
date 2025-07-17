@@ -5,6 +5,7 @@ import typer
 from pathlib import Path
 from typing import Optional
 import mlx.core as mx
+import mlx.nn as nn
 from rich.console import Console
 from rich.table import Table
 from rich.progress import track
@@ -19,7 +20,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 from models.factory import create_model
 from models.modernbert_cnn_hybrid import create_cnn_hybrid_model
 from data.unified_loader import create_unified_dataloaders, UnifiedTitanicDataPipeline
-from training.trainer_v2 import TitanicTrainerV2
+from models.classification import TitanicClassifier
+from training.mlx_trainer import MLXTrainer, UnifiedTrainingConfig
+from utils.mlflow_central import setup_central_mlflow
+import mlx.optimizers as optim
 
 app = typer.Typer(
     name="mlx-bert",
@@ -48,21 +52,51 @@ def train(
     learning_rate: float = typer.Option(2e-5, "--lr", help="Learning rate"),
     num_epochs: int = typer.Option(5, "--epochs", "-e", help="Number of epochs"),
     max_length: int = typer.Option(256, "--max-length", help="Maximum sequence length"),
-    warmup_steps: int = typer.Option(100, "--warmup", help="Warmup steps"),
+    warmup_ratio: float = typer.Option(0.1, "--warmup-ratio", help="Warmup ratio"),
     gradient_accumulation: int = typer.Option(
         1, "--grad-accum", help="Gradient accumulation steps"
     ),
     num_workers: int = typer.Option(
         4, "--workers", "-w", help="Number of data workers"
     ),
+    prefetch_size: int = typer.Option(
+        4, "--prefetch", help="Data prefetch size"
+    ),
     experiment_name: str = typer.Option(
-        "mlx_modernbert", "--experiment", help="MLflow experiment name"
+        "mlx_unified", "--experiment", help="MLflow experiment name"
+    ),
+    run_name: Optional[str] = typer.Option(
+        None, "--run-name", help="MLflow run name"
     ),
     disable_mlflow: bool = typer.Option(
         False, "--no-mlflow", help="Disable MLflow tracking"
     ),
     augment: bool = typer.Option(
         True, "--augment/--no-augment", help="Enable data augmentation"
+    ),
+    enable_dynamic_batching: bool = typer.Option(
+        True, "--dynamic-batch/--no-dynamic-batch", help="Enable dynamic batching"
+    ),
+    max_batch_size: int = typer.Option(
+        64, "--max-batch-size", help="Maximum batch size for dynamic batching"
+    ),
+    early_stopping_patience: int = typer.Option(
+        3, "--early-stopping", help="Early stopping patience (0 to disable)"
+    ),
+    gradient_clip: float = typer.Option(
+        1.0, "--grad-clip", help="Gradient clipping value"
+    ),
+    label_smoothing: float = typer.Option(
+        0.0, "--label-smoothing", help="Label smoothing factor"
+    ),
+    eval_steps: int = typer.Option(
+        100, "--eval-steps", help="Evaluation frequency"
+    ),
+    save_steps: int = typer.Option(
+        100, "--save-steps", help="Checkpoint save frequency"
+    ),
+    resume_from: Optional[str] = typer.Option(
+        None, "--resume", help="Resume from checkpoint"
     ),
     config: Optional[Path] = typer.Option(
         None, "--config", "-c", help="Load config from JSON file"
@@ -78,106 +112,120 @@ def train(
         True, "--dilated/--no-dilated", help="Use dilated convolutions"
     ),
 ):
-    """Train ModernBERT model on Titanic dataset with MLX optimizations."""
-    console.print("\n[bold blue]MLX ModernBERT Training[/bold blue]")
+    """Train ModernBERT model with unified MLX trainer."""
+    console.print("\n[bold blue]MLX Unified Training System[/bold blue]")
     console.print("=" * 60)
 
     # Load config if provided
+    config_overrides = {}
     if config and config.exists():
         with open(config) as f:
-            config_dict = json.load(f)
+            config_overrides = json.load(f)
         console.print(f"[green]Loaded config from {config}[/green]")
-        # Override CLI args with config values
-        locals().update(config_dict)
 
     # Create output directory
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = output_dir / f"run_{timestamp}"
     run_dir.mkdir(parents=True, exist_ok=True)
 
+    # Create unified training config
+    training_config = UnifiedTrainingConfig(
+        # Basic parameters
+        learning_rate=config_overrides.get("learning_rate", learning_rate),
+        num_epochs=config_overrides.get("num_epochs", num_epochs),
+        warmup_ratio=config_overrides.get("warmup_ratio", warmup_ratio),
+        early_stopping_patience=config_overrides.get(
+            "early_stopping_patience", early_stopping_patience
+        ),
+        # Batch sizes
+        base_batch_size=config_overrides.get("batch_size", batch_size),
+        max_batch_size=config_overrides.get("max_batch_size", max_batch_size),
+        enable_dynamic_batching=config_overrides.get(
+            "enable_dynamic_batching", enable_dynamic_batching
+        ),
+        gradient_accumulation_steps=config_overrides.get(
+            "gradient_accumulation", gradient_accumulation
+        ),
+        # Data pipeline
+        num_workers=config_overrides.get("num_workers", num_workers),
+        prefetch_size=config_overrides.get("prefetch_size", prefetch_size),
+        # MLflow
+        enable_mlflow=not disable_mlflow,
+        experiment_name=config_overrides.get("experiment_name", experiment_name),
+        run_name=run_name or f"{model_type}_{timestamp}",
+        # Advanced
+        gradient_clip_val=config_overrides.get("gradient_clip", gradient_clip),
+        label_smoothing=config_overrides.get("label_smoothing", label_smoothing),
+        # Evaluation
+        eval_steps=config_overrides.get("eval_steps", eval_steps),
+        save_steps=config_overrides.get("save_steps", save_steps),
+        # Output
+        output_dir=str(run_dir),
+        checkpoint_dir=str(run_dir / "checkpoints"),
+    )
+
     # Display configuration
     config_table = Table(title="Training Configuration")
     config_table.add_column("Parameter", style="cyan")
-    config_table.add_column("Value", style="yellow")
+    config_table.add_column("Value", style="green")
 
-    config_items = [
-        ("Model", model_name),
-        ("Model Type", model_type.upper()),
-        ("Train Data", str(train_path)),
-        ("Val Data", str(val_path) if val_path else "None"),
-        ("Batch Size", str(batch_size)),
-        ("Learning Rate", f"{learning_rate:.2e}"),
-        ("Epochs", str(num_epochs)),
-        ("Max Length", str(max_length)),
-        ("Output Dir", str(run_dir)),
-        ("MLflow", "Enabled" if not disable_mlflow else "Disabled"),
-        ("Augmentation", "Enabled" if augment else "Disabled"),
-    ]
-
-    if model_type == "cnn_hybrid":
-        config_items.extend(
-            [
-                ("CNN Kernels", cnn_kernel_sizes),
-                ("CNN Filters", str(cnn_num_filters)),
-                ("Dilated Conv", "Enabled" if use_dilated_conv else "Disabled"),
-            ]
-        )
-
-    for key, value in config_items:
-        config_table.add_row(key, value)
+    config_table.add_row("Model", model_name)
+    config_table.add_row("Model Type", model_type)
+    config_table.add_row("Output Directory", str(run_dir))
+    config_table.add_row("Batch Size", f"{training_config.base_batch_size}-{training_config.max_batch_size}")
+    config_table.add_row("Learning Rate", str(training_config.learning_rate))
+    config_table.add_row("Epochs", str(training_config.num_epochs))
+    config_table.add_row("Gradient Accumulation", str(training_config.gradient_accumulation_steps))
+    config_table.add_row("MLflow", "Enabled" if training_config.enable_mlflow else "Disabled")
+    config_table.add_row("Early Stopping", str(training_config.early_stopping_patience))
 
     console.print(config_table)
 
-    # Initialize MLX
-    console.print("\n[yellow]Initializing MLX...[/yellow]")
-    device = mx.default_device()
-    console.print(f"[green]Using device: {device}[/green]")
-
     # Create data loaders
-    with console.status("[yellow]Loading data...[/yellow]"):
-        if model_type == "cnn_hybrid":
-            # Use optimized loader for CNN-hybrid model
-            train_loader = UnifiedTitanicDataPipeline(
-                data_path=str(train_path),
-                tokenizer_name=model_name,
-                batch_size=batch_size,
-                max_length=max_length,
-                is_training=True,
-                augment=augment,
-                num_threads=num_workers,
-                prefetch_size=4,
-            )
+    console.print("\n[yellow]Loading data...[/yellow]")
+    if model_type == "cnn_hybrid":
+        # Use optimized loader for CNN-hybrid model
+        train_loader = UnifiedTitanicDataPipeline(
+            data_path=str(train_path),
+            tokenizer_name=model_name,
+            batch_size=training_config.base_batch_size,
+            max_length=max_length,
+            is_training=True,
+            augment=augment,
+            num_threads=training_config.num_workers,
+            prefetch_size=training_config.prefetch_size,
+        )
 
-            val_loader = None
-            if val_path:
-                val_loader = UnifiedTitanicDataPipeline(
-                    data_path=str(val_path),
-                    tokenizer_name=model_name,
-                    batch_size=batch_size,
-                    max_length=max_length,
-                    is_training=False,
-                    augment=False,
-                    num_threads=2,
-                    prefetch_size=2,
-                )
-        else:
-            # Use standard loader for base model
-            train_loader, val_loader = create_unified_dataloaders(
-                train_path=str(train_path),
-                val_path=str(val_path) if val_path else None,
+        val_loader = None
+        if val_path:
+            val_loader = UnifiedTitanicDataPipeline(
+                data_path=str(val_path),
                 tokenizer_name=model_name,
-                batch_size=batch_size,
+                batch_size=training_config.eval_batch_size,
                 max_length=max_length,
+                is_training=False,
+                augment=False,
+                num_threads=2,
+                prefetch_size=2,
             )
+    else:
+        # Use standard loader for base model
+        train_loader, val_loader = create_unified_dataloaders(
+            train_path=str(train_path),
+            val_path=str(val_path) if val_path else None,
+            tokenizer_name=model_name,
+            batch_size=training_config.base_batch_size,
+            max_length=max_length,
+        )
 
-    console.print(f"[green]✓ Loaded {len(train_loader)} training samples[/green]")
+    train_samples = len(train_loader.texts) if hasattr(train_loader, 'texts') else len(train_loader) * batch_size
+    console.print(f"[green]✓ Loaded {train_samples} training samples ({len(train_loader)} batches)[/green]")
     if val_loader:
-        console.print(f"[green]✓ Loaded {len(val_loader)} validation samples[/green]")
+        val_samples = len(val_loader.texts) if hasattr(val_loader, 'texts') else len(val_loader) * batch_size
+        console.print(f"[green]✓ Loaded {val_samples} validation samples ({len(val_loader)} batches)[/green]")
 
     # Create model
     with console.status("[yellow]Creating model...[/yellow]"):
-        from models.classification import TitanicClassifier
-
         if model_type == "cnn_hybrid":
             # Parse CNN kernel sizes
             kernel_sizes = [int(k.strip()) for k in cnn_kernel_sizes.split(",")]
@@ -194,8 +242,7 @@ def train(
             )
             model_desc = "CNN-Enhanced ModernBERT"
 
-            # For CNN model, we need to override the config hidden_size
-            # to match the fusion output size
+            # For CNN model, override config hidden_size
             bert_model.config.hidden_size = bert_model.output_hidden_size
         else:
             # Create base model
@@ -206,71 +253,76 @@ def train(
 
     console.print(f"[green]✓ Created {model_desc} model[/green]")
 
-    # Create trainer
-    trainer = TitanicTrainerV2(
-        model=model,
-        train_loader=train_loader,
-        val_loader=val_loader,
-        learning_rate=learning_rate,
-        warmup_steps=warmup_steps,
-        gradient_accumulation_steps=gradient_accumulation,
-        output_dir=str(run_dir),
-        experiment_name=experiment_name,
-        enable_mlflow=not disable_mlflow,
+    # Create optimizer
+    optimizer = optim.AdamW(
+        learning_rate=training_config.learning_rate,
+        weight_decay=training_config.weight_decay,
     )
 
-    # Save config
-    training_config = {
+    # Create unified trainer
+    trainer = MLXTrainer(
+        model=model,
+        config=training_config,
+        optimizer=optimizer,
+    )
+
+    # Save training config
+    full_config = {
         "model": model_name,
         "model_type": model_type,
         "train_path": str(train_path),
         "val_path": str(val_path) if val_path else None,
-        "batch_size": batch_size,
-        "learning_rate": learning_rate,
-        "num_epochs": num_epochs,
-        "max_length": max_length,
-        "warmup_steps": warmup_steps,
-        "gradient_accumulation": gradient_accumulation,
-        "augmentation": augment,
         "timestamp": timestamp,
+        **training_config.__dict__,
     }
 
     if model_type == "cnn_hybrid":
-        training_config.update(
-            {
-                "cnn_kernel_sizes": kernel_sizes,
-                "cnn_num_filters": cnn_num_filters,
-                "use_dilated_conv": use_dilated_conv,
-            }
-        )
+        full_config.update({
+            "cnn_kernel_sizes": kernel_sizes,
+            "cnn_num_filters": cnn_num_filters,
+            "use_dilated_conv": use_dilated_conv,
+        })
 
     with open(run_dir / "training_config.json", "w") as f:
-        json.dump(training_config, f, indent=2)
+        json.dump(full_config, f, indent=2, default=str)
 
     # Train model
-    console.print("\n[bold green]Starting training...[/bold green]")
+    console.print("\n[bold green]Starting training...[/bold green]\n")
+
     start_time = time.time()
-
-    try:
-        trainer.train(num_epochs=num_epochs)
-
-        elapsed_time = time.time() - start_time
-        console.print(
-            f"\n[bold green]✓ Training completed in {elapsed_time:.1f} seconds[/bold green]"
-        )
-
-        # Display results
-        if trainer.training_history["val_accuracy"]:
-            best_val_acc = max(trainer.training_history["val_accuracy"])
-            console.print(
-                f"[green]Best validation accuracy: {best_val_acc:.4f}[/green]"
-            )
-
-        console.print(f"[blue]Model saved to: {run_dir}[/blue]")
-
-    except Exception as e:
-        console.print(f"[bold red]Training failed: {e}[/bold red]")
-        raise
+    results = trainer.train(
+        train_dataloader=train_loader,
+        val_dataloader=val_loader,
+        resume_from_checkpoint=resume_from,
+    )
+    
+    # Training complete
+    elapsed_time = time.time() - start_time
+    console.print(f"\n[bold green]✓ Training completed in {elapsed_time:.1f}s[/bold green]")
+    
+    # Display results
+    results_table = Table(title="Training Results")
+    results_table.add_column("Metric", style="cyan")
+    results_table.add_column("Value", style="green")
+    
+    results_table.add_row("Best Validation Score", f"{results['best_metric']:.4f}")
+    results_table.add_row("Best Step", str(results['best_step']))
+    results_table.add_row("Total Time", f"{results['total_time']:.1f}s")
+    
+    if results.get('final_metrics'):
+        for metric, value in results['final_metrics'].items():
+            results_table.add_row(metric, f"{value:.4f}")
+    
+    console.print(results_table)
+    
+    # Save results
+    with open(run_dir / "training_results.json", "w") as f:
+        json.dump(results, f, indent=2, default=str)
+    
+    console.print(f"\n[green]Results saved to: {run_dir}[/green]")
+    
+    if training_config.enable_mlflow:
+        console.print("\n[cyan]View results with: mlflow ui[/cyan]")
 
 
 @app.command()
@@ -279,154 +331,167 @@ def predict(
     checkpoint: Path = typer.Option(
         ..., "--checkpoint", "-c", help="Path to model checkpoint"
     ),
-    output_path: Path = typer.Option(
-        "./submission.csv", "--output", "-o", help="Output submission path"
+    output: Path = typer.Option(
+        "submission.csv", "--output", "-o", help="Output CSV path"
     ),
-    batch_size: int = typer.Option(32, "--batch-size", "-b", help="Batch size"),
+    batch_size: int = typer.Option(64, "--batch-size", "-b", help="Batch size"),
     max_length: int = typer.Option(256, "--max-length", help="Maximum sequence length"),
 ):
-    """Generate predictions for Kaggle submission."""
+    """Generate predictions using trained model."""
     console.print("\n[bold blue]MLX ModernBERT Prediction[/bold blue]")
     console.print("=" * 60)
 
-    # Load model
+    # Load model config
+    config_path = checkpoint.parent.parent / "training_config.json"
+    if config_path.exists():
+        with open(config_path) as f:
+            train_config = json.load(f)
+        model_name = train_config.get("model", "answerdotai/ModernBERT-base")
+        model_type = train_config.get("model_type", "base")
+    else:
+        console.print("[yellow]Warning: No training config found, using defaults[/yellow]")
+        model_name = "answerdotai/ModernBERT-base"
+        model_type = "base"
+
+    # Create model
     with console.status("[yellow]Loading model...[/yellow]"):
-        from models.classification import TitanicClassifier
-
-        bert_model = create_model("standard")
-        model = TitanicClassifier(bert_model)
-
-        # Load weights
-        weights_path = checkpoint / "model.safetensors"
-        if weights_path.exists():
-            weights = mx.load(str(weights_path))
-            model.load_weights(list(weights.items()))
+        if model_type == "cnn_hybrid":
+            bert_model = create_cnn_hybrid_model(
+                model_name=model_name,
+                num_labels=2,
+                cnn_kernel_sizes=train_config.get("cnn_kernel_sizes", [2, 3, 4, 5]),
+                cnn_num_filters=train_config.get("cnn_num_filters", 128),
+                use_dilated_conv=train_config.get("use_dilated_conv", True),
+            )
+            bert_model.config.hidden_size = bert_model.output_hidden_size
         else:
-            # Try loading from bert subdirectory (old format)
-            bert_weights = checkpoint / "bert" / "model_weights.npz"
-            if bert_weights.exists():
-                import numpy as np
+            bert_model = create_model("standard")
 
-                weights = np.load(bert_weights)
-                # Convert numpy weights to MLX
-                mlx_weights = {k: mx.array(v) for k, v in weights.items()}
-                model.load_weights(list(mlx_weights.items()))
+        model = TitanicClassifier(bert_model)
+        
+        # Load weights
+        model.load_pretrained(str(checkpoint))
 
     console.print(f"[green]✓ Loaded model from {checkpoint}[/green]")
 
-    # Create test loader
-    with console.status("[yellow]Loading test data...[/yellow]"):
-        from data.unified_loader import UnifiedTitanicDataPipeline
-
-        test_loader = UnifiedTitanicDataPipeline(
-            data_path=str(test_path),
-            tokenizer_name="answerdotai/ModernBERT-base",
-            max_length=max_length,
-            batch_size=batch_size,
-            is_training=False,
-            augment=False,
-        )
+    # Create data loader
+    test_loader = UnifiedTitanicDataPipeline(
+        data_path=str(test_path),
+        tokenizer_name=model_name,
+        batch_size=batch_size,
+        max_length=max_length,
+        is_training=False,
+        augment=False,
+        has_labels=False,
+    )
 
     console.print(f"[green]✓ Loaded {len(test_loader)} test samples[/green]")
 
     # Generate predictions
     predictions = []
-    passenger_ids = []
-
-    model.eval()
-
     with console.status("[yellow]Generating predictions...[/yellow]"):
-        for batch_idx, batch in enumerate(test_loader.get_dataloader()()):
-            # Get predictions
+        for batch in test_loader.get_dataloader():
             outputs = model(
-                input_ids=batch["input_ids"], attention_mask=batch["attention_mask"]
+                input_ids=batch["input_ids"],
+                attention_mask=batch["attention_mask"],
             )
+            preds = mx.argmax(outputs["logits"], axis=-1)
+            predictions.extend(preds.tolist())
 
-            # Get predicted class (0 or 1)
-            batch_preds = mx.argmax(outputs["logits"], axis=-1)
-            predictions.extend(batch_preds.tolist())
-
-            # Track passenger IDs
-            start_idx = batch_idx * batch_size
-            end_idx = min(start_idx + batch_size, len(test_loader))
-            passenger_ids.extend(range(start_idx, end_idx))
-
-            if batch_idx >= test_loader.get_num_batches() - 1:
-                break
-
-    # Create submission
+    # Save predictions
     import pandas as pd
 
-    submission_df = pd.DataFrame(
-        {
-            "PassengerId": [892 + i for i in range(len(predictions))],
-            "Survived": predictions,
-        }
-    )
+    df = pd.read_csv(test_path)
+    submission = pd.DataFrame({
+        "PassengerId": df["PassengerId"],
+        "Survived": predictions[:len(df)]
+    })
+    submission.to_csv(output, index=False)
 
-    submission_df.to_csv(output_path, index=False)
-    console.print(f"[green]✓ Saved predictions to {output_path}[/green]")
-    console.print(f"[blue]Total predictions: {len(predictions)}[/blue]")
+    console.print(f"[green]✓ Predictions saved to {output}[/green]")
+    console.print(f"[cyan]Total predictions: {len(predictions)}[/cyan]")
 
 
 @app.command()
 def benchmark(
-    model_name: str = typer.Option(
-        "answerdotai/ModernBERT-base", "--model", "-m", help="Model name"
-    ),
     batch_size: int = typer.Option(32, "--batch-size", "-b", help="Batch size"),
     seq_length: int = typer.Option(256, "--seq-length", "-s", help="Sequence length"),
-    num_steps: int = typer.Option(
-        10, "--steps", "-n", help="Number of steps to benchmark"
-    ),
+    steps: int = typer.Option(20, "--steps", "-n", help="Number of steps"),
+    model_type: str = typer.Option("base", "--model-type", help="Model type"),
+    warmup_steps: int = typer.Option(5, "--warmup", help="Warmup steps"),
 ):
     """Benchmark model performance."""
     console.print("\n[bold blue]MLX ModernBERT Benchmark[/bold blue]")
     console.print("=" * 60)
 
-    # Create model
-    model = create_model("standard")
-
     # Create dummy data
-    input_ids = mx.random.randint(0, 50000, (batch_size, seq_length))
-    attention_mask = mx.ones((batch_size, seq_length))
-    labels = mx.random.randint(0, 2, (batch_size,))
+    import numpy as np
+
+    dummy_batch = {
+        "input_ids": mx.ones((batch_size, seq_length), dtype=mx.int32),
+        "attention_mask": mx.ones((batch_size, seq_length), dtype=mx.int32),
+        "labels": mx.zeros((batch_size,), dtype=mx.int32),
+    }
+
+    # Create model
+    with console.status("[yellow]Creating model...[/yellow]"):
+        if model_type == "cnn_hybrid":
+            bert_model = create_cnn_hybrid_model(
+                model_name="answerdotai/ModernBERT-base",
+                num_labels=2,
+            )
+            bert_model.config.hidden_size = bert_model.output_hidden_size
+        else:
+            bert_model = create_model("standard")
+
+        model = TitanicClassifier(bert_model)
+
+    # Create optimizer
+    optimizer = optim.AdamW(learning_rate=2e-5)
+
+    console.print(f"[green]Model: {model_type}[/green]")
+    console.print(f"[green]Batch size: {batch_size}[/green]")
+    console.print(f"[green]Sequence length: {seq_length}[/green]")
 
     # Warmup
-    console.print("[yellow]Warming up...[/yellow]")
-    for _ in range(3):
-        _ = model(input_ids, attention_mask, labels=labels)
-    mx.eval(model.parameters())
+    console.print("\n[yellow]Warming up...[/yellow]")
+    for _ in range(warmup_steps):
+        def loss_fn(model):
+            outputs = model(**dummy_batch)
+            return outputs["loss"]
+
+        loss, grads = nn.value_and_grad(model, loss_fn)(model)
+        optimizer.update(model, grads)
+        mx.eval(loss)
 
     # Benchmark
-    console.print(f"\n[yellow]Running {num_steps} steps...[/yellow]")
+    console.print("[yellow]Benchmarking...[/yellow]")
     times = []
 
-    for step in track(range(num_steps), description="Benchmarking"):
-        start = time.time()
-        outputs = model(input_ids, attention_mask, labels=labels)
-        mx.eval(outputs["loss"])
-        elapsed = time.time() - start
-        times.append(elapsed)
+    for step in range(steps):
+        start_time = time.time()
 
-    # Display results
-    avg_time = sum(times) / len(times)
-    throughput = batch_size / avg_time
+        def loss_fn(model):
+            outputs = model(**dummy_batch)
+            return outputs["loss"]
 
-    results_table = Table(title="Benchmark Results")
-    results_table.add_column("Metric", style="cyan")
-    results_table.add_column("Value", style="yellow")
+        loss, grads = nn.value_and_grad(model, loss_fn)(model)
+        optimizer.update(model, grads)
+        mx.eval(loss)
 
-    results_table.add_row("Model", model_name)
-    results_table.add_row("Batch Size", str(batch_size))
-    results_table.add_row("Sequence Length", str(seq_length))
-    results_table.add_row("Average Time/Step", f"{avg_time:.3f}s")
-    results_table.add_row("Throughput", f"{throughput:.1f} samples/s")
-    results_table.add_row("Min Time", f"{min(times):.3f}s")
-    results_table.add_row("Max Time", f"{max(times):.3f}s")
+        step_time = time.time() - start_time
+        times.append(step_time)
 
-    console.print("\n")
-    console.print(results_table)
+        if (step + 1) % 5 == 0:
+            console.print(f"Step {step + 1}/{steps}: {step_time:.3f}s")
+
+    # Results
+    times = np.array(times)
+    console.print("\n[bold green]Benchmark Results[/bold green]")
+    console.print(f"Average time per step: {times.mean():.3f}s ± {times.std():.3f}s")
+    console.print(f"Throughput: {batch_size / times.mean():.1f} samples/s")
+    console.print(f"Min time: {times.min():.3f}s")
+    console.print(f"Max time: {times.max():.3f}s")
 
 
 @app.command()
@@ -438,20 +503,48 @@ def info():
     console.print("=" * 60)
 
     info_table = Table()
-    info_table.add_column("Component", style="cyan")
-    info_table.add_column("Value", style="yellow")
+    info_table.add_column("Property", style="cyan")
+    info_table.add_column("Value", style="green")
 
-    info_items = [
-        ("Platform", platform.platform()),
-        ("Python", platform.python_version()),
-        ("MLX Device", str(mx.default_device())),
-        ("MLX Version", mx.__version__),
-    ]
+    # System info
+    info_table.add_row("Platform", platform.platform())
+    info_table.add_row("Python", platform.python_version())
+    info_table.add_row("MLX Device", str(mx.default_device()))
+    
+    # MLX info
+    try:
+        import mlx
+        info_table.add_row("MLX Version", mlx.__version__)
+    except:
+        info_table.add_row("MLX Version", "Unknown")
 
-    for key, value in info_items:
-        info_table.add_row(key, value)
+    # Memory info
+    try:
+        import psutil
+        mem = psutil.virtual_memory()
+        info_table.add_row("System Memory", f"{mem.total / 1e9:.1f} GB")
+        info_table.add_row("Available Memory", f"{mem.available / 1e9:.1f} GB")
+    except:
+        pass
 
     console.print(info_table)
+
+    # MLflow info
+    console.print("\n[bold blue]MLflow Configuration[/bold blue]")
+    console.print("=" * 60)
+    
+    from utils.mlflow_central import mlflow_central
+    mlflow_central.initialize()
+    
+    mlflow_table = Table()
+    mlflow_table.add_column("Property", style="cyan")
+    mlflow_table.add_column("Value", style="green")
+    
+    mlflow_table.add_row("Tracking URI", mlflow_central.tracking_uri)
+    mlflow_table.add_row("Artifact Root", mlflow_central.artifact_root)
+    mlflow_table.add_row("Default Experiment", mlflow_central.DEFAULT_EXPERIMENT)
+    
+    console.print(mlflow_table)
 
 
 @app.command()
@@ -478,6 +571,38 @@ def export(
         console.print(f"[green]✓ Exported to MLX format at {output_path}[/green]")
     else:
         console.print(f"[red]Format {format} not yet supported[/red]")
+
+
+@app.command()
+def list_experiments():
+    """List all MLflow experiments."""
+    console.print("\n[bold blue]MLflow Experiments[/bold blue]")
+    console.print("=" * 60)
+    
+    from utils.mlflow_central import mlflow_central
+    mlflow_central.initialize()
+    
+    experiments = mlflow_central.list_experiments()
+    
+    if not experiments:
+        console.print("[yellow]No experiments found[/yellow]")
+        return
+    
+    exp_table = Table()
+    exp_table.add_column("ID", style="cyan")
+    exp_table.add_column("Name", style="green")
+    exp_table.add_column("Artifact Location")
+    exp_table.add_column("Lifecycle Stage")
+    
+    for exp in experiments:
+        exp_table.add_row(
+            exp.experiment_id,
+            exp.name,
+            exp.artifact_location or "",
+            exp.lifecycle_stage
+        )
+    
+    console.print(exp_table)
 
 
 if __name__ == "__main__":
