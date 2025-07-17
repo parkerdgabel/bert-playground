@@ -20,6 +20,8 @@ from sklearn.metrics import (
     precision_recall_fscore_support,
     roc_auc_score,
 )
+import mlflow
+import pandas as pd
 
 # Import protocols for flexible typing
 from training.protocols import DataLoaderProtocol, OptimizerProtocol, ModelProtocol
@@ -32,6 +34,8 @@ from training.memory_manager import (
 from training.monitoring import ComprehensiveMonitor
 from training.performance_profiler import AppleSiliconProfiler, ProfilerConfig
 from utils.logging_config import ExperimentLogger, LoggingConfig
+from utils.model_registry import ModelRegistry, register_mlx_model
+from utils.mlflow_evaluation import ModelEvaluator, TitanicMetrics, create_evaluation_dataset
 
 console = Console()
 
@@ -700,6 +704,17 @@ class MLXTrainer:
 
                 # Final evaluation
                 final_metrics = self._final_evaluation(val_loader, test_loader)
+                
+                # Run MLflow evaluation if enabled
+                mlflow_eval_results = {}
+                if self.config.monitoring.enable_mlflow and val_loader:
+                    try:
+                        mlflow_eval_results = self.run_mlflow_evaluation(
+                            val_loader, phase="final_validation"
+                        )
+                        logger.info("MLflow evaluation completed successfully")
+                    except Exception as e:
+                        logger.warning(f"MLflow evaluation failed: {e}")
 
                 # Training summary
                 total_time = time.time() - start_time
@@ -708,6 +723,7 @@ class MLXTrainer:
                     "best_metric": self.best_metric,
                     "best_step": self.best_metric_step,
                     "final_metrics": final_metrics,
+                    "mlflow_evaluation": mlflow_eval_results,
                     "total_time": total_time,
                     "training_history": history,
                 }
@@ -725,6 +741,29 @@ class MLXTrainer:
                         )
                     },
                 )
+                
+                # Register model if MLflow is enabled
+                if self.config.monitoring.enable_mlflow and hasattr(self.monitor, "get_current_run_id"):
+                    try:
+                        run_id = self.monitor.get_current_run_id()
+                        if run_id:
+                            model_name = f"{self.config.experiment_name or 'mlx'}_model"
+                            model_version = self._register_model(
+                                run_id=run_id,
+                                model_name=model_name,
+                                metrics=final_metrics,
+                                stage="Production" if self.best_metric > 0.9 else "Staging",
+                            )
+                            logger.info(
+                                f"Model registered as {model_name} version {model_version.version}"
+                            )
+                            results["registered_model"] = {
+                                "name": model_name,
+                                "version": model_version.version,
+                                "stage": model_version.current_stage,
+                            }
+                    except Exception as e:
+                        logger.warning(f"Model registration failed: {e}")
 
                 # End monitoring with success
                 training_summary = self.monitor.end_training("FINISHED")
@@ -883,6 +922,113 @@ class MLXTrainer:
             final_metrics.update(test_metrics)
 
         return final_metrics
+    
+    def run_mlflow_evaluation(
+        self,
+        data_loader: DataLoaderProtocol,
+        phase: str = "test",
+        model_uri: str | None = None,
+    ) -> dict[str, Any]:
+        """Run comprehensive MLflow evaluation with custom metrics.
+        
+        Args:
+            data_loader: Data loader for evaluation
+            phase: Evaluation phase name
+            model_uri: Optional model URI for evaluation
+            
+        Returns:
+            Evaluation results dictionary
+        """
+        logger.info(f"Running MLflow evaluation for {phase}")
+        
+        # Collect all data for evaluation
+        all_features = []
+        all_labels = []
+        all_predictions = []
+        all_probabilities = []
+        
+        self.model.eval()
+        with mx.no_grad():
+            for batch in data_loader:
+                outputs = self.model(
+                    input_ids=batch["input_ids"],
+                    attention_mask=batch["attention_mask"],
+                )
+                
+                if "labels" in batch:
+                    all_labels.extend(batch["labels"].squeeze().tolist())
+                
+                logits = outputs["logits"]
+                predictions = mx.argmax(logits, axis=-1)
+                probabilities = mx.softmax(logits, axis=-1)
+                
+                all_predictions.extend(predictions.tolist())
+                if probabilities.shape[-1] == 2:
+                    all_probabilities.extend(probabilities[:, 1].tolist())
+                
+                # Store features for evaluation dataset
+                # For BERT, we might want to store input_ids or other features
+                batch_size = batch["input_ids"].shape[0]
+                for i in range(batch_size):
+                    # Simple feature: sequence length
+                    seq_len = (batch["attention_mask"][i] == 1).sum().item()
+                    all_features.append([seq_len])
+        
+        # Create evaluation dataset
+        eval_df = create_evaluation_dataset(
+            X=np.array(all_features),
+            y=np.array(all_labels),
+            predictions=np.array(all_predictions),
+            prediction_proba=np.array(all_probabilities) if all_probabilities else None,
+            feature_names=["sequence_length"],
+        )
+        
+        # Initialize custom metrics for Titanic
+        custom_metrics = [
+            TitanicMetrics.survival_rate_error(),
+            TitanicMetrics.class_weighted_accuracy(),
+            TitanicMetrics.false_negative_rate_survived(),
+        ]
+        
+        # Run MLflow evaluation
+        evaluator = ModelEvaluator(model_uri=model_uri)
+        results = evaluator.evaluate_model(
+            data=eval_df,
+            model_type="classifier",
+            custom_metrics=custom_metrics,
+            plot_results=True,
+        )
+        
+        logger.info(f"MLflow evaluation complete for {phase}")
+        return results
+    
+    def _register_model(
+        self,
+        run_id: str,
+        model_name: str,
+        metrics: dict[str, float],
+        stage: str | None = None,
+    ) -> Any:
+        """Register model in MLflow Model Registry.
+        
+        Args:
+            run_id: MLflow run ID
+            model_name: Name for the registered model
+            metrics: Model performance metrics
+            stage: Optional stage to transition to
+            
+        Returns:
+            ModelVersion object
+        """
+        return register_mlx_model(
+            run_id=run_id,
+            model_path="model",  # Standard MLflow model path
+            model_name=model_name,
+            config=self.config,
+            metrics=metrics,
+            stage=stage,
+            await_registration=True,
+        )
 
 
     def _save_checkpoint(self, checkpoint_name: str) -> None:

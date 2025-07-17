@@ -1165,5 +1165,255 @@ def mlflow_restart(
         console.print(f"[yellow]Check logs at: {log_file}[/yellow]")
 
 
+@app.command()
+def model_serve(
+    model_name: str = typer.Option(..., "--name", "-n", help="Name of the registered model"),
+    version: str = typer.Option("latest", "--version", "-v", help="Model version to serve"),
+    port: int = typer.Option(5001, "--port", "-p", help="Port for model serving"),
+    host: str = typer.Option("127.0.0.1", "--host", help="Host for model serving"),
+    workers: int = typer.Option(1, "--workers", "-w", help="Number of worker processes"),
+):
+    """Serve a registered MLflow model as a REST API endpoint."""
+    console.print(f"\n[bold cyan]MLflow Model Serving[/bold cyan]")
+    console.print(f"Model: {model_name} v{version}")
+    console.print(f"Endpoint: http://{host}:{port}\n")
+    
+    try:
+        # Build model URI
+        if version == "latest":
+            model_uri = f"models:/{model_name}/latest"
+        else:
+            model_uri = f"models:/{model_name}/{version}"
+        
+        # Serve the model
+        cmd = [
+            "uv", "run", "mlflow", "models", "serve",
+            "-m", model_uri,
+            "-p", str(port),
+            "-h", host,
+            "-w", str(workers),
+            "--no-conda",  # Don't use conda environment
+        ]
+        
+        console.print(f"[yellow]Starting model server...[/yellow]")
+        console.print(f"Command: {' '.join(cmd)}")
+        
+        # Start the server
+        process = subprocess.Popen(cmd)
+        
+        console.print(f"\n[green]✓ Model server started![/green]")
+        console.print(f"[blue]API endpoint: http://{host}:{port}/invocations[/blue]")
+        console.print("\n[dim]Example request:[/dim]")
+        console.print('[dim]curl -X POST -H "Content-Type: application/json" -d \'{"instances": [...]}\' \\[/dim]')
+        console.print(f'[dim]     http://{host}:{port}/invocations[/dim]')
+        console.print("\n[yellow]Press Ctrl+C to stop the server[/yellow]")
+        
+        process.wait()
+        
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Stopping model server...[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Error serving model: {e}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command()
+def model_register(
+    name: str = typer.Option(..., "--name", "-n", help="Name for the registered model"),
+    run_id: str = typer.Option(..., "--run-id", "-r", help="MLflow run ID containing the model"),
+    model_path: str = typer.Option("model", "--path", "-p", help="Path to model within the run"),
+    stage: Optional[str] = typer.Option(None, "--stage", "-s", help="Stage to transition to (Staging/Production)"),
+    description: Optional[str] = typer.Option(None, "--description", "-d", help="Model description"),
+):
+    """Register a model from an MLflow run to the Model Registry."""
+    from utils.model_registry import ModelRegistry
+    
+    console.print(f"\n[bold cyan]Registering Model[/bold cyan]")
+    console.print(f"Name: {name}")
+    console.print(f"Run ID: {run_id}")
+    console.print(f"Path: {model_path}")
+    
+    try:
+        registry = ModelRegistry()
+        
+        # Build model URI
+        model_uri = f"runs:/{run_id}/{model_path}"
+        
+        # Register the model
+        with console.status("[yellow]Registering model...") as status:
+            model_version = registry.register_model(
+                model_uri=model_uri,
+                name=name,
+                description=description,
+                await_registration=True,
+            )
+            status.update("[green]Model registered!")
+        
+        console.print(f"\n[green]✓ Model registered successfully![/green]")
+        console.print(f"Version: {model_version.version}")
+        console.print(f"Status: {model_version.status}")
+        
+        # Transition to stage if requested
+        if stage:
+            with console.status(f"[yellow]Transitioning to {stage}...") as status:
+                registry.transition_model_stage(
+                    name=name,
+                    version=model_version.version,
+                    stage=stage,
+                    archive_existing=True,
+                )
+                status.update(f"[green]Transitioned to {stage}!")
+            
+            console.print(f"Stage: {stage}")
+        
+    except Exception as e:
+        console.print(f"[red]Error registering model: {e}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command()
+def model_evaluate(
+    model_name: str = typer.Option(..., "--name", "-n", help="Name of the registered model"),
+    version: str = typer.Option("latest", "--version", "-v", help="Model version to evaluate"),
+    data_path: Path = typer.Option(..., "--data", "-d", help="Path to evaluation data (CSV)"),
+    output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output directory for results"),
+):
+    """Evaluate a registered model with comprehensive metrics and visualizations."""
+    from utils.mlflow_evaluation import ModelEvaluator, TitanicMetrics
+    import pandas as pd
+    
+    console.print(f"\n[bold cyan]Model Evaluation[/bold cyan]")
+    console.print(f"Model: {model_name} v{version}")
+    console.print(f"Data: {data_path}")
+    
+    try:
+        # Load evaluation data
+        with console.status("[yellow]Loading evaluation data...") as status:
+            eval_data = pd.read_csv(data_path)
+            status.update(f"[green]Loaded {len(eval_data)} samples")
+        
+        # Build model URI
+        if version == "latest":
+            model_uri = f"models:/{model_name}/latest"
+        else:
+            model_uri = f"models:/{model_name}/{version}"
+        
+        # Initialize evaluator
+        evaluator = ModelEvaluator(model_uri=model_uri)
+        
+        # Run evaluation
+        with console.status("[yellow]Running evaluation...") as status:
+            results = evaluator.evaluate_model(
+                data=eval_data,
+                model_type="classifier",
+                custom_metrics=[
+                    TitanicMetrics.survival_rate_error(),
+                    TitanicMetrics.class_weighted_accuracy(),
+                    TitanicMetrics.false_negative_rate_survived(),
+                ],
+                plot_results=True,
+            )
+            status.update("[green]Evaluation complete!")
+        
+        # Display results
+        console.print("\n[bold green]Evaluation Results:[/bold green]")
+        
+        metrics = results["metrics"]
+        for metric, value in metrics.items():
+            if isinstance(value, float):
+                console.print(f"  {metric}: {value:.4f}")
+            else:
+                console.print(f"  {metric}: {value}")
+        
+        # Save results if output directory specified
+        if output_dir:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Save metrics
+            metrics_file = output_dir / "evaluation_metrics.json"
+            with open(metrics_file, "w") as f:
+                json.dump(metrics, f, indent=2)
+            
+            console.print(f"\n[green]Results saved to: {output_dir}[/green]")
+        
+    except Exception as e:
+        console.print(f"[red]Error evaluating model: {e}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command()
+def model_compare(
+    name: str = typer.Option(..., "--name", "-n", help="Name of the registered model"),
+    version1: str = typer.Option(..., "--v1", help="First version to compare"),
+    version2: str = typer.Option(..., "--v2", help="Second version to compare"),
+    metrics: Optional[List[str]] = typer.Option(None, "--metrics", "-m", help="Specific metrics to compare"),
+):
+    """Compare two versions of a registered model."""
+    from utils.model_registry import ModelRegistry
+    
+    console.print(f"\n[bold cyan]Model Comparison[/bold cyan]")
+    console.print(f"Model: {name}")
+    console.print(f"Comparing: v{version1} vs v{version2}")
+    
+    try:
+        registry = ModelRegistry()
+        
+        # Compare models
+        with console.status("[yellow]Comparing models...") as status:
+            comparison = registry.compare_models(
+                name=name,
+                version1=version1,
+                version2=version2,
+                metrics=metrics,
+            )
+            status.update("[green]Comparison complete!")
+        
+        # Display comparison
+        console.print("\n[bold]Version 1:[/bold]")
+        v1_info = comparison["version1"]
+        console.print(f"  Version: {v1_info['version']}")
+        console.print(f"  Stage: {v1_info['stage']}")
+        console.print(f"  Run ID: {v1_info['run_id']}")
+        
+        console.print("\n[bold]Version 2:[/bold]")
+        v2_info = comparison["version2"]
+        console.print(f"  Version: {v2_info['version']}")
+        console.print(f"  Stage: {v2_info['stage']}")
+        console.print(f"  Run ID: {v2_info['run_id']}")
+        
+        # Display metric differences
+        if comparison["differences"]:
+            console.print("\n[bold]Metric Differences:[/bold]")
+            
+            table = Table(title="Metric Comparison")
+            table.add_column("Metric", style="cyan")
+            table.add_column("Version 1", style="yellow")
+            table.add_column("Version 2", style="yellow")
+            table.add_column("Difference", style="green")
+            table.add_column("% Change", style="magenta")
+            table.add_column("Improved", style="blue")
+            
+            for metric, diff in comparison["differences"].items():
+                improved_str = "✓" if diff["improved"] else "✗"
+                style = "green" if diff["improved"] else "red"
+                
+                table.add_row(
+                    metric,
+                    f"{diff['v1']:.4f}",
+                    f"{diff['v2']:.4f}",
+                    f"{diff['diff']:+.4f}",
+                    f"{diff['pct_change']:+.1f}%",
+                    f"[{style}]{improved_str}[/{style}]",
+                )
+            
+            console.print(table)
+        else:
+            console.print("\n[yellow]No specific metrics compared[/yellow]")
+        
+    except Exception as e:
+        console.print(f"[red]Error comparing models: {e}[/red]")
+        raise typer.Exit(1)
+
+
 if __name__ == "__main__":
     app()

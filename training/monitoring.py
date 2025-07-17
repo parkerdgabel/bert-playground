@@ -138,10 +138,12 @@ class MLflowTracker:
         self.mlflow_central = MLflowCentral()
         self.run_id: str | None = None
         self.experiment_id: str | None = None
+        self.async_logging_enabled = False
 
         # Initialize MLflow if enabled
         if config.monitoring.enable_mlflow:
             self._initialize_mlflow()
+            self._setup_async_logging()
 
     def _initialize_mlflow(self) -> None:
         """Initialize MLflow experiment tracking with enhanced error handling."""
@@ -274,9 +276,22 @@ class MLflowTracker:
 
         except Exception as e:
             logger.warning(f"Failed to log config parameters: {e}")
+    
+    def _setup_async_logging(self) -> None:
+        """Setup asynchronous logging for better performance."""
+        try:
+            # Enable async logging if supported
+            if hasattr(mlflow, 'config') and hasattr(mlflow.config, 'enable_async_logging'):
+                mlflow.config.enable_async_logging()
+                self.async_logging_enabled = True
+                logger.info("Enabled asynchronous MLflow logging")
+            else:
+                logger.debug("Asynchronous logging not available in this MLflow version")
+        except Exception as e:
+            logger.warning(f"Could not enable async logging: {e}")
 
     def log_metrics(self, metrics: dict[str, float], step: int) -> None:
-        """Log metrics to MLflow.
+        """Log metrics to MLflow with optional async support.
 
         Args:
             metrics: Dictionary of metric names to values
@@ -288,7 +303,11 @@ class MLflowTracker:
         try:
             for name, value in metrics.items():
                 if isinstance(value, (int, float)) and not isinstance(value, bool):
-                    mlflow.log_metric(name, value, step=step)
+                    # Use async logging if available and enabled
+                    if self.async_logging_enabled:
+                        mlflow.log_metric(name, value, step=step, synchronous=False)
+                    else:
+                        mlflow.log_metric(name, value, step=step)
                 else:
                     logger.debug(f"Skipping non-numeric metric {name}: {value}")
         except Exception as e:
@@ -897,3 +916,11 @@ class ComprehensiveMonitor:
         logger.info(f"Total time: {elapsed_time:.1f}s, Steps: {self.step_count}")
 
         return training_summary
+    
+    def get_current_run_id(self) -> str | None:
+        """Get the current MLflow run ID.
+        
+        Returns:
+            Current run ID or None if MLflow is not enabled
+        """
+        return self.mlflow_tracker.run_id if self.mlflow_tracker else None
