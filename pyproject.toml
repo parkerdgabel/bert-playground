@@ -7,12 +7,13 @@ name = "bert-playground"
 version = "0.1.0"
 description = "MLX-based ModernBERT implementation for Kaggle competitions"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10,<3.11"
 dependencies = [
     "mlx>=0.22.0",
     "mlx-data>=0.0.7",
     "mlx-lm>=0.20.0",
-    "mlx-embeddings>=0.0.3",
+    "mlx-embeddings @ git+https://github.com/Blaizzy/mlx-embeddings.git",
+    "numba>=0.57.0",  # Force newer numba that supports Python 3.10
     "transformers>=4.47.0",
     "pandas>=2.2.0",
     "numpy>=1.26.0",
@@ -27,6 +28,7 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "typer>=0.15.0",
     "click>=8.1.0",
+    "psutil>=5.9.0",
 ]
 
 [project.optional-dependencies]

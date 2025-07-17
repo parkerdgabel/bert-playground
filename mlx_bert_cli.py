@@ -241,15 +241,26 @@ def train(
     # Create model
     with console.status("[yellow]Creating model...[/yellow]"):
         if use_mlx_embeddings:
-            # Create MLX embeddings model
-            from embeddings.model_wrapper import MLXEmbeddingModel
-            bert_model = MLXEmbeddingModel(
-                model_name=model_name,
-                num_labels=2,
-                use_mlx_embeddings=True,
-            )
-            model_desc = "MLX Embeddings ModernBERT"
-            model = bert_model  # MLXEmbeddingModel already includes classification head
+            # Create new architecture MLX embeddings model
+            try:
+                from models.classification import create_titanic_classifier
+                model = create_titanic_classifier(
+                    model_name=model_name,
+                    dropout_prob=0.1,
+                    use_layer_norm=False,
+                    activation="relu",
+                )
+                model_desc = "New Architecture MLX Embeddings ModernBERT"
+            except ImportError:
+                # Fall back to old architecture
+                from embeddings.model_wrapper import MLXEmbeddingModel
+                bert_model = MLXEmbeddingModel(
+                    model_name=model_name,
+                    num_labels=2,
+                    use_mlx_embeddings=True,
+                )
+                model_desc = "Legacy MLX Embeddings ModernBERT"
+                model = bert_model
         elif model_type == "cnn_hybrid":
             # Parse CNN kernel sizes
             kernel_sizes = [int(k.strip()) for k in cnn_kernel_sizes.split(",")]

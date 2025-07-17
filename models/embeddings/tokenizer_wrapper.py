@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Union
 import mlx.core as mx
 from loguru import logger
 
-from embeddings.mlx_adapter import MLXEmbeddingsAdapter
+from .mlx_adapter import MLXEmbeddingsAdapter
 
 try:
     from transformers import AutoTokenizer
@@ -107,7 +107,7 @@ class TokenizerWrapper:
         Args:
             text: Text to encode
             add_special_tokens: Whether to add special tokens
-            return_tensors: Format of output ("mlx", "list", None)
+            return_tensors: Format of output (\"mlx\", \"list\", None)
             **kwargs: Additional tokenizer arguments
             
         Returns:

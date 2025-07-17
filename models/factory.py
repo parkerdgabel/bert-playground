@@ -11,17 +11,26 @@ from .modernbert import ModernBertModel, ModernBertConfig
 from .modernbert_cnn_hybrid import CNNEnhancedModernBERT, CNNHybridConfig
 from .classification import TitanicClassifier, create_classifier
 
-# Import MLX embeddings support
+# Import new architecture modules
+try:
+    from .embeddings import EmbeddingModel
+    from .classification import create_titanic_classifier
+    NEW_ARCHITECTURE_AVAILABLE = True
+except ImportError:
+    NEW_ARCHITECTURE_AVAILABLE = False
+    logger.warning("New architecture modules not available")
+
+# Import old MLX embeddings support for backward compatibility
 try:
     from embeddings.model_wrapper import MLXEmbeddingModel
     from embeddings.config import MLXEmbeddingsConfig
-    MLX_EMBEDDINGS_AVAILABLE = True
+    OLD_MLX_EMBEDDINGS_AVAILABLE = True
 except ImportError:
-    MLX_EMBEDDINGS_AVAILABLE = False
-    logger.warning("MLX embeddings not available")
+    OLD_MLX_EMBEDDINGS_AVAILABLE = False
+    logger.warning("Old MLX embeddings not available")
 
 
-ModelType = Literal["standard", "cnn_hybrid", "classifier", "mlx_embedding"]
+ModelType = Literal["standard", "cnn_hybrid", "classifier", "mlx_embedding", "new_mlx_embedding"]
 
 
 def create_model(
@@ -35,7 +44,7 @@ def create_model(
     Create a model based on type and configuration.
 
     Args:
-        model_type: Type of model to create ("standard", "cnn_hybrid", "classifier", "mlx_embedding")
+        model_type: Type of model to create ("standard", "cnn_hybrid", "classifier", "mlx_embedding", "new_mlx_embedding")
         config: Model configuration (dict or Config object)
         pretrained_path: Path to pretrained weights
         use_mlx_embeddings: Whether to use MLX embeddings backend
@@ -46,30 +55,44 @@ def create_model(
     """
     # Convert config dict to Config object if needed
     if isinstance(config, dict):
-        if model_type == "mlx_embedding" or use_mlx_embeddings:
-            if MLX_EMBEDDINGS_AVAILABLE:
+        if model_type == "new_mlx_embedding":
+            # New architecture doesn't need special config handling
+            config = config
+        elif model_type == "mlx_embedding" or use_mlx_embeddings:
+            if OLD_MLX_EMBEDDINGS_AVAILABLE:
                 config = MLXEmbeddingsConfig(**config)
             else:
-                raise RuntimeError("MLX embeddings requested but not available")
+                raise RuntimeError("Old MLX embeddings requested but not available")
         elif model_type == "cnn_hybrid" or "cnn_kernel_sizes" in config:
             config = CNNHybridConfig(**config)
         else:
             config = ModernBertConfig(**config)
     elif config is None:
         # Use default config
-        if model_type == "mlx_embedding" or use_mlx_embeddings:
-            if MLX_EMBEDDINGS_AVAILABLE:
+        if model_type == "new_mlx_embedding":
+            # New architecture uses simple dict config
+            config = {}
+        elif model_type == "mlx_embedding" or use_mlx_embeddings:
+            if OLD_MLX_EMBEDDINGS_AVAILABLE:
                 config = MLXEmbeddingsConfig()
             else:
-                raise RuntimeError("MLX embeddings requested but not available")
+                raise RuntimeError("Old MLX embeddings requested but not available")
         elif model_type == "cnn_hybrid":
             config = CNNHybridConfig()
         else:
             config = ModernBertConfig()
 
     # Create base model
-    if model_type == "mlx_embedding" or (use_mlx_embeddings and MLX_EMBEDDINGS_AVAILABLE):
-        # Create MLX embedding model
+    if model_type == "new_mlx_embedding":
+        # Create new architecture MLX embedding model
+        if not NEW_ARCHITECTURE_AVAILABLE:
+            raise RuntimeError("New architecture requested but not available")
+        
+        model_name = kwargs.pop("model_name", "mlx-community/answerdotai-ModernBERT-base-4bit")
+        model = EmbeddingModel.from_pretrained(model_name, **kwargs)
+        logger.info(f"Created new architecture MLX embedding model: {model_name}")
+    elif model_type == "mlx_embedding" or (use_mlx_embeddings and OLD_MLX_EMBEDDINGS_AVAILABLE):
+        # Create old MLX embedding model (backward compatibility)
         model_name = kwargs.pop("model_name", config.model_name if hasattr(config, "model_name") else "answerdotai/ModernBERT-base")
         num_labels = kwargs.pop("num_labels", None)
         model = MLXEmbeddingModel(
@@ -81,7 +104,7 @@ def create_model(
             use_mlx_embeddings=True,
             **kwargs
         )
-        logger.info(f"Created MLX embedding model: {model_name}")
+        logger.info(f"Created old MLX embedding model: {model_name}")
     elif model_type == "cnn_hybrid":
         model = CNNEnhancedModernBERT(config, **kwargs)
         logger.info("Created CNN-enhanced ModernBERT model")
@@ -249,8 +272,32 @@ MODEL_REGISTRY = {
     "titanic-cnn": lambda **kwargs: create_titanic_model("cnn_hybrid", **kwargs),
 }
 
-# Add MLX embedding models if available
-if MLX_EMBEDDINGS_AVAILABLE:
+# Add new architecture MLX embedding models if available
+if NEW_ARCHITECTURE_AVAILABLE:
+    MODEL_REGISTRY.update({
+        "new-mlx-modernbert-base": lambda **kwargs: create_model(
+            "new_mlx_embedding", 
+            model_name="mlx-community/answerdotai-ModernBERT-base-4bit",
+            **kwargs
+        ),
+        "new-mlx-modernbert-large": lambda **kwargs: create_model(
+            "new_mlx_embedding",
+            model_name="mlx-community/answerdotai-ModernBERT-large-4bit",
+            **kwargs
+        ),
+        "new-mlx-minilm": lambda **kwargs: create_model(
+            "new_mlx_embedding",
+            model_name="mlx-community/all-MiniLM-L6-v2-4bit",
+            **kwargs
+        ),
+        "new-titanic-mlx": lambda **kwargs: create_titanic_classifier(
+            model_name="mlx-community/answerdotai-ModernBERT-base-4bit",
+            **kwargs
+        ),
+    })
+
+# Add old MLX embedding models if available (backward compatibility)
+if OLD_MLX_EMBEDDINGS_AVAILABLE:
     MODEL_REGISTRY.update({
         "mlx-modernbert-base": lambda **kwargs: create_model(
             "mlx_embedding", 

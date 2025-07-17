@@ -87,7 +87,7 @@ class MLXEmbeddingsAdapter:
         
         Args:
             texts: Single text or list of texts to encode
-            return_tensors: Format of output tensors ("mlx" or "np")
+            return_tensors: Format of output tensors (\"mlx\" or \"np\")
             padding: Whether to pad sequences
             truncation: Whether to truncate sequences
             max_length: Maximum sequence length
@@ -146,7 +146,7 @@ class MLXEmbeddingsAdapter:
         
         Args:
             texts: Single text or list of texts
-            pooling: Pooling strategy ("mean", "cls", "max")
+            pooling: Pooling strategy (\"mean\", \"cls\", \"max\")
             normalize: Whether to normalize embeddings
             **kwargs: Additional model arguments
             
@@ -205,6 +205,15 @@ class MLXEmbeddingsAdapter:
                 return config.__dict__
             return config
         return {}
+    
+    def get_hidden_size(self) -> int:
+        """Get the hidden size of the model."""
+        config = self.get_model_config()
+        if hasattr(config, "hidden_size"):
+            return config.hidden_size
+        elif isinstance(config, dict):
+            return config.get("hidden_size", 768)
+        return 768
     
     @property
     def vocab_size(self) -> int:

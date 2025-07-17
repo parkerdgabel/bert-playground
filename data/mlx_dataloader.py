@@ -161,11 +161,11 @@ class KaggleDataLoader:
             if self.has_labels and pd.notna(row[self.label_column]):
                 label = int(row[self.label_column])
             
-            # Create sample
+            # Create sample - ensure int32 for MLX compatibility
             sample = {
-                'input_ids': tokens['input_ids'],
-                'attention_mask': tokens['attention_mask'],
-                'labels': label
+                'input_ids': np.array(tokens['input_ids'], dtype=np.int32),
+                'attention_mask': np.array(tokens['attention_mask'], dtype=np.int32),
+                'labels': np.array(label, dtype=np.int32)
             }
             
             processed_samples.append(sample)
@@ -217,10 +217,22 @@ class KaggleDataLoader:
         # Convert to MLX arrays
         def convert_batch_to_mlx(batch):
             """Convert batch arrays to MLX format."""
+            input_ids = np.array(batch['input_ids'], dtype=np.int32)
+            attention_mask = np.array(batch['attention_mask'], dtype=np.int32)
+            labels = np.array(batch['labels'], dtype=np.int32)
+            
+            # Remove extra dimensions if present
+            if input_ids.ndim > 2:
+                input_ids = input_ids.squeeze()
+            if attention_mask.ndim > 2:
+                attention_mask = attention_mask.squeeze()
+            if labels.ndim > 1:
+                labels = labels.squeeze()
+            
             return {
-                'input_ids': mx.array(np.array(batch['input_ids'], dtype=np.int32)),
-                'attention_mask': mx.array(np.array(batch['attention_mask'], dtype=np.int32)),
-                'labels': mx.array(np.array(batch['labels'], dtype=np.int32))
+                'input_ids': mx.array(input_ids),
+                'attention_mask': mx.array(attention_mask),
+                'labels': mx.array(labels)
             }
         
         stream = stream.sample_transform(convert_batch_to_mlx)

@@ -11,7 +11,7 @@ import mlx.nn as nn
 from loguru import logger
 
 from embeddings.mlx_adapter import MLXEmbeddingsAdapter
-from models.classification_head import ClassificationHead
+from models.classification import BinaryClassificationHead
 
 
 class MLXEmbeddingModel(nn.Module):
@@ -64,15 +64,20 @@ class MLXEmbeddingModel(nn.Module):
         # Get model config
         config = self.adapter.get_model_config()
         if config:
-            self.hidden_size = config.get("hidden_size", hidden_size)
+            # Handle both dict and object configs
+            if hasattr(config, "hidden_size"):
+                self.hidden_size = config.hidden_size
+            elif isinstance(config, dict):
+                self.hidden_size = config.get("hidden_size", hidden_size)
+            else:
+                self.hidden_size = hidden_size
         
         # Initialize classification head if needed
         self.classification_head = None
         if num_labels is not None:
-            self.classification_head = ClassificationHead(
+            self.classification_head = BinaryClassificationHead(
                 input_dim=self.hidden_size,
-                num_classes=num_labels,
-                dropout_rate=dropout_rate
+                dropout_prob=dropout_rate  # Note: BinaryClassificationHead uses dropout_prob
             )
         
         # Store the embedding model reference
@@ -83,6 +88,7 @@ class MLXEmbeddingModel(nn.Module):
         input_ids: mx.array,
         attention_mask: Optional[mx.array] = None,
         token_type_ids: Optional[mx.array] = None,
+        labels: Optional[mx.array] = None,
         return_embeddings: bool = False,
         **kwargs
     ) -> Union[mx.array, Tuple[mx.array, mx.array]]:
@@ -103,10 +109,10 @@ class MLXEmbeddingModel(nn.Module):
         # Get embeddings from the base model
         if self.use_mlx_embeddings and self.embedding_model is not None:
             # Use the embedding model directly
+            # MLX embeddings don't use token_type_ids
             outputs = self.embedding_model(
                 input_ids,
                 attention_mask=attention_mask,
-                token_type_ids=token_type_ids,
                 **kwargs
             )
             
@@ -126,9 +132,20 @@ class MLXEmbeddingModel(nn.Module):
         # Apply classification head if available
         if self.classification_head is not None:
             logits = self.classification_head(embeddings)
+            
+            # Return dictionary format expected by trainer
+            outputs = {"logits": logits}
+            
+            # Calculate loss if labels are provided
+            if labels is not None:
+                import mlx.nn as nn
+                loss = mx.mean(nn.losses.cross_entropy(logits, labels, reduction="none"))
+                outputs["loss"] = loss
+            
             if return_embeddings:
-                return logits, embeddings
-            return logits
+                outputs["embeddings"] = embeddings
+                
+            return outputs
         
         # Return embeddings for embedding-only mode
         return embeddings
