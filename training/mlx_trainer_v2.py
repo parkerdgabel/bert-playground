@@ -29,6 +29,12 @@ from sklearn.metrics import (
 
 from data.universal_loader import UniversalKaggleLoader
 from training.config import TrainingConfig
+from training.memory_manager import (
+    AppleSiliconMemoryManager,
+    MemoryOptimizer,
+    MemoryThresholds,
+)
+from training.performance_profiler import AppleSiliconProfiler, ProfilerConfig
 from utils.logging_config import ExperimentLogger, LoggingConfig
 
 console = Console()
@@ -86,10 +92,33 @@ class MLXTrainerV2:
         self.steps_since_eval = 0
         self.total_steps = 0
 
-        # Memory management
+        # Advanced memory management
+        memory_thresholds = MemoryThresholds(
+            critical_memory=config.memory.unified_memory_fraction * 1.1,  # Allow slight overage
+            high_memory=config.memory.unified_memory_fraction,
+            optimal_memory=config.memory.unified_memory_fraction * 0.8,
+            low_memory=config.memory.unified_memory_fraction * 0.5,
+            min_batch_size=config.memory.min_batch_size,
+            max_batch_size=config.memory.max_batch_size,
+        )
+        self.memory_manager = AppleSiliconMemoryManager(memory_thresholds)
+        self.memory_optimizer = MemoryOptimizer(self.memory_manager)
         self.current_memory_usage = 0.0
         self.memory_history = []
         self.dynamic_batch_size = config.batch_size
+
+        # Performance profiling
+        profiler_config = ProfilerConfig(
+            metrics_collection_interval=config.monitoring.log_frequency,
+            detailed_profiling_interval=config.monitoring.log_frequency * 10,
+            thermal_monitoring_interval=config.memory.memory_check_interval,
+            enable_neural_engine_monitoring=config.mlx_optimization.enable_jit,
+            enable_thermal_monitoring=True,
+            enable_power_monitoring=True,
+            save_detailed_logs=config.monitoring.log_to_file,
+            log_to_console=config.monitoring.enable_rich_console,
+        )
+        self.profiler = AppleSiliconProfiler(profiler_config)
 
         # Early stopping
         self.early_stopping_counter = 0
@@ -103,6 +132,9 @@ class MLXTrainerV2:
         self.mlflow_run = None
         self.mlflow_client = None
 
+        # Apply Apple Silicon optimizations if available
+        self._apply_apple_silicon_optimizations()
+
         logger.info(
             f"Initialized MLX Trainer V2:\n"
             f"  Model: {model.__class__.__name__}\n"
@@ -110,6 +142,7 @@ class MLXTrainerV2:
             f"  Batch Size: {config.batch_size} (effective: {self.effective_batch_size})\n"
             f"  Learning Rate: {config.learning_rate}\n"
             f"  Epochs: {config.epochs}\n"
+            f"  Apple Silicon: {self.memory_manager.is_apple_silicon}\n"
             f"  Output Dir: {config.output_dir}"
         )
 
@@ -140,52 +173,28 @@ class MLXTrainerV2:
 
     def get_memory_usage(self) -> float:
         """Get current memory usage as a fraction of available memory."""
-        try:
-            import psutil
-
-            memory = psutil.virtual_memory()
-            usage = (memory.total - memory.available) / memory.total
-            self.current_memory_usage = usage
-            return usage
-        except ImportError:
-            # Fallback for systems without psutil
-            return 0.5
+        metrics = self.memory_manager.get_current_metrics()
+        self.current_memory_usage = metrics.memory_percentage
+        return metrics.memory_percentage
 
     def adjust_batch_size_dynamically(self) -> int:
         """Dynamically adjust batch size based on memory usage and performance."""
         if not self.config.memory.dynamic_batch_sizing:
             return self.dynamic_batch_size
 
-        memory_usage = self.get_memory_usage()
-        memory_threshold = self.config.memory.unified_memory_fraction
+        # Use advanced memory optimizer
+        new_batch_size, optimization_info = self.memory_optimizer.optimize_training_memory(
+            self.dynamic_batch_size
+        )
 
-        # Increase batch size if memory usage is low
-        if (
-            memory_usage < memory_threshold * 0.7
-            and self.dynamic_batch_size < self.config.memory.max_batch_size
-        ):
-            new_size = min(
-                self.dynamic_batch_size * 2, self.config.memory.max_batch_size
+        if new_batch_size != self.dynamic_batch_size:
+            logger.info(
+                f"Memory optimizer adjusted batch size: {self.dynamic_batch_size} -> {new_batch_size}"
             )
-            if new_size != self.dynamic_batch_size:
-                logger.info(
-                    f"Increasing batch size: {self.dynamic_batch_size} -> {new_size}"
-                )
-                self.dynamic_batch_size = new_size
+            if optimization_info.get("optimizations_applied"):
+                logger.debug(f"Applied optimizations: {optimization_info['optimizations_applied']}")
 
-        # Decrease batch size if memory usage is high
-        elif (
-            memory_usage > memory_threshold
-            and self.dynamic_batch_size > self.config.memory.min_batch_size
-        ):
-            new_size = max(
-                self.dynamic_batch_size // 2, self.config.memory.min_batch_size
-            )
-            if new_size != self.dynamic_batch_size:
-                logger.info(
-                    f"Decreasing batch size: {self.dynamic_batch_size} -> {new_size}"
-                )
-                self.dynamic_batch_size = new_size
+            self.dynamic_batch_size = new_batch_size
 
         return self.dynamic_batch_size
 
@@ -281,12 +290,17 @@ class MLXTrainerV2:
     def train_step(self, batch: dict[str, mx.array]) -> tuple[float, dict[str, Any]]:
         """Execute a training step with gradient accumulation."""
 
+        # Start performance profiling
+        self.profiler.start_step_timer(self.global_step)
+
         def loss_fn(model):
             return self.compute_loss(batch)
 
-        # Compute gradients
-        loss_and_grad_fn = nn.value_and_grad(self.model, loss_fn)
-        loss, grads = loss_and_grad_fn(self.model)
+        # Compute gradients with profiling
+        loss, grads = self.profiler.profile_mlx_operation(
+            "gradient_computation",
+            lambda: nn.value_and_grad(self.model, loss_fn)(self.model)
+        )[0]
 
         # Scale for gradient accumulation
         if self.config.mlx_optimization.gradient_accumulation_steps > 1:
@@ -346,14 +360,21 @@ class MLXTrainerV2:
             self.accumulated_loss = None
             self.accumulation_step = 0
 
-            # Memory management
+            # Advanced memory management
             if (
                 self.config.memory.force_garbage_collection
                 and self.global_step % self.config.memory.gc_interval == 0
             ):
-                import gc
+                self.memory_manager.force_garbage_collection(
+                    aggressive=self.current_memory_usage > self.memory_manager.thresholds.high_memory
+                )
 
-                gc.collect()
+            # End performance profiling and get metrics
+            batch_size = batch["input_ids"].shape[0]
+            sequence_length = batch["input_ids"].shape[1] if len(batch["input_ids"].shape) > 1 else None
+            performance_metrics = self.profiler.end_step_timer(
+                self.global_step, batch_size, sequence_length
+            )
 
             metrics = {
                 "loss": loss_value,
@@ -362,6 +383,9 @@ class MLXTrainerV2:
                 "memory_usage": self.current_memory_usage,
                 "epoch": self.current_epoch,
                 "step": self.global_step,
+                "step_time": performance_metrics.step_time_seconds,
+                "samples_per_second": performance_metrics.samples_per_second,
+                "tokens_per_second": performance_metrics.tokens_per_second,
             }
 
             return loss_value, metrics
@@ -646,6 +670,9 @@ class MLXTrainerV2:
                 "total_time": total_time,
                 "training_history": history,
             }
+
+            # Save advanced profiling reports
+            self._save_advanced_reports()
 
             logger.info(
                 f"Training completed in {total_time:.1f}s\n"
@@ -963,3 +990,63 @@ class MLXTrainerV2:
                 logger.info(f"Removed old checkpoint: {old_checkpoint}")
             except Exception as e:
                 logger.warning(f"Failed to remove old checkpoint {old_checkpoint}: {e}")
+
+    def _apply_apple_silicon_optimizations(self) -> None:
+        """Apply Apple Silicon specific optimizations."""
+        if self.memory_manager.is_apple_silicon:
+            logger.info("Applying Apple Silicon optimizations...")
+
+            # Apply memory optimizations
+            optimizations = self.memory_manager.optimize_for_apple_silicon()
+
+            if optimizations.get("unified_memory"):
+                logger.debug("Unified memory optimization applied")
+            if optimizations.get("neural_engine"):
+                logger.debug("Neural Engine optimization applied")
+            if optimizations.get("cache_optimization"):
+                logger.debug("Cache optimization applied")
+
+            # Log memory recommendations
+            recommendations = self.memory_manager.get_memory_recommendations()
+            if recommendations["actions"]:
+                logger.info(f"Memory recommendations: {', '.join(recommendations['actions'])}")
+
+    def _save_advanced_reports(self) -> None:
+        """Save advanced memory and performance reports."""
+        output_dir = Path(self.config.output_dir)
+
+        try:
+            # Save memory report
+            memory_report_path = output_dir / "memory_report.json"
+            self.memory_manager.save_memory_report(memory_report_path)
+
+            # Save performance report
+            performance_report_path = output_dir / "performance_report.json"
+            self.profiler.save_performance_report(performance_report_path)
+
+            # Save performance summary
+            performance_summary = self.profiler.get_performance_summary()
+            summary_path = output_dir / "performance_summary.json"
+
+            import json
+            with open(summary_path, "w") as f:
+                json.dump(performance_summary, f, indent=2, default=str)
+
+            logger.info("Advanced profiling reports saved successfully")
+
+        except Exception as e:
+            logger.warning(f"Failed to save advanced reports: {e}")
+
+    def get_system_status(self) -> dict[str, Any]:
+        """Get comprehensive system status for monitoring."""
+        return {
+            "memory": self.memory_manager.get_current_metrics().__dict__,
+            "performance": self.profiler.get_performance_summary(),
+            "training_state": {
+                "global_step": self.global_step,
+                "current_epoch": self.current_epoch,
+                "best_metric": self.best_metric,
+                "dynamic_batch_size": self.dynamic_batch_size,
+            },
+            "recommendations": self.memory_manager.get_memory_recommendations(),
+        }
