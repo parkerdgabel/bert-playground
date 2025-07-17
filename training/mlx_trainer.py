@@ -413,6 +413,18 @@ class MLXTrainer:
                 learning_rate=new_lr,
                 batch_size=self.dynamic_batch_size,
             )
+            
+            # Log additional metrics to MLflow if enabled
+            if self.config.monitoring.enable_mlflow:
+                try:
+                    mlflow.log_metrics({
+                        "step_time": performance_metrics.step_time_seconds,
+                        "samples_per_second": performance_metrics.samples_per_second,
+                        "tokens_per_second": performance_metrics.tokens_per_second,
+                        "memory_usage": self.current_memory_usage,
+                    }, step=self.global_step)
+                except Exception as e:
+                    logger.debug(f"Failed to log additional metrics to MLflow: {e}")
 
             return loss_value, metrics
         else:
@@ -661,6 +673,29 @@ class MLXTrainer:
 
             # Start comprehensive monitoring
             self.monitor.start_training(self.config.epochs, steps_per_epoch)
+            
+            # Log training parameters to MLflow if enabled
+            if self.config.monitoring.enable_mlflow:
+                try:
+                    mlflow.log_params({
+                        "model_name": self.model.__class__.__name__,
+                        "batch_size": self.config.batch_size,
+                        "effective_batch_size": self.effective_batch_size,
+                        "learning_rate": self.config.learning_rate,
+                        "optimizer": self.config.optimizer.value,
+                        "epochs": self.config.epochs,
+                        "warmup_steps": self.config.warmup_steps,
+                        "total_steps": self.total_steps,
+                        "gradient_accumulation_steps": self.config.mlx_optimization.gradient_accumulation_steps,
+                        "max_grad_norm": self.config.mlx_optimization.max_grad_norm,
+                        "weight_decay": self.config.advanced.weight_decay,
+                        "label_smoothing": self.config.advanced.label_smoothing,
+                        "dynamic_batch_sizing": self.config.memory.dynamic_batch_sizing,
+                        "apple_silicon": self.memory_manager.is_apple_silicon,
+                    })
+                    logger.info("Training parameters logged to MLflow")
+                except Exception as e:
+                    logger.warning(f"Failed to log parameters to MLflow: {e}")
 
             # Training history
             history = {
@@ -741,6 +776,14 @@ class MLXTrainer:
                         )
                     },
                 )
+                
+                # Log model to MLflow if enabled
+                if self.config.monitoring.enable_mlflow:
+                    try:
+                        self._log_model_to_mlflow(final_checkpoint)
+                        logger.info("Model logged to MLflow successfully")
+                    except Exception as e:
+                        logger.warning(f"Failed to log model to MLflow: {e}")
                 
                 # Register model if MLflow is enabled
                 if self.config.monitoring.enable_mlflow and hasattr(self.monitor, "get_current_run_id"):
@@ -865,6 +908,15 @@ class MLXTrainer:
 
                             if self.config.checkpoint.save_best_model:
                                 self._save_checkpoint("best_model")
+                                
+                                # Log best model to MLflow if enabled
+                                if self.config.monitoring.enable_mlflow:
+                                    try:
+                                        best_model_path = Path(self.config.checkpoint.checkpoint_dir) / "best_model"
+                                        self._log_model_to_mlflow(best_model_path)
+                                        logger.info(f"Best model logged to MLflow at step {self.global_step}")
+                                    except Exception as e:
+                                        logger.warning(f"Failed to log best model to MLflow: {e}")
 
 
                 # Checkpoint saving
@@ -947,32 +999,32 @@ class MLXTrainer:
         all_predictions = []
         all_probabilities = []
         
-        self.model.eval()
-        with mx.no_grad():
-            for batch in data_loader:
-                outputs = self.model(
-                    input_ids=batch["input_ids"],
-                    attention_mask=batch["attention_mask"],
-                )
-                
-                if "labels" in batch:
-                    all_labels.extend(batch["labels"].squeeze().tolist())
-                
-                logits = outputs["logits"]
-                predictions = mx.argmax(logits, axis=-1)
-                probabilities = mx.softmax(logits, axis=-1)
-                
-                all_predictions.extend(predictions.tolist())
-                if probabilities.shape[-1] == 2:
-                    all_probabilities.extend(probabilities[:, 1].tolist())
-                
-                # Store features for evaluation dataset
-                # For BERT, we might want to store input_ids or other features
-                batch_size = batch["input_ids"].shape[0]
-                for i in range(batch_size):
-                    # Simple feature: sequence length
-                    seq_len = (batch["attention_mask"][i] == 1).sum().item()
-                    all_features.append([seq_len])
+        # MLX doesn't have eval() mode or no_grad context
+        # Models are automatically in evaluation mode when not training
+        for batch in data_loader:
+            outputs = self.model(
+                input_ids=batch["input_ids"],
+                attention_mask=batch["attention_mask"],
+            )
+            
+            if "labels" in batch:
+                all_labels.extend(batch["labels"].squeeze().tolist())
+            
+            logits = outputs["logits"]
+            predictions = mx.argmax(logits, axis=-1)
+            probabilities = mx.softmax(logits, axis=-1)
+            
+            all_predictions.extend(predictions.tolist())
+            if probabilities.shape[-1] == 2:
+                all_probabilities.extend(probabilities[:, 1].tolist())
+            
+            # Store features for evaluation dataset
+            # For BERT, we might want to store input_ids or other features
+            batch_size = batch["input_ids"].shape[0]
+            for i in range(batch_size):
+                # Simple feature: sequence length
+                seq_len = (batch["attention_mask"][i] == 1).sum().item()
+                all_features.append([seq_len])
         
         # Create evaluation dataset
         eval_df = create_evaluation_dataset(
@@ -1002,6 +1054,36 @@ class MLXTrainer:
         logger.info(f"MLflow evaluation complete for {phase}")
         return results
     
+    def _log_model_to_mlflow(self, checkpoint_path: Path) -> None:
+        """Log the trained model to MLflow for registration.
+        
+        Args:
+            checkpoint_path: Path to the saved model checkpoint
+        """
+        import mlflow
+        
+        try:
+            # Log the raw model files as artifacts
+            mlflow.log_artifacts(str(checkpoint_path), "model")
+            
+            # Log model configuration
+            mlflow.log_dict(self.config.to_dict(), "model_config.json")
+            
+            # Tag the model for easier identification
+            mlflow.set_tags({
+                "model_type": "mlx_modernbert",
+                "framework": "mlx",
+                "task": "classification",
+                "dataset": self.config.experiment_name or "unknown",
+                "apple_silicon": str(self.memory_manager.is_apple_silicon),
+                "training_stage": "final" if "final" in str(checkpoint_path) else "best",
+            })
+            
+            logger.info(f"Model artifacts logged to MLflow from {checkpoint_path}")
+        except Exception as e:
+            logger.error(f"Failed to log model artifacts to MLflow: {e}")
+            raise
+
     def _register_model(
         self,
         run_id: str,

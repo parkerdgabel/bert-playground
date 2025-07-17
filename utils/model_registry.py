@@ -444,8 +444,8 @@ def register_mlx_model(
     # Prepare tags
     tags = {
         "framework": "mlx",
-        "model_type": config.model.architecture,
-        "dataset": config.data.dataset_name or "unknown",
+        "model_type": getattr(config, 'model_name', 'modernbert'),
+        "dataset": getattr(config, 'experiment_name', 'unknown'),
         "created_by": "mlx_bert_cli",
         "timestamp": datetime.now().isoformat(),
     }
@@ -457,11 +457,11 @@ def register_mlx_model(
     
     # Build description
     description = f"""
-MLX {config.model.architecture} model trained on {config.data.dataset_name or 'dataset'}.
+MLX {getattr(config, 'model_name', 'ModernBERT')} model trained on {getattr(config, 'experiment_name', 'dataset')}.
 Best validation accuracy: {metrics.get('best_val_accuracy', 'N/A')}
-Training epochs: {config.training.num_epochs}
-Batch size: {config.training.batch_size}
-Learning rate: {config.training.learning_rate}
+Training epochs: {getattr(config, 'epochs', 'N/A')}
+Batch size: {getattr(config, 'batch_size', 'N/A')}
+Learning rate: {getattr(config, 'learning_rate', 'N/A')}
 """
     
     # Register the model
