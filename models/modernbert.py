@@ -320,9 +320,11 @@ class ModernBertModel(nn.Module):
             json.dump(self.config.to_dict(), f, indent=2)
 
         # Save weights using safetensors
-        from safetensors.mlx import save_model
-
-        save_model(self, str(save_path / "model.safetensors"))
+        from mlx.utils import tree_flatten
+        
+        flat_params = tree_flatten(self.parameters())
+        weights = {k: v for k, v in flat_params}
+        mx.save_safetensors(str(save_path / "model.safetensors"), weights)
 
         logger.info(f"Model saved to {save_path}")
 

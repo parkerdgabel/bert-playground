@@ -252,34 +252,58 @@ class UnifiedTitanicDataPipeline:
 
     def _initialize_mlx_stream(self):
         """Initialize MLX-Data stream pipeline."""
+        # Ensure texts is available
+        if not hasattr(self, 'texts') or self.texts is None:
+            logger.error("Cannot initialize MLX stream: texts not available")
+            return
+            
         # Create dataset from indices
         indices = list(range(len(self.texts)))
-
-        # Create MLX dataset
-        dataset = dx.buffer_from_vector(indices)
+        
+        # Create MLX dataset from list of dicts
+        data = [{"idx": i} for i in indices]
+        dataset = dx.buffer_from_vector(data)
 
         if self.is_training:
-            dataset = dataset.shuffle(buffer_size=len(indices))
+            dataset = dataset.shuffle()
 
-        # Batch the dataset
-        dataset = dataset.batch(self.batch_size)
-
-        # Apply tokenization
+        # Apply tokenization to individual samples first
         if self.pre_tokenize:
-            dataset = dataset.map(
-                lambda batch: self._process_cached_batch(batch),
-                num_workers=self.num_threads,
-            )
+            def transform_cached(sample):
+                idx = sample["idx"]
+                cached = self.tokenized_cache[idx]
+                return {
+                    "input_ids": cached["input_ids"],
+                    "attention_mask": cached["attention_mask"],
+                    "labels": int(self.labels[idx])
+                }
+            dataset = dataset.sample_transform(transform_cached)
         else:
-            dataset = dataset.map(
-                lambda batch: self._process_batch(batch), num_workers=self.num_threads
-            )
+            def transform_sample(sample):
+                idx = sample["idx"]
+                text = self.texts[idx]
+                tokens = self.tokenizer(
+                    text,
+                    padding="max_length",
+                    truncation=True,
+                    max_length=self.max_length,
+                    return_tensors="np",
+                )
+                return {
+                    "input_ids": tokens["input_ids"][0],
+                    "attention_mask": tokens["attention_mask"][0],
+                    "labels": int(self.labels[idx])
+                }
+            dataset = dataset.sample_transform(transform_sample)
+        
+        # Batch the dataset after transformation
+        dataset = dataset.batch(self.batch_size)
 
         # Prefetch for performance
         if self.prefetch_size > 0:
-            dataset = dataset.prefetch(self.prefetch_size)
-
-        self.stream = dataset.to_stream()
+            self.stream = dataset.ordered_prefetch(self.prefetch_size, self.num_threads)
+        else:
+            self.stream = dataset.to_stream()
 
     def _process_batch(self, indices: List[int]) -> Dict[str, mx.array]:
         """Process a batch of indices into tokenized inputs."""

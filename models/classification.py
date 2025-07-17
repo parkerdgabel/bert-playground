@@ -1,7 +1,9 @@
 """Unified classification heads for ModernBERT models with advanced loss functions support."""
 
+import json
 import mlx.core as mx
 import mlx.nn as nn
+from pathlib import Path
 from typing import Optional, Dict, Union
 from loguru import logger
 import warnings
@@ -318,6 +320,191 @@ class TitanicClassifier(nn.Module):
             info["warmup_progress"] = progress
 
         return info
+
+    def save_pretrained(self, save_path: Union[str, Path]) -> None:
+        """
+        Save the model to a directory, including both the BERT model and classification head.
+        
+        Args:
+            save_path: Directory path to save the model
+        """
+        save_path = Path(save_path)
+        save_path.mkdir(parents=True, exist_ok=True)
+        
+        # Save configuration
+        config_dict = {
+            "bert_model_type": self.bert.__class__.__name__,
+            "has_built_in_classifier": self.has_built_in_classifier,
+            "loss_type": self.loss_type,
+            "enable_diagnostics": self.enable_diagnostics,
+        }
+        
+        # Save classifier config if we have one
+        if not self.has_built_in_classifier and self.classifier:
+            classifier_config = {
+                "hidden_dim": None,  # Will be determined from the layers
+                "dropout_prob": 0.1,
+                "use_layer_norm": self.classifier.use_layer_norm,
+                "activation": "relu",  # Default, could be extracted from layers
+            }
+            
+            # Try to extract hidden_dim from classifier layers
+            if hasattr(self.classifier, "classifier") and isinstance(
+                self.classifier.classifier, nn.Sequential
+            ):
+                for layer in self.classifier.classifier:
+                    if isinstance(layer, nn.Linear) and layer.dims[1] != 2:
+                        classifier_config["hidden_dim"] = layer.dims[1]
+                        break
+            
+            config_dict["classifier_config"] = classifier_config
+        
+        # Save BERT config if available
+        if hasattr(self.bert, "config"):
+            config_dict["bert_config"] = (
+                self.bert.config.to_dict()
+                if hasattr(self.bert.config, "to_dict")
+                else self.bert.config.__dict__
+            )
+        
+        with open(save_path / "titanic_classifier_config.json", "w") as f:
+            json.dump(config_dict, f, indent=2)
+        
+        # Save the BERT model
+        if hasattr(self.bert, "save_pretrained"):
+            bert_save_path = save_path / "bert_model"
+            self.bert.save_pretrained(bert_save_path)
+        else:
+            # Fallback: save BERT weights directly
+            from mlx.utils import tree_flatten
+            
+            bert_save_path = save_path / "bert_model"
+            bert_save_path.mkdir(exist_ok=True)
+            
+            flat_params = tree_flatten(self.bert.parameters())
+            bert_weights = {k: v for k, v in flat_params}
+            mx.save_safetensors(str(bert_save_path / "model.safetensors"), bert_weights)
+            
+            # Save BERT config if available
+            if hasattr(self.bert, "config"):
+                with open(bert_save_path / "config.json", "w") as f:
+                    bert_config = (
+                        self.bert.config.to_dict()
+                        if hasattr(self.bert.config, "to_dict")
+                        else self.bert.config.__dict__
+                    )
+                    json.dump(bert_config, f, indent=2)
+        
+        # Save classifier weights if we have a separate classifier
+        if not self.has_built_in_classifier and self.classifier:
+            from mlx.utils import tree_flatten
+            
+            flat_params = tree_flatten(self.classifier.parameters())
+            classifier_weights = {k: v for k, v in flat_params}
+            mx.save_safetensors(
+                str(save_path / "classifier.safetensors"), classifier_weights
+            )
+        
+        logger.info(f"TitanicClassifier saved to {save_path}")
+
+    @classmethod
+    def from_pretrained(
+        cls, load_path: Union[str, Path], **kwargs
+    ) -> "TitanicClassifier":
+        """
+        Load a TitanicClassifier from a saved directory.
+        
+        Args:
+            load_path: Directory path containing the saved model
+            **kwargs: Additional arguments to override loaded configuration
+            
+        Returns:
+            Loaded TitanicClassifier instance
+        """
+        load_path = Path(load_path)
+        
+        # Load configuration
+        config_path = load_path / "titanic_classifier_config.json"
+        if not config_path.exists():
+            raise FileNotFoundError(
+                f"Configuration file not found at {config_path}"
+            )
+        
+        with open(config_path) as f:
+            config_dict = json.load(f)
+        
+        # Load BERT model
+        bert_path = load_path / "bert_model"
+        if bert_path.exists():
+            # Try to load using the BERT model's from_pretrained if available
+            bert_model_type = config_dict.get("bert_model_type", "ModernBertModel")
+            
+            # Import the appropriate model class
+            if bert_model_type == "CNNEnhancedModernBERT":
+                from models.modernbert_cnn_hybrid import CNNEnhancedModernBERT
+                bert_model = CNNEnhancedModernBERT.from_pretrained(bert_path)
+            elif bert_model_type == "ModernBertModel":
+                from models.modernbert import ModernBertModel
+                bert_model = ModernBertModel.from_pretrained(bert_path)
+            else:
+                # Fallback: try to load weights directly
+                from models.factory import create_model
+                
+                bert_model = create_model("standard")
+                if (bert_path / "model.safetensors").exists():
+                    weights = mx.load(str(bert_path / "model.safetensors"))
+                    bert_model.load_weights(list(weights.items()))
+        else:
+            raise FileNotFoundError(f"BERT model not found at {bert_path}")
+        
+        # Create the classifier with loaded configuration
+        classifier_kwargs = {
+            "loss_type": config_dict.get("loss_type", "cross_entropy"),
+            "enable_diagnostics": config_dict.get("enable_diagnostics", False),
+        }
+        
+        # Add classifier config if available
+        if "classifier_config" in config_dict:
+            classifier_kwargs.update(config_dict["classifier_config"])
+        
+        # Override with any provided kwargs
+        classifier_kwargs.update(kwargs)
+        
+        # Create the TitanicClassifier instance
+        model = cls(bert_model=bert_model, **classifier_kwargs)
+        
+        # Load classifier weights if we have a separate classifier
+        if not model.has_built_in_classifier and model.classifier:
+            classifier_path = load_path / "classifier.safetensors"
+            if classifier_path.exists():
+                weights = mx.load(str(classifier_path))
+                model.classifier.load_weights(list(weights.items()))
+        
+        logger.info(f"TitanicClassifier loaded from {load_path}")
+        return model
+
+    def load_pretrained(self, load_path: Union[str, Path]) -> None:
+        """
+        Load pretrained weights into the current model instance.
+        This is for compatibility with the test that expects an instance method.
+        
+        Args:
+            load_path: Directory path containing the saved model
+        """
+        # Load a new model and copy its state
+        loaded_model = self.from_pretrained(load_path)
+        
+        # Copy the loaded model's parameters to this instance
+        self.bert = loaded_model.bert
+        self.classifier = loaded_model.classifier
+        self.has_built_in_classifier = loaded_model.has_built_in_classifier
+        self.loss_type = loaded_model.loss_type
+        self.loss_fn = loaded_model.loss_fn
+        self.enable_diagnostics = loaded_model.enable_diagnostics
+        if hasattr(loaded_model, "is_adaptive_loss"):
+            self.is_adaptive_loss = loaded_model.is_adaptive_loss
+        
+        logger.info(f"Loaded pretrained weights from {load_path}")
 
 
 # Factory functions

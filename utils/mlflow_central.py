@@ -13,18 +13,28 @@ from loguru import logger
 
 
 class MLflowCentral:
-    """Central MLflow configuration manager."""
+    """Central MLflow configuration manager (Singleton)."""
     
     # Central tracking configuration
     TRACKING_URI = "sqlite:///mlruns/mlflow.db"
     ARTIFACT_ROOT = "./mlruns/artifacts"
     DEFAULT_EXPERIMENT = "mlx_training"
     
+    _instance = None
+    
+    def __new__(cls):
+        """Implement singleton pattern."""
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
     def __init__(self):
         """Initialize central MLflow configuration."""
-        self._initialized = False
-        self._tracking_uri = None
-        self._artifact_root = None
+        # Only initialize once
+        if not hasattr(self, '_initialized'):
+            self._initialized = False
+            self._tracking_uri = None
+            self._artifact_root = None
     
     def initialize(
         self,

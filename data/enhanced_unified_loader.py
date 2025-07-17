@@ -95,7 +95,14 @@ class EnhancedUnifiedDataPipeline(UnifiedTitanicDataPipeline):
             cached_data = self._try_load_cache()
             if cached_data is not None:
                 logger.info("Loaded data from persistent cache")
-                return cached_data
+                # Restore cached data
+                if "texts" in cached_data:
+                    self.texts = cached_data["texts"]
+                if "labels" in cached_data:
+                    self.labels = cached_data["labels"]
+                if "tokenized_cache" in cached_data:
+                    self.tokenized_cache = cached_data["tokenized_cache"]
+                return
         
         # Use parent's prepare_data but handle test data
         if self.is_test:
@@ -105,21 +112,25 @@ class EnhancedUnifiedDataPipeline(UnifiedTitanicDataPipeline):
                 # Add dummy labels for processing
                 self.df["Survived"] = -1
             
-            data = super().prepare_data()
+            super().prepare_data()
             
-            # Remove labels from result
-            data.pop("labels", None)
+            # For test data, set labels to None
+            self.labels = None
             
             # Restore original df
             self.df = original_df
         else:
-            data = super().prepare_data()
+            super().prepare_data()
         
         # Save to persistent cache if enabled
         if self.persistent_cache:
-            self._save_cache(data)
-        
-        return data
+            cache_data = {
+                "texts": self.texts,
+                "labels": self.labels,
+            }
+            if self.tokenized_cache:
+                cache_data["tokenized_cache"] = self.tokenized_cache
+            self._save_cache(cache_data)
     
     def update_batch_size(self, new_batch_size: int):
         """Dynamically update batch size."""
@@ -133,9 +144,9 @@ class EnhancedUnifiedDataPipeline(UnifiedTitanicDataPipeline):
         logger.info(f"Updated batch size: {old_batch_size} -> {new_batch_size}")
         
         # Recreate stream if using MLX-Data
-        if self.use_mlx_data and self.stream is not None:
+        if self.use_mlx_data and hasattr(self, 'stream'):
             logger.info("Recreating MLX-Data stream with new batch size")
-            self.stream = self._create_mlx_stream()
+            self._initialize_mlx_stream()
     
     def _get_cache_key(self) -> str:
         """Generate cache key based on data characteristics."""
@@ -198,16 +209,21 @@ class EnhancedUnifiedDataPipeline(UnifiedTitanicDataPipeline):
                 }
             logger.info(f"Loaded {len(self.tokenized_cache)} tokenized samples from cache")
     
-    def _create_mlx_stream(self):
+    def _initialize_mlx_stream(self):
         """Override to support double buffering."""
-        stream = super()._create_mlx_stream()
+        # Ensure texts is initialized before calling parent
+        if not hasattr(self, 'texts') or self.texts is None:
+            logger.warning("texts not initialized, skipping MLX stream initialization")
+            return
+            
+        # Call parent's initialization
+        super()._initialize_mlx_stream()
         
-        if self.double_buffer and stream is not None:
-            # Add double buffering
-            logger.info("Enabling double buffering for MLX stream")
-            stream = stream.prefetch(2 * self.prefetch_size, self.num_threads)
-        
-        return stream
+        if self.double_buffer and hasattr(self, 'stream') and self.stream is not None:
+            # Add double buffering by modifying the existing stream
+            logger.info("Double buffering is enabled but MLX-Data streams don't support modification after creation")
+            # Note: MLX-Data streams are immutable after creation, so double buffering
+            # would need to be implemented in the parent class during stream creation
 
 
 # Convenience function
