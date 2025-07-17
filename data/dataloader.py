@@ -15,8 +15,15 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
-from transformers import AutoTokenizer
 import json
+
+# Import tokenizer wrapper for backend flexibility
+try:
+    from embeddings.tokenizer_wrapper import TokenizerWrapper
+    USE_TOKENIZER_WRAPPER = True
+except ImportError:
+    USE_TOKENIZER_WRAPPER = False
+    from transformers import AutoTokenizer
 
 
 class MLXTabularTextDataLoader:
@@ -33,6 +40,7 @@ class MLXTabularTextDataLoader:
         shuffle_buffer_size: int = 1000,
         prefetch_size: int = 4,
         num_workers: int = 4,
+        tokenizer_backend: str = "auto",
     ):
         """
         Initialize the MLX DataLoader.
@@ -57,9 +65,16 @@ class MLXTabularTextDataLoader:
         self.shuffle_buffer_size = shuffle_buffer_size
         self.prefetch_size = prefetch_size
         self.num_workers = num_workers
+        self.tokenizer_backend = tokenizer_backend
         
         # Build tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+        if USE_TOKENIZER_WRAPPER:
+            self.tokenizer = TokenizerWrapper(
+                model_name=tokenizer_name,
+                backend=tokenizer_backend
+            )
+        else:
+            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
         self.tokenizer_info = {
             'pad_token_id': self.tokenizer.pad_token_id or 0,
             'cls_token_id': self.tokenizer.cls_token_id,

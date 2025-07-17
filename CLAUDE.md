@@ -10,6 +10,7 @@ This project implements ModernBERT using Apple's MLX framework for efficient tra
 - **MLX**: Apple's machine learning framework optimized for Apple Silicon
 - **MLX-Data**: Efficient data loading library for MLX
 - **MLX-LM**: Language modeling utilities for MLX
+- **MLX-Embeddings**: Native MLX implementation of BERT models with 4-bit quantization
 - **ModernBERT**: State-of-the-art BERT variant from Answer.AI
 - **uv**: Fast Python package and project manager
 - **MLflow**: Experiment tracking and model management
@@ -35,6 +36,14 @@ uv run python mlx_bert_cli.py train \
     --train data/titanic/train.csv \
     --val data/titanic/val.csv \
     --config configs/production.json
+
+# Training with MLX embeddings (faster on Apple Silicon)
+uv run python mlx_bert_cli.py train \
+    --train data/titanic/train.csv \
+    --val data/titanic/val.csv \
+    --use-mlx-embeddings \
+    --tokenizer-backend mlx \
+    --model mlx-community/answerdotai-ModernBERT-base-4bit
 
 # Generate predictions
 uv run python mlx_bert_cli.py predict \
@@ -85,6 +94,11 @@ bert-playground/
 │   ├── modernbert_mlx.py    # Original MLX ModernBERT
 │   ├── modernbert_optimized.py  # Optimized version with MLX best practices
 │   └── classification_head.py   # Classification layers
+├── embeddings/              # MLX embeddings integration
+│   ├── mlx_adapter.py       # MLX embeddings adapter
+│   ├── tokenizer_wrapper.py # Unified tokenizer interface
+│   ├── model_wrapper.py     # MLX embedding model wrapper
+│   └── migration.py         # Checkpoint migration utilities
 ├── data/
 │   ├── titanic_loader.py    # Original data loader
 │   ├── optimized_loader.py  # Optimized MLX-Data pipeline
@@ -163,6 +177,30 @@ uv run python mlx_bert_cli.py train \
     --epochs 10 \
     --lr 1e-5
 ```
+
+## MLX Embeddings Integration
+
+The project now supports native MLX embeddings for improved performance on Apple Silicon:
+
+### Using MLX Embeddings
+
+```bash
+# Train with MLX embeddings backend (4-bit quantized models)
+uv run python mlx_bert_cli.py train \
+    --train data/titanic/train.csv \
+    --val data/titanic/val.csv \
+    --use-mlx-embeddings \
+    --model mlx-community/answerdotai-ModernBERT-base-4bit
+```
+
+### Benefits
+- **Native Performance**: Optimized for Apple Silicon
+- **4-bit Quantization**: Reduced memory usage
+- **Faster Tokenization**: MLX-native text processing
+- **Backward Compatible**: Works with existing code
+
+### Migration Guide
+See `MLX_EMBEDDINGS_MIGRATION_GUIDE.md` for detailed migration instructions.
 
 ## MLflow Integration
 

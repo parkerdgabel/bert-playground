@@ -112,6 +112,13 @@ def train(
     use_dilated_conv: bool = typer.Option(
         True, "--dilated/--no-dilated", help="Use dilated convolutions"
     ),
+    # MLX Embeddings options
+    use_mlx_embeddings: bool = typer.Option(
+        False, "--use-mlx-embeddings", help="Use MLX embeddings backend"
+    ),
+    tokenizer_backend: str = typer.Option(
+        "auto", "--tokenizer-backend", help="Tokenizer backend: auto, mlx, or huggingface"
+    ),
 ):
     """Train ModernBERT model with unified MLX trainer."""
     console.print("\n[bold blue]MLX Unified Training System[/bold blue]")
@@ -148,6 +155,7 @@ def train(
         shuffle_buffer_size=1000 if augment else 100,
         prefetch_size=config_overrides.get("prefetch_size", prefetch_size),
         num_workers=config_overrides.get("num_workers", num_workers),
+        tokenizer_backend=config_overrides.get("tokenizer_backend", tokenizer_backend),
     )
     
     # Create validation loader if needed
@@ -162,6 +170,7 @@ def train(
             shuffle=False,
             prefetch_size=2,
             num_workers=2,
+            tokenizer_backend=config_overrides.get("tokenizer_backend", tokenizer_backend),
         )
 
     train_samples = len(train_loader) * batch_size_config
@@ -218,6 +227,8 @@ def train(
     config_table.add_row("Model", model_name)
     config_table.add_row("Model Type", model_type)
     config_table.add_row("Output Directory", str(run_dir))
+    config_table.add_row("MLX Embeddings", "Enabled" if use_mlx_embeddings else "Disabled")
+    config_table.add_row("Tokenizer Backend", tokenizer_backend)
     config_table.add_row("Batch Size", str(batch_size_config))
     config_table.add_row("Learning Rate", str(training_config.learning_rate))
     config_table.add_row("Epochs", str(training_config.epochs))
@@ -229,7 +240,17 @@ def train(
 
     # Create model
     with console.status("[yellow]Creating model...[/yellow]"):
-        if model_type == "cnn_hybrid":
+        if use_mlx_embeddings:
+            # Create MLX embeddings model
+            from embeddings.model_wrapper import MLXEmbeddingModel
+            bert_model = MLXEmbeddingModel(
+                model_name=model_name,
+                num_labels=2,
+                use_mlx_embeddings=True,
+            )
+            model_desc = "MLX Embeddings ModernBERT"
+            model = bert_model  # MLXEmbeddingModel already includes classification head
+        elif model_type == "cnn_hybrid":
             # Parse CNN kernel sizes
             kernel_sizes = [int(k.strip()) for k in cnn_kernel_sizes.split(",")]
 
@@ -247,12 +268,12 @@ def train(
 
             # For CNN model, override config hidden_size
             bert_model.config.hidden_size = bert_model.output_hidden_size
+            model = TitanicClassifier(bert_model)
         else:
             # Create base model
             bert_model = create_model("standard")
             model_desc = "OptimizedModernBertMLX"
-
-        model = TitanicClassifier(bert_model)
+            model = TitanicClassifier(bert_model)
 
     console.print(f"[green]✓ Created {model_desc} model[/green]")
 
@@ -273,6 +294,8 @@ def train(
     full_config = {
         "model": model_name,
         "model_type": model_type,
+        "use_mlx_embeddings": use_mlx_embeddings,
+        "tokenizer_backend": tokenizer_backend,
         "train_path": str(train_path),
         "val_path": str(val_path) if val_path else None,
         "timestamp": timestamp,

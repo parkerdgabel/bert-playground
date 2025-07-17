@@ -11,8 +11,15 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Iterator
-from transformers import AutoTokenizer
 from loguru import logger
+
+# Import tokenizer wrapper for backend flexibility
+try:
+    from embeddings.tokenizer_wrapper import TokenizerWrapper
+    USE_TOKENIZER_WRAPPER = True
+except ImportError:
+    USE_TOKENIZER_WRAPPER = False
+    from transformers import AutoTokenizer
 
 
 class KaggleDataLoader:
@@ -36,6 +43,7 @@ class KaggleDataLoader:
         prefetch_size: int = 4,
         num_workers: int = 4,
         text_template: Optional[str] = None,
+        tokenizer_backend: str = "auto",
     ):
         """
         Initialize the Kaggle DataLoader.
@@ -64,14 +72,22 @@ class KaggleDataLoader:
         self.prefetch_size = prefetch_size
         self.num_workers = num_workers
         self.text_template = text_template
+        self.tokenizer_backend = tokenizer_backend
         
         # Validate inputs
         if not self.csv_path.exists():
             raise FileNotFoundError(f"CSV file not found: {self.csv_path}")
         
         # Initialize tokenizer
-        logger.info(f"Loading tokenizer: {tokenizer_name}")
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+        logger.info(f"Loading tokenizer: {tokenizer_name} (backend: {tokenizer_backend})")
+        if USE_TOKENIZER_WRAPPER:
+            self.tokenizer = TokenizerWrapper(
+                model_name=tokenizer_name,
+                backend=tokenizer_backend
+            )
+        else:
+            logger.warning("TokenizerWrapper not available, using HuggingFace tokenizer")
+            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
         
         # Get tokenizer special tokens
         self._setup_tokenizer()
@@ -236,6 +252,7 @@ def create_kaggle_dataloader(
     max_length: int = 128,
     shuffle: bool = True,
     attach_dataset_spec: bool = True,
+    tokenizer_backend: str = "auto",
     **kwargs
 ) -> KaggleDataLoader:
     """
@@ -248,6 +265,8 @@ def create_kaggle_dataloader(
         batch_size: Batch size
         max_length: Maximum sequence length
         shuffle: Whether to shuffle data
+        attach_dataset_spec: Whether to attach dataset spec for trainer compatibility
+        tokenizer_backend: Tokenizer backend to use ('auto', 'mlx', 'huggingface')
         **kwargs: Additional arguments for KaggleDataLoader
         
     Returns:
@@ -279,6 +298,7 @@ def create_kaggle_dataloader(
         'batch_size': batch_size,
         'max_length': max_length,
         'shuffle': shuffle,
+        'tokenizer_backend': tokenizer_backend,
         **config,
         **kwargs
     }

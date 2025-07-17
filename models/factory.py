@@ -11,23 +11,34 @@ from .modernbert import ModernBertModel, ModernBertConfig
 from .modernbert_cnn_hybrid import CNNEnhancedModernBERT, CNNHybridConfig
 from .classification import TitanicClassifier, create_classifier
 
+# Import MLX embeddings support
+try:
+    from embeddings.model_wrapper import MLXEmbeddingModel
+    from embeddings.config import MLXEmbeddingsConfig
+    MLX_EMBEDDINGS_AVAILABLE = True
+except ImportError:
+    MLX_EMBEDDINGS_AVAILABLE = False
+    logger.warning("MLX embeddings not available")
 
-ModelType = Literal["standard", "cnn_hybrid", "classifier"]
+
+ModelType = Literal["standard", "cnn_hybrid", "classifier", "mlx_embedding"]
 
 
 def create_model(
     model_type: ModelType = "standard",
-    config: Optional[Union[Dict[str, Any], ModernBertConfig]] = None,
+    config: Optional[Union[Dict[str, Any], ModernBertConfig, "MLXEmbeddingsConfig"]] = None,
     pretrained_path: Optional[Union[str, Path]] = None,
+    use_mlx_embeddings: bool = False,
     **kwargs,
 ) -> nn.Module:
     """
     Create a model based on type and configuration.
 
     Args:
-        model_type: Type of model to create ("standard", "cnn_hybrid", "classifier")
+        model_type: Type of model to create ("standard", "cnn_hybrid", "classifier", "mlx_embedding")
         config: Model configuration (dict or Config object)
         pretrained_path: Path to pretrained weights
+        use_mlx_embeddings: Whether to use MLX embeddings backend
         **kwargs: Additional arguments passed to model constructor
 
     Returns:
@@ -35,19 +46,43 @@ def create_model(
     """
     # Convert config dict to Config object if needed
     if isinstance(config, dict):
-        if model_type == "cnn_hybrid" or "cnn_kernel_sizes" in config:
+        if model_type == "mlx_embedding" or use_mlx_embeddings:
+            if MLX_EMBEDDINGS_AVAILABLE:
+                config = MLXEmbeddingsConfig(**config)
+            else:
+                raise RuntimeError("MLX embeddings requested but not available")
+        elif model_type == "cnn_hybrid" or "cnn_kernel_sizes" in config:
             config = CNNHybridConfig(**config)
         else:
             config = ModernBertConfig(**config)
     elif config is None:
         # Use default config
-        if model_type == "cnn_hybrid":
+        if model_type == "mlx_embedding" or use_mlx_embeddings:
+            if MLX_EMBEDDINGS_AVAILABLE:
+                config = MLXEmbeddingsConfig()
+            else:
+                raise RuntimeError("MLX embeddings requested but not available")
+        elif model_type == "cnn_hybrid":
             config = CNNHybridConfig()
         else:
             config = ModernBertConfig()
 
     # Create base model
-    if model_type == "cnn_hybrid":
+    if model_type == "mlx_embedding" or (use_mlx_embeddings and MLX_EMBEDDINGS_AVAILABLE):
+        # Create MLX embedding model
+        model_name = kwargs.pop("model_name", config.model_name if hasattr(config, "model_name") else "answerdotai/ModernBERT-base")
+        num_labels = kwargs.pop("num_labels", None)
+        model = MLXEmbeddingModel(
+            model_name=model_name,
+            num_labels=num_labels,
+            hidden_size=config.hidden_size if hasattr(config, "hidden_size") else 768,
+            dropout_rate=config.dropout_rate if hasattr(config, "dropout_rate") else 0.1,
+            pooling_strategy=config.pooling_strategy if hasattr(config, "pooling_strategy") else "mean",
+            use_mlx_embeddings=True,
+            **kwargs
+        )
+        logger.info(f"Created MLX embedding model: {model_name}")
+    elif model_type == "cnn_hybrid":
         model = CNNEnhancedModernBERT(config, **kwargs)
         logger.info("Created CNN-enhanced ModernBERT model")
     elif model_type == "standard":
@@ -143,19 +178,27 @@ def load_pretrained_weights(model: nn.Module, weights_path: Union[str, Path]):
 
 
 def get_model_config(
-    model_type: ModelType = "standard", **kwargs
-) -> Union[ModernBertConfig, CNNHybridConfig]:
+    model_type: ModelType = "standard", 
+    use_mlx_embeddings: bool = False,
+    **kwargs
+) -> Union[ModernBertConfig, CNNHybridConfig, "MLXEmbeddingsConfig"]:
     """
     Get default configuration for a model type.
 
     Args:
         model_type: Type of model
+        use_mlx_embeddings: Whether to use MLX embeddings
         **kwargs: Configuration overrides
 
     Returns:
         Model configuration object
     """
-    if model_type == "cnn_hybrid":
+    if model_type == "mlx_embedding" or use_mlx_embeddings:
+        if MLX_EMBEDDINGS_AVAILABLE:
+            config = MLXEmbeddingsConfig(**kwargs)
+        else:
+            raise RuntimeError("MLX embeddings requested but not available")
+    elif model_type == "cnn_hybrid":
         config = CNNHybridConfig(**kwargs)
     else:
         config = ModernBertConfig(**kwargs)
@@ -205,6 +248,26 @@ MODEL_REGISTRY = {
     "titanic-base": lambda **kwargs: create_titanic_model("standard", **kwargs),
     "titanic-cnn": lambda **kwargs: create_titanic_model("cnn_hybrid", **kwargs),
 }
+
+# Add MLX embedding models if available
+if MLX_EMBEDDINGS_AVAILABLE:
+    MODEL_REGISTRY.update({
+        "mlx-modernbert-base": lambda **kwargs: create_model(
+            "mlx_embedding", 
+            model_name="answerdotai/ModernBERT-base",
+            **kwargs
+        ),
+        "mlx-modernbert-large": lambda **kwargs: create_model(
+            "mlx_embedding",
+            model_name="answerdotai/ModernBERT-large",
+            **kwargs
+        ),
+        "mlx-minilm": lambda **kwargs: create_model(
+            "mlx_embedding",
+            model_name="sentence-transformers/all-MiniLM-L6-v2",
+            **kwargs
+        ),
+    })
 
 
 def list_available_models() -> List[str]:
