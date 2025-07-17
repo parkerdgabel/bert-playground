@@ -1,0 +1,267 @@
+2025-07-17 12:58:02.337 | INFO     | utils.mlx_patch:apply_mlx_patches:77 - Applying MLX compatibility patches...
+2025-07-17 12:58:02.337 | INFO     | utils.mlx_patch:patch_mlx_astype:72 - Applied MLX astype() compatibility patch
+2025-07-17 12:58:02.337 | INFO     | utils.mlx_patch:apply_mlx_patches:79 - MLX compatibility patches applied successfully
+None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
+None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
+
+MLX Unified Training System
+============================================================
+2025-07-17 12:58:06.203 | INFO     | utils.config_loader:load:162 - Loaded YAML configuration from configs/titanic_best.yaml
+Loaded config from configs/titanic_best.yaml
+
+Loading data...
+2025-07-17 12:58:06.204 | INFO     | data.mlx_dataloader:__init__:82 - Loading tokenizer: answerdotai/ModernBERT-base (backend: auto)
+2025-07-17 12:58:06.204 | INFO     | embeddings.mlx_adapter:_load_mlx_embeddings:55 - Loading MLX embeddings model: mlx-community/answerdotai-ModernBERT-base-4bit
+Fetching 6 files:   0%|          | 0/6 [00:00<?, ?it/s]Fetching 6 files: 100%|██████████| 6/6 [00:00<00:00, 14388.69it/s]
+2025-07-17 12:58:06.496 | INFO     | embeddings.mlx_adapter:_load_mlx_embeddings:58 - Successfully loaded MLX embeddings model
+2025-07-17 12:58:06.496 | INFO     | embeddings.tokenizer_wrapper:_initialize_backend:59 - Using MLX embeddings tokenizer
+2025-07-17 12:58:06.497 | DEBUG    | data.mlx_dataloader:_analyze_csv:133 - CSV columns: ['PassengerId', 'Survived', 'Pclass', 'Name', 'Sex', 'Age', 'SibSp', 'Parch', 'Ticket', 'Fare', 'Cabin', 'Embarked']
+2025-07-17 12:58:06.497 | DEBUG    | data.mlx_dataloader:_analyze_csv:134 - Text columns: ['Pclass', 'Name', 'Sex', 'Age', 'SibSp', 'Parch', 'Ticket', 'Fare', 'Embarked']
+2025-07-17 12:58:06.497 | DEBUG    | data.mlx_dataloader:_analyze_csv:135 - Has labels: True
+2025-07-17 12:58:06.497 | INFO     | data.mlx_dataloader:_preprocess_data:139 - Preprocessing data...
+2025-07-17 12:58:06.646 | INFO     | data.mlx_dataloader:_preprocess_data:173 - Preprocessed 891 samples
+2025-07-17 12:58:06.646 | INFO     | data.mlx_dataloader:__init__:104 - Initialized KaggleDataLoader: 891 samples, 27 batches
+2025-07-17 12:58:06.646 | INFO     | data.mlx_dataloader:__init__:82 - Loading tokenizer: answerdotai/ModernBERT-base (backend: auto)
+2025-07-17 12:58:06.646 | INFO     | embeddings.mlx_adapter:_load_mlx_embeddings:55 - Loading MLX embeddings model: mlx-community/answerdotai-ModernBERT-base-4bit
+Fetching 6 files:   0%|          | 0/6 [00:00<?, ?it/s]Fetching 6 files: 100%|██████████| 6/6 [00:00<00:00, 13182.73it/s]
+2025-07-17 12:58:06.815 | INFO     | embeddings.mlx_adapter:_load_mlx_embeddings:58 - Successfully loaded MLX embeddings model
+2025-07-17 12:58:06.815 | INFO     | embeddings.tokenizer_wrapper:_initialize_backend:59 - Using MLX embeddings tokenizer
+2025-07-17 12:58:06.816 | DEBUG    | data.mlx_dataloader:_analyze_csv:133 - CSV columns: ['PassengerId', 'Survived', 'Pclass', 'Name', 'Sex', 'Age', 'SibSp', 'Parch', 'Ticket', 'Fare', 'Cabin', 'Embarked']
+2025-07-17 12:58:06.816 | DEBUG    | data.mlx_dataloader:_analyze_csv:134 - Text columns: ['Pclass', 'Name', 'Sex', 'Age', 'SibSp', 'Parch', 'Ticket', 'Fare', 'Embarked']
+2025-07-17 12:58:06.816 | DEBUG    | data.mlx_dataloader:_analyze_csv:135 - Has labels: True
+2025-07-17 12:58:06.816 | INFO     | data.mlx_dataloader:_preprocess_data:139 - Preprocessing data...
+2025-07-17 12:58:06.844 | INFO     | data.mlx_dataloader:_preprocess_data:173 - Preprocessed 178 samples
+2025-07-17 12:58:06.844 | INFO     | data.mlx_dataloader:__init__:104 - Initialized KaggleDataLoader: 178 samples, 2 batches
+✓ Loaded ~896 training samples (28 batches)
+✓ Loaded ~192 validation samples (3 batches)
+2025-07-17 12:58:06.845 | DEBUG    | training.config:from_dict:557 - Filtered out extra fields from config: {'metadata'}
+2025-07-17 12:58:06.845 | INFO     | training.config:_validate_config:376 - Configuration validation passed
+                Training Configuration                 
+┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Parameter             ┃ Value                       ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ Model                 │ answerdotai/ModernBERT-base │
+│ Model Type            │ base                        │
+│ Output Directory      │ output/run_20250717_125806  │
+│ MLX Embeddings        │ Disabled                    │
+│ Tokenizer Backend     │ auto                        │
+│ Batch Size            │ 32                          │
+│ Learning Rate         │ 3e-05                       │
+│ Epochs                │ 15                          │
+│ Gradient Accumulation │ 2                           │
+│ MLflow                │ Enabled                     │
+│ Early Stopping        │ 5                           │
+└───────────────────────┴─────────────────────────────┘
+2025-07-17 12:58:06.850 | INFO     | models.factory:create_model:113 - Created standard ModernBERT model
+2025-07-17 12:58:06.850 | INFO     | classification:__init__:167 - Initialized TitanicClassifier with cross_entropy loss
+✓ Created ModernBERT with TitanicClassifier model
+2025-07-17 12:58:06.850 | INFO     | training.rich_display_manager:__init__:52 - Initialized RichDisplayManager
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+[32m2025-07-17 12:58:06[0m | [1mINFO    [0m | [36mtraining.memory_manager[0m:[36m__init__[0m:[36m82[0m - [1mMemory Manager initialized:
+  Apple Silicon: True
+  Unified Memory: 32.00 GB
+  Optimal Usage: 68.0%
+  Target Memory: 21.76 GB[0m
+[32m2025-07-17 12:58:06[0m | [1mINFO    [0m | [36mtraining.performance_profiler[0m:[36m__init__[0m:[36m101[0m - [1mPerformance Profiler initialized:
+  Apple Silicon: True
+  Neural Engine: True
+  Thermal Monitoring: True
+  Power Monitoring: True[0m
+2025/07/17 12:58:07 INFO mlflow.store.db.utils: Creating initial MLflow database tables...
+2025/07/17 12:58:07 INFO mlflow.store.db.utils: Updating database tables
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.mlflow_central[0m:[36minitialize[0m:[36m101[0m - [1mMLflow initialized with central configuration:
+  Tracking URI: sqlite:///mlruns/mlflow.db
+  Artifact Root: ./mlruns/artifacts
+  Experiment: titanic_best_classifier[0m
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+[32m2025-07-17 12:58:07[0m | [33m[1mWARNING [0m | [36mtraining.monitoring[0m:[36m_log_config_params[0m:[36m276[0m - [33m[1mFailed to log config parameters: 'AdvancedFeatures' object has no attribute 'gradient_clipping'[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mtraining.monitoring[0m:[36m_initialize_mlflow[0m:[36m190[0m - [1mStarted MLflow run: d1ceab23d0314057bb3804d9abf92fa3[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mtraining.monitoring[0m:[36m__init__[0m:[36m691[0m - [1mInitialized comprehensive monitoring system[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36m_apply_apple_silicon_optimizations[0m:[36m1028[0m - [1mApplying Apple Silicon optimizations...[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36m_apply_apple_silicon_optimizations[0m:[36m1043[0m - [1mMemory recommendations: Increase batch size for better throughput, Consider larger model if needed[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36m__init__[0m:[36m142[0m - [1mInitialized Production MLX Trainer:
+  Model: TitanicClassifier
+  Optimization Level: production
+  Batch Size: 32 (effective: 64)
+  Learning Rate: 3e-05
+  Epochs: 15
+  Apple Silicon: True
+  MLflow Enabled: True
+  Rich Console: True
+  Output Dir: output/run_20250717_125806[0m
+
+Starting training...
+
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mtraining.rich_display_manager[0m:[36mstart[0m:[36m101[0m - [1mStarted RichDisplayManager[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36m__enter__[0m:[36m128[0m - [1m============================================================[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36m__enter__[0m:[36m129[0m - [1mStarting experiment: titanic_best_classifier[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36m__enter__[0m:[36m130[0m - [1mStart time: 2025-07-17 12:58:07.876875[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36m__enter__[0m:[36m131[0m - [1m============================================================[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m99[0m - [1mHyperparameters:[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  epochs: 15[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  batch_size: 32[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  learning_rate: 3e-05[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  warmup_steps: 200[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  max_steps: None[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  model_name: answerdotai/ModernBERT-base[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  model_type: modernbert[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  max_length: 384[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  num_labels: 2[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  train_path: data/titanic/train.csv[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  val_path: data/titanic/val.csv[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  test_path: None[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  target_column: Survived[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  optimizer: adamw[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  lr_schedule: cosine_warmup[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  loss_function: cross_entropy[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  optimization_level: production[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  memory: {'enable_memory_profiling': True, 'memory_limit_gb': None, 'dynamic_batch_sizing': True, 'min_batch_size': 8, 'max_batch_size': 64, 'memory_check_interval': 100, 'unified_memory_fraction': 0.85, 'enable_memory_pool': True, 'force_garbage_collection': True, 'gc_interval': 500}[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  mlx_optimization: {'enable_lazy_evaluation': True, 'eval_frequency': 10, 'enable_gradient_checkpointing': False, 'gradient_accumulation_steps': 2, 'max_grad_norm': 1.0, 'device_placement_strategy': 'auto', 'enable_multi_device': False, 'mixed_precision': False, 'precision_dtype': 'float32', 'enable_jit': True, 'optimize_memory_layout': True}[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  monitoring: {'enable_mlflow': True, 'experiment_name': 'titanic_best_classifier', 'run_name': None, 'tracking_uri': None, 'log_level': 'INFO', 'log_to_file': True, 'log_file_path': 'output/titanic_best/training.log', 'enable_rich_console': True, 'log_frequency': 50, 'eval_frequency': 50, 'save_frequency': 100, 'enable_progress_bar': True, 'progress_bar_style': 'rich', 'track_gradients': True, 'track_weights': False, 'track_memory': True, 'track_performance': True}[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  checkpoint: {'enable_checkpointing': True, 'checkpoint_dir': 'output/run_20250717_125806/checkpoints', 'checkpoint_frequency': 100, 'save_optimizer_state': True, 'save_scheduler_state': True, 'save_random_state': True, 'save_model_weights': True, 'max_checkpoints_to_keep': 5, 'save_best_model': True, 'best_model_metric': 'val_accuracy', 'best_model_mode': 'max', 'auto_resume': True, 'resume_from_checkpoint': None, 'use_safetensors': True, 'compress_checkpoints': False}[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  evaluation: {'eval_during_training': True, 'eval_steps': 50, 'eval_strategy': 'steps', 'primary_metric': 'accuracy', 'metrics_to_compute': ['accuracy', 'precision', 'recall', 'f1', 'auc'], 'enable_early_stopping': True, 'early_stopping_patience': 5, 'early_stopping_threshold': 0.001, 'early_stopping_metric': 'val_loss', 'early_stopping_mode': 'min', 'validation_split': 0.2, 'validation_batch_size': 64, 'test_at_end': True, 'generate_predictions': True, 'save_predictions': True}[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  advanced: {'label_smoothing': 0.0, 'dropout_rate': 0.15, 'weight_decay': 0.01, 'enable_augmentation': True, 'augmentation_probability': 0.3, 'enable_curriculum_learning': False, 'curriculum_strategy': 'difficulty', 'curriculum_pace': 0.1, 'enable_ensembling': False, 'ensemble_size': 1, 'ensemble_strategy': 'averaging', 'enable_distillation': False, 'teacher_model_path': None, 'distillation_temperature': 3.0, 'distillation_alpha': 0.5, 'enable_hpo': False, 'hpo_backend': 'optuna', 'hpo_trials': 50, 'hpo_metric': 'val_accuracy'}[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  seed: 42[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  deterministic: True[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  output_dir: output/run_20250717_125806[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  experiment_name: titanic_best_classifier[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36mlog_hyperparameters[0m:[36m101[0m - [1m  run_name: None[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mtrain[0m:[36m650[0m - [1mTraining Configuration:
+  Steps per epoch: 28
+  Total steps: 210
+  Effective batch size: 64
+  Warmup steps: 200[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mtraining.monitoring[0m:[36mstart_training[0m:[36m701[0m - [1mStarted training monitoring: 15 epochs, 28 steps/epoch[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mtraining.memory_manager[0m:[36moptimize_training_memory[0m:[36m508[0m - [1mMemory optimization applied: batch_size_adjustment[0m
+[32m2025-07-17 12:58:07[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36madjust_batch_size_dynamically[0m:[36m197[0m - [1mMemory optimizer adjusted batch size: 32 -> 64[0m
+[32m2025-07-17 13:02:10[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mtrain[0m:[36m686[0m - [1mEpoch 1/15 completed: Loss=2.5267, Time=243.0s[0m
+[32m2025-07-17 13:05:20[0m | [1mINFO    [0m | [36mtraining.performance_profiler[0m:[36m_log_metrics[0m:[36m414[0m - [1mStep 50: Time=6.909s, Throughput=4.6 samples/s, Memory=74.6%[0m
+[32m2025-07-17 13:05:21[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mevaluate[0m:[36m472[0m - [1mStarting validation evaluation[0m
+[32m2025-07-17 13:05:25[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mevaluate[0m:[36m565[0m - [1mValidation Results: Loss=0.6587, Acc=0.6573, F1=0.0000[0m
+[32m2025-07-17 13:05:25[0m | [1mINFO    [0m | [36mtraining.monitoring[0m:[36mlog_validation[0m:[36m802[0m - [1mValidation metrics improved at step 50[0m
+[32m2025-07-17 13:05:25[0m | [1mINFO    [0m | [36mtraining.monitoring[0m:[36mlog_validation[0m:[36m804[0m - [1m  Best val_loss: 0.6587[0m
+[32m2025-07-17 13:05:25[0m | [1mINFO    [0m | [36mtraining.monitoring[0m:[36mlog_validation[0m:[36m806[0m - [1m  Best val_accuracy: 0.6573[0m
+[32m2025-07-17 13:05:25[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mevaluate[0m:[36m583[0m - [1mNew best validation metrics at step 50[0m
+[32m2025-07-17 13:05:26[0m | [1mINFO    [0m | [36mmodels.modernbert[0m:[36msave_pretrained[0m:[36m329[0m - [1mModel saved to output/run_20250717_125806/checkpoints/best_model/bert_model[0m
+[32m2025-07-17 13:05:26[0m | [1mINFO    [0m | [36mclassification[0m:[36msave_pretrained[0m:[36m421[0m - [1mTitanicClassifier saved to output/run_20250717_125806/checkpoints/best_model[0m
+[32m2025-07-17 13:05:28[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36m_save_checkpoint[0m:[36m935[0m - [1mCheckpoint saved: output/run_20250717_125806/checkpoints/best_model[0m
+[32m2025-07-17 13:06:09[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mtrain[0m:[36m686[0m - [1mEpoch 2/15 completed: Loss=0.6773, Time=238.8s[0m
+[32m2025-07-17 13:10:03[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mtrain[0m:[36m686[0m - [1mEpoch 3/15 completed: Loss=0.6755, Time=233.7s[0m
+[32m2025-07-17 13:11:36[0m | [1mINFO    [0m | [36mtraining.performance_profiler[0m:[36m_log_metrics[0m:[36m414[0m - [1mStep 100: Time=5.251s, Throughput=6.1 samples/s, Memory=75.5%[0m
+[32m2025-07-17 13:11:37[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mevaluate[0m:[36m472[0m - [1mStarting validation evaluation[0m
+[32m2025-07-17 13:11:41[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mevaluate[0m:[36m565[0m - [1mValidation Results: Loss=0.6577, Acc=0.6573, F1=0.0000[0m
+[32m2025-07-17 13:11:41[0m | [1mINFO    [0m | [36mtraining.monitoring[0m:[36mlog_validation[0m:[36m802[0m - [1mValidation metrics improved at step 100[0m
+[32m2025-07-17 13:11:41[0m | [1mINFO    [0m | [36mtraining.monitoring[0m:[36mlog_validation[0m:[36m804[0m - [1m  Best val_loss: 0.6577[0m
+[32m2025-07-17 13:11:41[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mevaluate[0m:[36m583[0m - [1mNew best validation metrics at step 100[0m
+[32m2025-07-17 13:11:42[0m | [1mINFO    [0m | [36mmodels.modernbert[0m:[36msave_pretrained[0m:[36m329[0m - [1mModel saved to output/run_20250717_125806/checkpoints/checkpoint-step-100/bert_model[0m
+[32m2025-07-17 13:11:42[0m | [1mINFO    [0m | [36mclassification[0m:[36msave_pretrained[0m:[36m421[0m - [1mTitanicClassifier saved to output/run_20250717_125806/checkpoints/checkpoint-step-100[0m
+[32m2025-07-17 13:11:43[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36m_save_checkpoint[0m:[36m935[0m - [1mCheckpoint saved: output/run_20250717_125806/checkpoints/checkpoint-step-100[0m
+[32m2025-07-17 13:13:02[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mtrain[0m:[36m686[0m - [1mEpoch 4/15 completed: Loss=0.6733, Time=179.1s[0m
+[32m2025-07-17 13:16:28[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mtrain[0m:[36m686[0m - [1mEpoch 5/15 completed: Loss=0.6670, Time=206.4s[0m
+[32m2025-07-17 13:17:34[0m | [1mINFO    [0m | [36mtraining.performance_profiler[0m:[36m_log_metrics[0m:[36m414[0m - [1mStep 150: Time=8.294s, Throughput=3.9 samples/s, Memory=73.3%[0m
+[32m2025-07-17 13:17:36[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mevaluate[0m:[36m472[0m - [1mStarting validation evaluation[0m
+[32m2025-07-17 13:17:40[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mevaluate[0m:[36m565[0m - [1mValidation Results: Loss=0.6485, Acc=0.6573, F1=0.0615[0m
+[32m2025-07-17 13:17:40[0m | [1mINFO    [0m | [36mtraining.monitoring[0m:[36mlog_validation[0m:[36m802[0m - [1mValidation metrics improved at step 150[0m
+[32m2025-07-17 13:17:40[0m | [1mINFO    [0m | [36mtraining.monitoring[0m:[36mlog_validation[0m:[36m804[0m - [1m  Best val_loss: 0.6485[0m
+[32m2025-07-17 13:17:40[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mevaluate[0m:[36m583[0m - [1mNew best validation metrics at step 150[0m
+[32m2025-07-17 13:20:11[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mtrain[0m:[36m686[0m - [1mEpoch 6/15 completed: Loss=0.6725, Time=223.0s[0m
+[32m2025-07-17 13:20:11[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mshould_stop_early[0m:[36m614[0m - [1mEarly stopping triggered: No improvement for 5 evaluations[0m
+[32m2025-07-17 13:20:11[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mtrain[0m:[36m698[0m - [1mEarly stopping at epoch 6[0m
+[32m2025-07-17 13:20:11[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36m_final_evaluation[0m:[36m876[0m - [1mRunning final validation evaluation[0m
+[32m2025-07-17 13:20:11[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mevaluate[0m:[36m472[0m - [1mStarting final_validation evaluation[0m
+[32m2025-07-17 13:20:16[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mevaluate[0m:[36m565[0m - [1mFinal_validation Results: Loss=0.6569, Acc=0.6348, F1=0.0000[0m
+[32m2025-07-17 13:20:17[0m | [1mINFO    [0m | [36mmodels.modernbert[0m:[36msave_pretrained[0m:[36m329[0m - [1mModel saved to output/run_20250717_125806/checkpoints/final/bert_model[0m
+[32m2025-07-17 13:20:17[0m | [1mINFO    [0m | [36mclassification[0m:[36msave_pretrained[0m:[36m421[0m - [1mTitanicClassifier saved to output/run_20250717_125806/checkpoints/final[0m
+[32m2025-07-17 13:20:19[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36m_save_checkpoint[0m:[36m935[0m - [1mCheckpoint saved: output/run_20250717_125806/checkpoints/final[0m
+[32m2025-07-17 13:20:19[0m | [1mINFO    [0m | [36mtraining.memory_manager[0m:[36msave_memory_report[0m:[36m417[0m - [1mMemory report saved to: output/run_20250717_125806/memory_report.json[0m
+[32m2025-07-17 13:20:19[0m | [1mINFO    [0m | [36mtraining.performance_profiler[0m:[36msave_performance_report[0m:[36m561[0m - [1mPerformance report saved to: output/run_20250717_125806/performance_report.json[0m
+[32m2025-07-17 13:20:21[0m | [1mINFO    [0m | [36mtraining.monitoring[0m:[36mend_run[0m:[36m328[0m - [1mEnded MLflow run: d1ceab23d0314057bb3804d9abf92fa3 with status: FINISHED[0m
+[32m2025-07-17 13:20:21[0m | [1mINFO    [0m | [36mtraining.monitoring[0m:[36mend_training[0m:[36m896[0m - [1mTraining monitoring ended with status: FINISHED[0m
+[32m2025-07-17 13:20:21[0m | [1mINFO    [0m | [36mtraining.monitoring[0m:[36mend_training[0m:[36m897[0m - [1mTotal time: 1333.9s, Steps: 168[0m
+[32m2025-07-17 13:20:21[0m | [1mINFO    [0m | [36mtraining.memory_manager[0m:[36msave_memory_report[0m:[36m417[0m - [1mMemory report saved to: output/run_20250717_125806/memory_report.json[0m
+[32m2025-07-17 13:20:21[0m | [1mINFO    [0m | [36mtraining.performance_profiler[0m:[36msave_performance_report[0m:[36m561[0m - [1mPerformance report saved to: output/run_20250717_125806/performance_report.json[0m
+[32m2025-07-17 13:20:21[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36m_save_advanced_reports[0m:[36m1069[0m - [1mAdvanced profiling reports saved successfully[0m
+[32m2025-07-17 13:20:21[0m | [1mINFO    [0m | [36mtraining.mlx_trainer[0m:[36mtrain[0m:[36m745[0m - [1mTraining completed in 1328.5s
+Best metric: 0.6573 at step 50[0m
+[32m2025-07-17 13:20:21[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36m__exit__[0m:[36m142[0m - [1m============================================================[0m
+[32m2025-07-17 13:20:21[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36m__exit__[0m:[36m143[0m - [1mExperiment completed: titanic_best_classifier[0m
+[32m2025-07-17 13:20:21[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36m__exit__[0m:[36m144[0m - [1mEnd time: 2025-07-17 13:20:21.869736[0m
+[32m2025-07-17 13:20:21[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36m__exit__[0m:[36m145[0m - [1mDuration: 0:22:13.992861[0m
+[32m2025-07-17 13:20:21[0m | [32m[1mSUCCESS [0m | [36mutils.logging_config[0m:[36m__exit__[0m:[36m151[0m - [32m[1mExperiment completed successfully![0m
+[32m2025-07-17 13:20:21[0m | [1mINFO    [0m | [36mutils.logging_config[0m:[36m__exit__[0m:[36m153[0m - [1m============================================================[0m
+╭─────────────────────────────────── Status ───────────────────────────────────╮
+│ Training completed in 1333.9s                                                │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─────── Metrics ────────╮╭───────────────────── Progress ─────────────────────╮
+│ ┏━━━━━━━━━┳━━━━━━━━━━┓ ││ ⠋ Overall Progress                      0% -:--:-- │
+│ ┃ Metric  ┃ Value    ┃ ││ ⠋ Current Epoch                         0% -:--:-- │
+│ ┡━━━━━━━━━╇━━━━━━━━━━┩ ││ ⠋ Epoch 1/15                            0% -:--:-- │
+│ │ Train   │ 0.7245   │ ││ ⠋ Epoch 2/15                            0% -:--:-- │
+│ │ Loss    │          │ ││ ⠋ Evaluating validation                 0% -:--:-- │
+│ │ Learni… │ 2.52e-05 │ ││ ⠋ Epoch 3/15                            0% -:--:-- │
+│ │ Rate    │          │ ││ ⠋ Epoch 4/15                            0% -:--:-- │
+│ │ Memory  │ 0.7%     │ ││ ⠋ Evaluating validation                 0% -:--:-- │
+│ │ Usage   │          │ ││ ⠋ Epoch 5/15                            0% -:--:-- │
+│ │ Memory  │ Error    │ ││ ⠋ Epoch 6/15                            0% -:--:-- │
+│ │ Step    │ 5.689s   │ ││ ⠋ Evaluating validation                 0% -:--:-- │
+│ │ Time    │          │ ││ ⠋ Evaluating final_validation           0% -:--:-- │
+│ │ Throug… │ 4.7      │ ││                                                    │
+│ │         │ samples… │ ││                                                    │
+│ │ Token   │ 1215     │ ││                                                    │
+│ │ Throug… │ tokens/s │ ││                                                    │
+│ │ Val     │ 0.6485   │ ││                                                    │
+╰────────────────────────╯╰────────────────────────────────────────────────────╯
+╭──────────────────────────────────────────────────────────────────────────────╮
+│ MLX BERT Training - 13:20:21                                                 │
+╰──────────────────────────────────────────────────────────────────────────────╯
+[32m2025-07-17 13:20:21[0m | [1mINFO    [0m | [36mtraining.rich_display_manager[0m:[36mstop[0m:[36m119[0m - [1mStopped RichDisplayManager[0m
+
+✓ Training completed in 1334.0s
+            Training Results            
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┓
+┃ Metric                     ┃ Value   ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━┩
+│ Best Validation Score      │ 0.6573  │
+│ Best Step                  │ 50      │
+│ Total Time                 │ 1328.5s │
+│ final_validation_loss      │ 0.6569  │
+│ final_validation_accuracy  │ 0.6348  │
+│ final_validation_precision │ 0.0000  │
+│ final_validation_recall    │ 0.0000  │
+│ final_validation_f1        │ 0.0000  │
+│ final_validation_auc       │ 0.4758  │
+└────────────────────────────┴─────────┘
+
+Results saved to: output/run_20250717_125806
+
+View results with: mlflow ui

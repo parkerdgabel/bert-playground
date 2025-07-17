@@ -55,3 +55,9 @@ INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
 2025/07/17 11:43:26 INFO mlflow.store.db.utils: Updating database tables
 INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
 INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+[2025-07-17 13:18:43 -0700] [70873] [INFO] Worker exiting (pid: 70873)
+[2025-07-17 13:18:43 -0700] [70872] [INFO] Worker exiting (pid: 70872)
+[2025-07-17 13:18:43 -0700] [70871] [INFO] Handling signal: term
+[2025-07-17 13:18:43 -0700] [70874] [INFO] Worker exiting (pid: 70874)
+[2025-07-17 13:18:43 -0700] [70875] [INFO] Worker exiting (pid: 70875)
+[2025-07-17 13:18:44 -0700] [70871] [INFO] Shutting down: Master

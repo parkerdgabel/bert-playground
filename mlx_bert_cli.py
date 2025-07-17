@@ -14,6 +14,7 @@ import json
 import time
 from datetime import datetime
 import sys
+import pandas as pd
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -804,6 +805,364 @@ def list_experiments():
         )
     
     console.print(exp_table)
+
+
+@app.command()
+def mlflow_clean(
+    all: bool = typer.Option(False, "--all", help="Remove all MLflow data"),
+    experiment: Optional[str] = typer.Option(None, "--experiment", "-e", help="Remove specific experiment by name"),
+    run_id: Optional[str] = typer.Option(None, "--run", "-r", help="Remove specific run by ID"),
+    failed_only: bool = typer.Option(False, "--failed-only", help="Remove only failed runs"),
+    before: Optional[str] = typer.Option(None, "--before", help="Remove runs before date (YYYY-MM-DD)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview what will be deleted without deleting"),
+    force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation prompts"),
+):
+    """Clean up MLflow experiments and runs."""
+    import mlflow
+    from mlflow.entities import ViewType
+    from datetime import datetime as dt
+    import shutil
+    
+    console.print("\n[bold blue]MLflow Cleanup Tool[/bold blue]")
+    console.print("=" * 60)
+    
+    # Initialize MLflow
+    from utils.mlflow_central import mlflow_central
+    mlflow_central.initialize()
+    
+    items_to_delete = []
+    
+    # Handle --all option
+    if all:
+        if not force and not dry_run:
+            confirm = typer.confirm("⚠️  This will delete ALL MLflow data. Are you sure?")
+            if not confirm:
+                console.print("[yellow]Operation cancelled[/yellow]")
+                return
+        
+        # Get all experiments except default
+        experiments = mlflow.search_experiments()
+        for exp in experiments:
+            if exp.name != "Default":
+                items_to_delete.append(("experiment", exp.experiment_id, exp.name))
+        
+        # Also delete all runs from default experiment
+        runs = mlflow.search_runs(experiment_ids=["0"], run_view_type=ViewType.ALL)
+        for _, run in runs.iterrows():
+            items_to_delete.append(("run", run.run_id, f"Run from Default experiment"))
+    
+    # Handle specific experiment
+    elif experiment:
+        exp = mlflow.get_experiment_by_name(experiment)
+        if not exp:
+            console.print(f"[red]Experiment '{experiment}' not found[/red]")
+            return
+        items_to_delete.append(("experiment", exp.experiment_id, exp.name))
+    
+    # Handle specific run
+    elif run_id:
+        try:
+            run = mlflow.get_run(run_id)
+            items_to_delete.append(("run", run_id, f"Run {run.info.run_name}"))
+        except Exception:
+            console.print(f"[red]Run '{run_id}' not found[/red]")
+            return
+    
+    # Handle filtered deletions
+    else:
+        # Get all runs
+        runs = mlflow.search_runs(experiment_ids=None, run_view_type=ViewType.ALL)
+        
+        for _, run in runs.iterrows():
+            should_delete = False
+            
+            # Filter by status
+            if failed_only and run.status != "FAILED":
+                continue
+                
+            # Filter by date
+            if before:
+                try:
+                    cutoff_date = dt.strptime(before, "%Y-%m-%d")
+                    run_date = dt.fromtimestamp(run.start_time / 1000)
+                    if run_date >= cutoff_date:
+                        continue
+                    should_delete = True
+                except ValueError:
+                    console.print(f"[red]Invalid date format. Use YYYY-MM-DD[/red]")
+                    return
+            
+            if failed_only or before:
+                should_delete = True
+                
+            if should_delete:
+                items_to_delete.append(("run", run.run_id, f"Run {run.get('tags.mlflow.runName', run.run_id)}"))
+    
+    # Display what will be deleted
+    if not items_to_delete:
+        console.print("[yellow]No items match the criteria[/yellow]")
+        return
+    
+    console.print(f"\n[yellow]Items to delete: {len(items_to_delete)}[/yellow]")
+    
+    delete_table = Table()
+    delete_table.add_column("Type", style="cyan")
+    delete_table.add_column("ID", style="red")
+    delete_table.add_column("Name", style="yellow")
+    
+    for item_type, item_id, item_name in items_to_delete[:10]:  # Show first 10
+        delete_table.add_row(item_type.capitalize(), item_id, item_name)
+    
+    if len(items_to_delete) > 10:
+        delete_table.add_row("...", f"... and {len(items_to_delete) - 10} more", "...")
+    
+    console.print(delete_table)
+    
+    if dry_run:
+        console.print("\n[blue]Dry run mode - no changes made[/blue]")
+        return
+    
+    # Confirm deletion
+    if not force:
+        confirm = typer.confirm(f"\nDelete {len(items_to_delete)} items?")
+        if not confirm:
+            console.print("[yellow]Operation cancelled[/yellow]")
+            return
+    
+    # Perform deletion
+    deleted_count = 0
+    failed_count = 0
+    
+    with console.status("[bold green]Deleting items...") as status:
+        for item_type, item_id, item_name in items_to_delete:
+            try:
+                if item_type == "experiment":
+                    mlflow.delete_experiment(item_id)
+                else:  # run
+                    mlflow.delete_run(item_id)
+                deleted_count += 1
+                status.update(f"[bold green]Deleted {deleted_count}/{len(items_to_delete)} items...")
+            except Exception as e:
+                failed_count += 1
+                console.print(f"[red]Failed to delete {item_type} {item_id}: {e}[/red]")
+    
+    # Summary
+    console.print(f"\n[green]✓ Deleted {deleted_count} items[/green]")
+    if failed_count > 0:
+        console.print(f"[red]✗ Failed to delete {failed_count} items[/red]")
+
+
+@app.command()
+def mlflow_list(
+    experiments: bool = typer.Option(False, "--experiments", "-e", help="List all experiments"),
+    runs: Optional[str] = typer.Option(None, "--runs", "-r", help="List runs for specific experiment"),
+    failed: bool = typer.Option(False, "--failed", help="Show only failed runs"),
+    limit: int = typer.Option(20, "--limit", "-l", help="Maximum number of items to show"),
+):
+    """List MLflow experiments and runs."""
+    import mlflow
+    from mlflow.entities import ViewType
+    
+    console.print("\n[bold blue]MLflow Data Browser[/bold blue]")
+    console.print("=" * 60)
+    
+    # Initialize MLflow
+    from utils.mlflow_central import mlflow_central
+    mlflow_central.initialize()
+    
+    if experiments or (not runs):
+        # List experiments
+        exps = mlflow.search_experiments()
+        
+        exp_table = Table(title="MLflow Experiments")
+        exp_table.add_column("ID", style="cyan")
+        exp_table.add_column("Name", style="green")
+        exp_table.add_column("Total Runs", style="yellow")
+        exp_table.add_column("Active Runs", style="blue")
+        exp_table.add_column("Created", style="magenta")
+        
+        for exp in exps:
+            # Count runs
+            all_runs = mlflow.search_runs(
+                experiment_ids=[exp.experiment_id],
+                run_view_type=ViewType.ALL
+            )
+            active_runs = mlflow.search_runs(
+                experiment_ids=[exp.experiment_id],
+                run_view_type=ViewType.ACTIVE_ONLY
+            )
+            
+            created_date = datetime.fromtimestamp(exp.creation_time / 1000).strftime("%Y-%m-%d %H:%M")
+            
+            exp_table.add_row(
+                exp.experiment_id,
+                exp.name,
+                str(len(all_runs)),
+                str(len(active_runs)),
+                created_date
+            )
+        
+        console.print(exp_table)
+    
+    if runs:
+        # List runs for specific experiment
+        exp = mlflow.get_experiment_by_name(runs)
+        if not exp:
+            console.print(f"[red]Experiment '{runs}' not found[/red]")
+            return
+        
+        run_list = mlflow.search_runs(
+            experiment_ids=[exp.experiment_id],
+            run_view_type=ViewType.ALL,
+            max_results=limit
+        )
+        
+        if failed:
+            run_list = run_list[run_list['status'] == 'FAILED']
+        
+        if run_list.empty:
+            console.print(f"[yellow]No runs found for experiment '{runs}'[/yellow]")
+            return
+        
+        run_table = Table(title=f"Runs for experiment '{runs}'")
+        run_table.add_column("Run ID", style="cyan", max_width=16)
+        run_table.add_column("Name", style="green", max_width=20)
+        run_table.add_column("Status", style="yellow")
+        run_table.add_column("Start Time", style="magenta")
+        run_table.add_column("Duration", style="blue")
+        run_table.add_column("Metrics", style="white")
+        
+        for _, run in run_list.iterrows():
+            run_id = run['run_id'][:8] + "..."
+            run_name = run.get('tags.mlflow.runName', 'N/A')
+            status = run['status']
+            
+            # Format start time
+            if isinstance(run['start_time'], pd.Timestamp):
+                start_time = run['start_time'].strftime("%Y-%m-%d %H:%M")
+            else:
+                start_time = datetime.fromtimestamp(run['start_time'] / 1000).strftime("%Y-%m-%d %H:%M")
+            
+            # Calculate duration
+            if pd.notna(run.get('end_time')):
+                if isinstance(run['end_time'], pd.Timestamp) and isinstance(run['start_time'], pd.Timestamp):
+                    duration_sec = (run['end_time'] - run['start_time']).total_seconds()
+                else:
+                    duration_sec = (run['end_time'] - run['start_time']) / 1000
+                duration = f"{duration_sec / 60:.1f}m"
+            else:
+                duration = "Running"
+            
+            # Get key metrics
+            metrics = []
+            if 'metrics.val_accuracy' in run and pd.notna(run['metrics.val_accuracy']):
+                metrics.append(f"acc={run['metrics.val_accuracy']:.3f}")
+            if 'metrics.val_loss' in run and pd.notna(run['metrics.val_loss']):
+                metrics.append(f"loss={run['metrics.val_loss']:.3f}")
+            
+            # Color code status
+            if status == "FINISHED":
+                status = f"[green]{status}[/green]"
+            elif status == "FAILED":
+                status = f"[red]{status}[/red]"
+            elif status == "RUNNING":
+                status = f"[blue]{status}[/blue]"
+            
+            run_table.add_row(
+                run_id,
+                run_name[:20] + "..." if len(run_name) > 20 else run_name,
+                status,
+                start_time,
+                duration,
+                ", ".join(metrics) if metrics else "N/A"
+            )
+        
+        console.print(run_table)
+        
+        if len(run_list) == limit:
+            console.print(f"\n[dim]Showing first {limit} runs. Use --limit to see more.[/dim]")
+
+
+@app.command()
+def mlflow_restart(
+    port: int = typer.Option(8080, "--port", "-p", help="Port for MLflow UI"),
+    host: str = typer.Option("0.0.0.0", "--host", help="Host for MLflow UI"),
+):
+    """Restart MLflow UI with correct configuration."""
+    import subprocess
+    import signal
+    import os
+    
+    console.print("\n[bold blue]MLflow UI Restart[/bold blue]")
+    console.print("=" * 60)
+    
+    # Kill existing MLflow processes
+    with console.status("[bold yellow]Stopping existing MLflow UI...") as status:
+        try:
+            # Find MLflow UI processes
+            result = subprocess.run(
+                ["pgrep", "-f", "mlflow ui"],
+                capture_output=True,
+                text=True
+            )
+            
+            if result.stdout:
+                pids = result.stdout.strip().split('\n')
+                for pid in pids:
+                    try:
+                        os.kill(int(pid), signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+                console.print("[green]✓ Stopped existing MLflow UI processes[/green]")
+            
+            # Also kill gunicorn processes
+            subprocess.run(["pkill", "-f", "gunicorn.*mlflow"], capture_output=True)
+            
+        except Exception as e:
+            console.print(f"[yellow]Warning: {e}[/yellow]")
+    
+    # Get absolute paths
+    db_path = Path.cwd() / "mlruns" / "mlflow.db"
+    artifact_path = Path.cwd() / "mlruns" / "artifacts"
+    
+    # Ensure paths exist
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    artifact_path.mkdir(parents=True, exist_ok=True)
+    
+    # Start new MLflow UI
+    console.print(f"\n[bold green]Starting MLflow UI on http://{host}:{port}[/bold green]")
+    console.print(f"Database: {db_path}")
+    console.print(f"Artifacts: {artifact_path}")
+    
+    cmd = [
+        "uv", "run", "mlflow", "ui",
+        "--backend-store-uri", f"sqlite:///{db_path}",
+        "--default-artifact-root", str(artifact_path),
+        "--host", host,
+        "--port", str(port)
+    ]
+    
+    # Start in background
+    log_file = Path("mlflow_ui.log")
+    with open(log_file, "w") as log:
+        process = subprocess.Popen(
+            cmd,
+            stdout=log,
+            stderr=log,
+            start_new_session=True
+        )
+    
+    # Wait a moment and check if it started
+    time.sleep(3)
+    
+    if process.poll() is None:
+        console.print(f"\n[green]✓ MLflow UI started successfully![/green]")
+        console.print(f"[blue]View at: http://{host}:{port}[/blue]")
+        console.print(f"[dim]Logs: {log_file}[/dim]")
+        console.print(f"[dim]Process ID: {process.pid}[/dim]")
+    else:
+        console.print("[red]✗ Failed to start MLflow UI[/red]")
+        console.print(f"[yellow]Check logs at: {log_file}[/yellow]")
 
 
 if __name__ == "__main__":
