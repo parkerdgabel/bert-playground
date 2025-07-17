@@ -869,16 +869,23 @@ class MLXTrainer:
                     epoch_loss += metrics["loss"]
                     num_updates += 1
 
-                    # Update progress
-                    if train_task_id:
+                # Update progress on every step (not just when parameters update)
+                if train_task_id:
+                    if "loss" in metrics:
+                        # Full update with loss information
                         description = f"Epoch {self.current_epoch + 1}/{self.config.epochs} " \
                                     f"(Loss: {metrics['loss']:.4f}, LR: {metrics['learning_rate']:.2e})"
-                        self.display_manager.update_progress_task(
-                            train_task_id, advance=1, description=description
-                        )
+                    else:
+                        # Accumulation step
+                        description = f"Epoch {self.current_epoch + 1}/{self.config.epochs} " \
+                                    f"(Accumulating {metrics.get('accumulation_step', 0)}/{self.config.mlx_optimization.gradient_accumulation_steps})"
+                    
+                    self.display_manager.update_progress_task(
+                        train_task_id, advance=1, description=description
+                    )
 
-
-                    # Add to history
+                # Add to history only when we have actual metrics
+                if "loss" in metrics:
                     history["learning_rates"].append(metrics["learning_rate"])
                     history["memory_usage"].append(metrics["memory_usage"])
                     history["batch_sizes"].append(metrics["batch_size"])
