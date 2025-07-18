@@ -1,13 +1,11 @@
 """MASTER MODEL FACTORY - Single source for all model creation.
 
-This is the SINGLE factory for the entire codebase. It merges:
-- Basic model creation (ModernBERT, CNN-hybrid)
-- Classification model creation (from models/classification/factory.py)
-- Kaggle competition automation (from factories/kaggle_competition_factory.py)
-- MLX embeddings support
+This factory creates models using the modular BERT architecture with pluggable heads.
+It supports:
+- BertCore creation
+- Head attachment via BertWithHead
+- Competition-specific model creation
 - Automatic dataset analysis and optimization
-
-Replace all other factory imports with this single factory.
 """
 
 from typing import Dict, Any, Optional, Union, Literal, List, Tuple
@@ -21,8 +19,9 @@ from dataclasses import dataclass
 import numpy as np
 
 # Import unified modules
-from .modernbert import ModernBertModel, ModernBertConfig
-from .modernbert_cnn_hybrid import CNNEnhancedModernBERT, CNNHybridConfig
+from .modernbert import ModernBertModel
+from .modernbert_cnn_hybrid import CNNEnhancedModernBERT
+from .bert import BertConfig, ModernBertConfig, CNNHybridConfig  # Use consolidated config
 from .classification import TitanicClassifier, create_classifier
 
 # Import new modular BERT architecture
@@ -33,39 +32,13 @@ from .bert import (
 from .heads.base_head import HeadType, HeadConfig
 from .heads.head_registry import HeadRegistry
 
-# Import all classification factories
+# Import Kaggle heads if available
 try:
-    from .classification.factory import (
-        create_classifier as create_advanced_classifier,
-        create_multilabel_classifier,
-        create_ordinal_classifier,
-        create_hierarchical_classifier,
-        create_ensemble_classifier,
-        create_titanic_classifier,
-    )
-    from .classification.generic_classifier import GenericClassifier
     from .classification.kaggle_heads import KAGGLE_HEAD_REGISTRY, create_kaggle_head
-    ADVANCED_CLASSIFICATION_AVAILABLE = True
+    KAGGLE_HEADS_AVAILABLE = True
 except ImportError:
-    ADVANCED_CLASSIFICATION_AVAILABLE = False
-    logger.warning("Advanced classification modules not available")
-
-# Import new architecture modules
-try:
-    from .embeddings import EmbeddingModel
-    NEW_ARCHITECTURE_AVAILABLE = True
-except ImportError:
-    NEW_ARCHITECTURE_AVAILABLE = False
-    logger.warning("New architecture modules not available")
-
-# Import old MLX embeddings support for backward compatibility
-try:
-    from embeddings.model_wrapper import MLXEmbeddingModel
-    from embeddings.config import MLXEmbeddingsConfig
-    OLD_MLX_EMBEDDINGS_AVAILABLE = True
-except ImportError:
-    OLD_MLX_EMBEDDINGS_AVAILABLE = False
-    logger.warning("Old MLX embeddings not available")
+    KAGGLE_HEADS_AVAILABLE = False
+    logger.info("Kaggle heads not available")
 
 # Import dataset analysis for automatic optimization
 try:
@@ -77,7 +50,7 @@ except ImportError:
     logger.warning("Dataset analysis not available")
 
 
-ModelType = Literal["standard", "cnn_hybrid", "classifier", "mlx_embedding", "new_mlx_embedding", "bert_core", "bert_with_head"]
+ModelType = Literal["standard", "cnn_hybrid", "classifier", "bert_core", "bert_with_head"]
 
 
 class CompetitionType(Enum):
@@ -131,9 +104,8 @@ class CompetitionAnalysis:
 
 def create_model(
     model_type: ModelType = "standard",
-    config: Optional[Union[Dict[str, Any], ModernBertConfig, "MLXEmbeddingsConfig"]] = None,
+    config: Optional[Union[Dict[str, Any], BertConfig]] = None,
     pretrained_path: Optional[Union[str, Path]] = None,
-    use_mlx_embeddings: bool = False,
     head_type: Optional[Union[HeadType, str]] = None,
     head_config: Optional[Union[HeadConfig, Dict]] = None,
     **kwargs,
@@ -143,10 +115,9 @@ def create_model(
 
     Args:
         model_type: Type of model to create ("standard", "cnn_hybrid", "classifier", 
-                   "mlx_embedding", "new_mlx_embedding", "bert_core", "bert_with_head")
+                   "bert_core", "bert_with_head")
         config: Model configuration (dict or Config object)
         pretrained_path: Path to pretrained weights
-        use_mlx_embeddings: Whether to use MLX embeddings backend
         head_type: Type of head to attach (for bert_with_head)
         head_config: Head configuration (for bert_with_head)
         **kwargs: Additional arguments passed to model constructor
@@ -156,57 +127,19 @@ def create_model(
     """
     # Convert config dict to Config object if needed
     if isinstance(config, dict):
-        if model_type == "new_mlx_embedding":
-            # New architecture doesn't need special config handling
-            config = config
-        elif model_type == "mlx_embedding" or use_mlx_embeddings:
-            if OLD_MLX_EMBEDDINGS_AVAILABLE:
-                config = MLXEmbeddingsConfig(**config)
-            else:
-                raise RuntimeError("Old MLX embeddings requested but not available")
-        elif model_type == "cnn_hybrid" or "cnn_kernel_sizes" in config:
+        if model_type == "cnn_hybrid" or "cnn_kernel_sizes" in config:
             config = CNNHybridConfig(**config)
         else:
-            config = ModernBertConfig(**config)
+            config = BertConfig(**config)
     elif config is None:
         # Use default config
-        if model_type == "new_mlx_embedding":
-            # New architecture uses simple dict config
-            config = {}
-        elif model_type == "mlx_embedding" or use_mlx_embeddings:
-            if OLD_MLX_EMBEDDINGS_AVAILABLE:
-                config = MLXEmbeddingsConfig()
-            else:
-                raise RuntimeError("Old MLX embeddings requested but not available")
-        elif model_type == "cnn_hybrid":
+        if model_type == "cnn_hybrid":
             config = CNNHybridConfig()
         else:
-            config = ModernBertConfig()
+            config = BertConfig()
 
     # Create base model
-    if model_type == "new_mlx_embedding":
-        # Create new architecture MLX embedding model
-        if not NEW_ARCHITECTURE_AVAILABLE:
-            raise RuntimeError("New architecture requested but not available")
-        
-        model_name = kwargs.pop("model_name", "mlx-community/answerdotai-ModernBERT-base-4bit")
-        model = EmbeddingModel.from_pretrained(model_name, **kwargs)
-        logger.info(f"Created new architecture MLX embedding model: {model_name}")
-    elif model_type == "mlx_embedding" or (use_mlx_embeddings and OLD_MLX_EMBEDDINGS_AVAILABLE):
-        # Create old MLX embedding model (backward compatibility)
-        model_name = kwargs.pop("model_name", config.model_name if hasattr(config, "model_name") else "answerdotai/ModernBERT-base")
-        num_labels = kwargs.pop("num_labels", None)
-        model = MLXEmbeddingModel(
-            model_name=model_name,
-            num_labels=num_labels,
-            hidden_size=config.hidden_size if hasattr(config, "hidden_size") else 768,
-            dropout_rate=config.dropout_rate if hasattr(config, "dropout_rate") else 0.1,
-            pooling_strategy=config.pooling_strategy if hasattr(config, "pooling_strategy") else "mean",
-            use_mlx_embeddings=True,
-            **kwargs
-        )
-        logger.info(f"Created old MLX embedding model: {model_name}")
-    elif model_type == "cnn_hybrid":
+    if model_type == "cnn_hybrid":
         model = CNNEnhancedModernBERT(config, **kwargs)
         logger.info("Created CNN-enhanced ModernBERT model")
     elif model_type == "standard":
@@ -323,26 +256,19 @@ def load_pretrained_weights(model: nn.Module, weights_path: Union[str, Path]):
 
 def get_model_config(
     model_type: ModelType = "standard", 
-    use_mlx_embeddings: bool = False,
     **kwargs
-) -> Union[ModernBertConfig, CNNHybridConfig, "MLXEmbeddingsConfig"]:
+) -> Union[BertConfig, CNNHybridConfig]:
     """
     Get default configuration for a model type.
 
     Args:
         model_type: Type of model
-        use_mlx_embeddings: Whether to use MLX embeddings
         **kwargs: Configuration overrides
 
     Returns:
         Model configuration object
     """
-    if model_type == "mlx_embedding" or use_mlx_embeddings:
-        if MLX_EMBEDDINGS_AVAILABLE:
-            config = MLXEmbeddingsConfig(**kwargs)
-        else:
-            raise RuntimeError("MLX embeddings requested but not available")
-    elif model_type == "cnn_hybrid":
+    if model_type == "cnn_hybrid":
         config = CNNHybridConfig(**kwargs)
     else:
         config = ModernBertConfig(**kwargs)
@@ -386,56 +312,23 @@ def create_titanic_model(
 
 # Model registry for easy access
 MODEL_REGISTRY = {
+    # Basic models
     "modernbert-base": lambda **kwargs: create_model("standard", **kwargs),
     "modernbert-cnn": lambda **kwargs: create_model("cnn_hybrid", **kwargs),
     "modernbert-classifier": lambda **kwargs: create_model("classifier", **kwargs),
+    
+    # Modular BERT models
+    "bert-core": lambda **kwargs: create_model("bert_core", **kwargs),
+    "bert-binary": lambda **kwargs: create_model("bert_with_head", head_type="binary_classification", **kwargs),
+    "bert-multiclass": lambda **kwargs: create_model("bert_with_head", head_type="multiclass_classification", **kwargs),
+    "bert-multilabel": lambda **kwargs: create_model("bert_with_head", head_type="multilabel_classification", **kwargs),
+    "bert-regression": lambda **kwargs: create_model("bert_with_head", head_type="regression", **kwargs),
+    
+    # Competition-specific models
     "titanic-base": lambda **kwargs: create_titanic_model("standard", **kwargs),
     "titanic-cnn": lambda **kwargs: create_titanic_model("cnn_hybrid", **kwargs),
+    "titanic-bert": lambda **kwargs: create_bert_for_task("binary_classification", num_labels=2, **kwargs),
 }
-
-# Add new architecture MLX embedding models if available
-if NEW_ARCHITECTURE_AVAILABLE:
-    MODEL_REGISTRY.update({
-        "new-mlx-modernbert-base": lambda **kwargs: create_model(
-            "new_mlx_embedding", 
-            model_name="mlx-community/answerdotai-ModernBERT-base-4bit",
-            **kwargs
-        ),
-        "new-mlx-modernbert-large": lambda **kwargs: create_model(
-            "new_mlx_embedding",
-            model_name="mlx-community/answerdotai-ModernBERT-large-4bit",
-            **kwargs
-        ),
-        "new-mlx-minilm": lambda **kwargs: create_model(
-            "new_mlx_embedding",
-            model_name="mlx-community/all-MiniLM-L6-v2-4bit",
-            **kwargs
-        ),
-        "new-titanic-mlx": lambda **kwargs: create_titanic_classifier(
-            model_name="mlx-community/answerdotai-ModernBERT-base-4bit",
-            **kwargs
-        ),
-    })
-
-# Add old MLX embedding models if available (backward compatibility)
-if OLD_MLX_EMBEDDINGS_AVAILABLE:
-    MODEL_REGISTRY.update({
-        "mlx-modernbert-base": lambda **kwargs: create_model(
-            "mlx_embedding", 
-            model_name="answerdotai/ModernBERT-base",
-            **kwargs
-        ),
-        "mlx-modernbert-large": lambda **kwargs: create_model(
-            "mlx_embedding",
-            model_name="answerdotai/ModernBERT-large",
-            **kwargs
-        ),
-        "mlx-minilm": lambda **kwargs: create_model(
-            "mlx_embedding",
-            model_name="sentence-transformers/all-MiniLM-L6-v2",
-            **kwargs
-        ),
-    })
 
 
 def list_available_models() -> List[str]:
@@ -467,13 +360,12 @@ def create_from_registry(model_name: str, **kwargs) -> nn.Module:
 
 def create_kaggle_classifier(
     task_type: str,
-    model_name: str,
     num_classes: Optional[int] = None,
     dataset_spec: Optional["KaggleDatasetSpec"] = None,
     **kwargs
 ) -> nn.Module:
     """
-    Create classifier optimized for Kaggle competitions.
+    Create classifier optimized for Kaggle competitions using BertWithHead.
     
     This is the main entry point for creating classifiers. It automatically
     selects the best configuration based on the task type and dataset characteristics.
@@ -482,7 +374,6 @@ def create_kaggle_classifier(
         task_type: Type of classification task ("binary", "multiclass", "regression", 
                    "titanic", "multilabel", "ordinal", "hierarchical", "ensemble",
                    "time_series", "ranking", "contrastive", "multi_task", "metric_learning")
-        model_name: Name of the embedding model to use
         num_classes: Number of classes/labels
         dataset_spec: Optional dataset specification for optimization
         **kwargs: Additional arguments
@@ -490,9 +381,18 @@ def create_kaggle_classifier(
     Returns:
         Configured classifier instance
     """
-    if not ADVANCED_CLASSIFICATION_AVAILABLE:
-        logger.warning("Advanced classification not available, falling back to basic classifier")
-        return create_model("classifier", **kwargs)
+    # Map task types to head types
+    task_to_head_map = {
+        "binary": HeadType.BINARY_CLASSIFICATION,
+        "multiclass": HeadType.MULTICLASS_CLASSIFICATION,
+        "multilabel": HeadType.MULTILABEL_CLASSIFICATION,
+        "regression": HeadType.REGRESSION,
+        "ordinal": HeadType.ORDINAL_REGRESSION,
+        "time_series": HeadType.TIME_SERIES,
+        "ranking": HeadType.RANKING,
+    }
+    
+    head_type = task_to_head_map.get(task_type, HeadType.MULTICLASS_CLASSIFICATION)
     
     # Use dataset spec to optimize configuration if available
     if dataset_spec and hasattr(dataset_spec, 'optimization_profile'):
@@ -508,10 +408,9 @@ def create_kaggle_classifier(
             kwargs.setdefault("use_layer_norm", False)
             kwargs.setdefault("pooling_type", "mean")
     
-    return create_advanced_classifier(
-        task_type=task_type,
-        model_name=model_name,
-        num_classes=num_classes,
+    return create_bert_with_head(
+        head_type=head_type,
+        num_labels=num_classes or 2,
         **kwargs
     )
 
@@ -684,39 +583,37 @@ def analyze_competition_dataset(data_path: str, target_column: str) -> Competiti
 
 # === CONVENIENCE FUNCTIONS (absorbed from classification/factory.py) ===
 
-def create_titanic_classifier_optimized(
-    model_name: str = "answerdotai/ModernBERT-base",
-    **kwargs
-) -> nn.Module:
-    """Create optimized Titanic classifier."""
-    if ADVANCED_CLASSIFICATION_AVAILABLE:
-        return create_titanic_classifier(model_name=model_name, **kwargs)
-    else:
-        return create_model("classifier", **kwargs)
+def create_titanic_classifier_optimized(**kwargs) -> nn.Module:
+    """Create optimized Titanic classifier using BertWithHead."""
+    return create_bert_with_head(
+        head_type=HeadType.BINARY_CLASSIFICATION,
+        num_labels=2,
+        **kwargs
+    )
 
 
 def create_multilabel_classifier_optimized(
-    model_name: str,
     num_labels: int,
     **kwargs
 ) -> nn.Module:
-    """Create optimized multilabel classifier."""
-    if ADVANCED_CLASSIFICATION_AVAILABLE:
-        return create_multilabel_classifier(model_name=model_name, num_labels=num_labels, **kwargs)
-    else:
-        return create_kaggle_classifier("multilabel", model_name, num_labels, **kwargs)
+    """Create optimized multilabel classifier using BertWithHead."""
+    return create_bert_with_head(
+        head_type=HeadType.MULTILABEL_CLASSIFICATION,
+        num_labels=num_labels,
+        **kwargs
+    )
 
 
 def create_ensemble_classifier_optimized(
-    model_name: str,
     num_classes: int,
     **kwargs
 ) -> nn.Module:
-    """Create optimized ensemble classifier."""
-    if ADVANCED_CLASSIFICATION_AVAILABLE:
-        return create_ensemble_classifier(model_name=model_name, num_classes=num_classes, **kwargs)
-    else:
-        return create_kaggle_classifier("ensemble", model_name, num_classes, **kwargs)
+    """Create optimized ensemble classifier using BertWithHead."""
+    return create_bert_with_head(
+        head_type=HeadType.ENSEMBLE,
+        num_labels=num_classes,
+        **kwargs
+    )
 
 
 # === BACKWARD COMPATIBILITY ALIASES ===
@@ -736,7 +633,7 @@ create_enhanced_classifier = create_kaggle_classifier
 
 def create_modular_bert(
     pretrained_name: Optional[str] = None,
-    config: Optional[Union[ModernBertConfig, Dict]] = None,
+    config: Optional[Union[BertConfig, Dict]] = None,
     **kwargs
 ) -> BertCore:
     """Create a modular BERT core model.
@@ -838,7 +735,10 @@ def create_bert_from_dataset(
     """
     if auto_analyze and DATASET_ANALYSIS_AVAILABLE:
         # Analyze dataset
-        analysis = analyze_competition_dataset(dataset_path)
+        # For now, we need to provide target_column
+        # In a real implementation, this would be auto-detected
+        target_column = kwargs.pop("target_column", "target")
+        analysis = analyze_competition_dataset(str(dataset_path), target_column)
         
         # Get competition type
         comp_type = analysis.competition_type

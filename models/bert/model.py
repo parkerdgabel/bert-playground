@@ -11,7 +11,8 @@ from pathlib import Path
 import json
 from loguru import logger
 
-from .core import BertCore, BertOutput, ModernBertConfig
+from .core import BertCore, BertOutput
+from .config import BertConfig, ModernBertConfig
 from ..heads.base_head import BaseKaggleHead, HeadConfig, HeadType, PoolingType
 from ..heads.head_registry import HeadRegistry, CompetitionType, get_head_registry
 
@@ -330,7 +331,7 @@ class BertWithHead(nn.Module):
 
 # Factory functions
 def create_bert_with_head(
-    bert_config: Optional[Union[ModernBertConfig, Dict]] = None,
+    bert_config: Optional[Union[BertConfig, ModernBertConfig, Dict]] = None,
     head_config: Optional[Union[HeadConfig, Dict]] = None,
     head_type: Optional[Union[HeadType, str]] = None,
     bert_name: Optional[str] = None,
@@ -358,7 +359,7 @@ def create_bert_with_head(
     elif bert_config:
         bert = BertCore(bert_config)
     else:
-        bert = BertCore(ModernBertConfig())
+        bert = BertCore(BertConfig())
     
     # Create head
     if head_config is None:
@@ -411,7 +412,7 @@ def create_bert_with_head(
 
 def create_bert_for_competition(
     competition_type: Union[CompetitionType, str],
-    bert_config: Optional[Union[ModernBertConfig, Dict]] = None,
+    bert_config: Optional[Union[BertConfig, ModernBertConfig, Dict]] = None,
     bert_name: Optional[str] = None,
     num_labels: int = 2,
     **kwargs
@@ -438,7 +439,7 @@ def create_bert_for_competition(
     elif bert_config:
         bert = BertCore(bert_config)
     else:
-        bert = BertCore(ModernBertConfig())
+        bert = BertCore(BertConfig())
     
     # Get best head for competition
     registry = get_head_registry()  # Use global registry

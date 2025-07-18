@@ -7,10 +7,19 @@ This module provides:
 - Factory functions for easy model creation
 """
 
+from .config import (
+    BertConfig,
+    ModernBertConfig,
+    CNNHybridConfig,
+    get_base_config,
+    get_large_config,
+    get_mini_config,
+    get_cnn_hybrid_config,
+)
+
 from .core import (
     BertCore,
     BertOutput,
-    ModernBertConfig,
     create_bert_core,
 )
 
@@ -21,14 +30,24 @@ from .model import (
 )
 
 __all__ = [
+    # Configuration
+    "BertConfig",
+    "ModernBertConfig",  # Backward compatibility
+    "CNNHybridConfig",   # Backward compatibility
+    
     # Core classes
     "BertCore",
     "BertOutput",
-    "ModernBertConfig",
     "BertWithHead",
     
     # Factory functions
     "create_bert_core",
     "create_bert_with_head",
     "create_bert_for_competition",
+    
+    # Config utilities
+    "get_base_config",
+    "get_large_config",
+    "get_mini_config",
+    "get_cnn_hybrid_config",
 ]
