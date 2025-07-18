@@ -272,7 +272,7 @@ class TrainingConfig:
 
     # Model configuration
     model_name: str = "answerdotai/ModernBERT-base"
-    model_type: str = "modernbert"  # "modernbert", "cnn_hybrid"
+    model_type: str = "bert_with_head"  # "bert_core", "bert_with_head"
     max_length: int = 256
     num_labels: int | None = None  # Auto-detected from data
     task_type: str = "classification"  # classification, regression, multilabel

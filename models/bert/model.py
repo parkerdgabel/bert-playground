@@ -12,7 +12,7 @@ import json
 from loguru import logger
 
 from .core import BertCore, BertOutput
-from .config import BertConfig, ModernBertConfig
+from .config import BertConfig
 from ..heads.base_head import BaseKaggleHead, HeadConfig, HeadType, PoolingType
 from ..heads.head_registry import HeadRegistry, CompetitionType, get_head_registry
 
@@ -331,7 +331,7 @@ class BertWithHead(nn.Module):
 
 # Factory functions
 def create_bert_with_head(
-    bert_config: Optional[Union[BertConfig, ModernBertConfig, Dict]] = None,
+    bert_config: Optional[Union[BertConfig, Dict]] = None,
     head_config: Optional[Union[HeadConfig, Dict]] = None,
     head_type: Optional[Union[HeadType, str]] = None,
     bert_name: Optional[str] = None,
@@ -412,7 +412,7 @@ def create_bert_with_head(
 
 def create_bert_for_competition(
     competition_type: Union[CompetitionType, str],
-    bert_config: Optional[Union[BertConfig, ModernBertConfig, Dict]] = None,
+    bert_config: Optional[Union[BertConfig, Dict]] = None,
     bert_name: Optional[str] = None,
     num_labels: int = 2,
     **kwargs

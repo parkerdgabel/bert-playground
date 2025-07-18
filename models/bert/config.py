@@ -5,7 +5,9 @@ the configuration requirements for both standard and CNN-hybrid variants.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
+import json
+from pathlib import Path
 
 
 @dataclass
@@ -46,11 +48,6 @@ class BertConfig:
     bos_token_id: int = 101
     eos_token_id: int = 102
     
-    # CNN hybrid settings (optional)
-    use_cnn_layers: bool = False
-    cnn_kernel_sizes: List[int] = field(default_factory=lambda: [3, 5, 7])
-    cnn_num_filters: int = 128
-    cnn_dropout: float = 0.1
     
     # MLX optimizations
     use_fused_attention: bool = True
@@ -79,6 +76,83 @@ class BertConfig:
     def from_dict(cls, config_dict):
         """Create config from dictionary."""
         return cls(**config_dict)
+    
+    @classmethod
+    def from_hf_config(cls, hf_config_dict: Dict[str, Any]) -> "BertConfig":
+        """Create BertConfig from HuggingFace config dictionary.
+        
+        Args:
+            hf_config_dict: HuggingFace config dictionary
+            
+        Returns:
+            BertConfig instance
+        """
+        # Map HuggingFace config keys to our config keys
+        hf_to_mlx_mapping = {
+            "vocab_size": "vocab_size",
+            "hidden_size": "hidden_size", 
+            "num_hidden_layers": "num_hidden_layers",
+            "num_attention_heads": "num_attention_heads",
+            "intermediate_size": "intermediate_size",
+            "hidden_act": "hidden_act",
+            "hidden_dropout_prob": "hidden_dropout_prob",
+            "attention_probs_dropout_prob": "attention_probs_dropout_prob",
+            "max_position_embeddings": "max_position_embeddings",
+            "type_vocab_size": "type_vocab_size",
+            "initializer_range": "initializer_range",
+            "layer_norm_eps": "layer_norm_eps",
+            "pad_token_id": "pad_token_id",
+            "bos_token_id": "bos_token_id",
+            "eos_token_id": "eos_token_id",
+            # HuggingFace specific fields we can ignore or use defaults for
+            "model_type": None,  # We don't need this
+            "architectures": None,  # We don't need this
+            "torch_dtype": None,  # MLX handles this differently
+            "transformers_version": None,  # Not needed
+            "use_cache": None,  # Not needed for our implementation
+            "classifier_dropout": "hidden_dropout_prob",  # Map to our dropout
+            "position_embedding_type": None,  # We use absolute by default
+        }
+        
+        # Extract only the fields we care about
+        mlx_config = {}
+        for hf_key, mlx_key in hf_to_mlx_mapping.items():
+            if hf_key in hf_config_dict and mlx_key is not None:
+                mlx_config[mlx_key] = hf_config_dict[hf_key]
+        
+        return cls(**mlx_config)
+    
+    def to_hf_config(self) -> Dict[str, Any]:
+        """Convert BertConfig to HuggingFace format.
+        
+        Returns:
+            Dictionary in HuggingFace config format
+        """
+        hf_config = {
+            "model_type": "bert",
+            "architectures": ["BertModel"],
+            "vocab_size": self.vocab_size,
+            "hidden_size": self.hidden_size,
+            "num_hidden_layers": self.num_hidden_layers,
+            "num_attention_heads": self.num_attention_heads,
+            "intermediate_size": self.intermediate_size,
+            "hidden_act": self.hidden_act,
+            "hidden_dropout_prob": self.hidden_dropout_prob,
+            "attention_probs_dropout_prob": self.attention_probs_dropout_prob,
+            "max_position_embeddings": self.max_position_embeddings,
+            "type_vocab_size": self.type_vocab_size,
+            "initializer_range": self.initializer_range,
+            "layer_norm_eps": self.layer_norm_eps,
+            "pad_token_id": self.pad_token_id,
+            "bos_token_id": self.bos_token_id,
+            "eos_token_id": self.eos_token_id,
+            "position_embedding_type": "absolute",
+            "use_cache": True,
+            "classifier_dropout": self.hidden_dropout_prob,
+            "torch_dtype": "float32",
+        }
+        
+        return hf_config
 
 
 # Preset configurations
@@ -113,15 +187,3 @@ def get_mini_config() -> BertConfig:
     )
 
 
-def get_cnn_hybrid_config() -> BertConfig:
-    """Get configuration for CNN-enhanced BERT model."""
-    config = get_base_config()
-    config.use_cnn_layers = True
-    config.cnn_kernel_sizes = [3, 5, 7]
-    config.cnn_num_filters = 128
-    return config
-
-
-# Backward compatibility aliases
-ModernBertConfig = BertConfig
-CNNHybridConfig = BertConfig  # CNN settings are part of BertConfig now

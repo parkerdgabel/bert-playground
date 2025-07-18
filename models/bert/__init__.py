@@ -9,12 +9,9 @@ This module provides:
 
 from .config import (
     BertConfig,
-    ModernBertConfig,
-    CNNHybridConfig,
     get_base_config,
     get_large_config,
     get_mini_config,
-    get_cnn_hybrid_config,
 )
 
 from .core import (
@@ -32,8 +29,6 @@ from .model import (
 __all__ = [
     # Configuration
     "BertConfig",
-    "ModernBertConfig",  # Backward compatibility
-    "CNNHybridConfig",   # Backward compatibility
     
     # Core classes
     "BertCore",
@@ -49,5 +44,4 @@ __all__ = [
     "get_base_config",
     "get_large_config",
     "get_mini_config",
-    "get_cnn_hybrid_config",
 ]

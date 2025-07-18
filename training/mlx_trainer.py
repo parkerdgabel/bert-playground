@@ -1093,7 +1093,7 @@ class MLXTrainer:
             
             # Tag the model for easier identification
             mlflow.set_tags({
-                "model_type": "mlx_modernbert",
+                "model_type": "mlx_bert",
                 "framework": "mlx",
                 "task": "classification",
                 "dataset": self.config.experiment_name or "unknown",

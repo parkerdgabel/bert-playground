@@ -263,13 +263,14 @@ class OrdinalRegressionHead(BaseKaggleHead):
         Args:
             config: Head configuration
         """
-        super().__init__(config)
-        
         # Number of ordinal classes
         self.num_classes = config.output_size
         
         # Competition-specific parameters
         self.ordinal_loss_type = "cumulative_logits"  # Options: "cumulative_logits", "threshold"
+        
+        # Call parent init after setting our attributes
+        super().__init__(config)
         
     def _build_output_layer(self):
         """Build the output layer for ordinal regression."""
@@ -432,16 +433,20 @@ class TimeSeriesRegressionHead(BaseKaggleHead):
         Args:
             config: Head configuration
         """
-        super().__init__(config)
-        
         # Time series specific parameters
         self.sequence_length = getattr(config, 'sequence_length', 1)
         self.forecast_horizon = getattr(config, 'forecast_horizon', 1)
-        self.use_temporal_features = getattr(config, 'use_temporal_features', True)
+        # prediction_horizon is an alias for forecast_horizon (from loss_config)
+        loss_config = getattr(config, 'loss_config', {})
+        self.prediction_horizon = loss_config.get('prediction_horizon', self.forecast_horizon)
+        self.use_temporal_features = loss_config.get('use_temporal_features', True)
         
         # Temporal modeling architecture
         self.temporal_model_type = "lstm"  # Options: "lstm", "gru", "transformer"
         self.temporal_hidden_size = config.input_size // 2
+        
+        # Call parent init after setting our attributes
+        super().__init__(config)
         
     def _build_output_layer(self):
         """Build the output layer for time series regression."""
@@ -455,17 +460,17 @@ class TimeSeriesRegressionHead(BaseKaggleHead):
         )
         
         # Final regression layer
-        self.regressor = nn.Linear(self.temporal_hidden_size, self.forecast_horizon)
+        self.regressor = nn.Linear(self.temporal_hidden_size, self.prediction_horizon * self.config.output_size)
         
         # Optional seasonal decomposition
         if self.use_temporal_features:
-            self.seasonal_layer = nn.Linear(self.temporal_hidden_size, self.forecast_horizon)
-            self.trend_layer = nn.Linear(self.temporal_hidden_size, self.forecast_horizon)
+            self.seasonal_layer = nn.Linear(self.temporal_hidden_size, self.prediction_horizon * self.config.output_size)
+            self.trend_layer = nn.Linear(self.temporal_hidden_size, self.prediction_horizon * self.config.output_size)
     
     def _build_loss_function(self):
         """Build loss function for time series regression."""
         # MSE loss with optional temporal regularization
-        self.mse_loss = self._mse_loss
+        # Inherit from base class
         
         # Temporal smoothness regularization
         self.temporal_regularization = 0.1
@@ -489,8 +494,8 @@ class TimeSeriesRegressionHead(BaseKaggleHead):
         
         # Reshape for temporal modeling if needed
         if len(projected.shape) == 2:
-            # Add sequence dimension
-            projected = projected.unsqueeze(1)  # [batch_size, 1, hidden_size]
+            # Add sequence dimension using expand_dims
+            projected = mx.expand_dims(projected, axis=1)  # [batch_size, 1, hidden_size]
         
         # Apply temporal modeling
         if hasattr(self, 'temporal_layer'):
@@ -501,6 +506,10 @@ class TimeSeriesRegressionHead(BaseKaggleHead):
         # Get predictions
         predictions = self.regressor(temporal_features)
         
+        # Reshape predictions to [batch_size, prediction_horizon, output_size]
+        batch_size = predictions.shape[0]
+        predictions = predictions.reshape(batch_size, self.prediction_horizon, self.config.output_size)
+        
         result = {
             "predictions": predictions,
         }
@@ -509,6 +518,10 @@ class TimeSeriesRegressionHead(BaseKaggleHead):
         if self.use_temporal_features:
             seasonal = self.seasonal_layer(temporal_features)
             trend = self.trend_layer(temporal_features)
+            
+            # Reshape to match predictions shape
+            seasonal = seasonal.reshape(batch_size, self.prediction_horizon, self.config.output_size)
+            trend = trend.reshape(batch_size, self.prediction_horizon, self.config.output_size)
             
             result.update({
                 "seasonal": seasonal,
@@ -532,8 +545,8 @@ class TimeSeriesRegressionHead(BaseKaggleHead):
         pred_values = predictions["predictions"]
         targets = targets.astype(mx.float32)
         
-        # Main regression loss
-        regression_loss = self.mse_loss(pred_values, targets)
+        # Main regression loss using MSE
+        regression_loss = mx.mean((pred_values - targets) ** 2)
         
         # Add temporal regularization
         if self.forecast_horizon > 1:
@@ -623,15 +636,20 @@ class OrdinalLoss(nn.Module):
         
         # Create target matrix for cumulative probabilities
         # target_matrix[i, j] = 1 if target[i] > j, else 0
-        target_matrix = mx.zeros((batch_size, self.num_classes - 1))
+        # Use broadcasting to create the target matrix efficiently
+        threshold_indices = mx.arange(self.num_classes - 1)[None, :]  # Shape: [1, num_classes-1]
+        targets_expanded = targets[:, None]  # Shape: [batch_size, 1]
         
-        for i in range(batch_size):
-            target_class = targets[i]
-            # Set all thresholds up to target_class-1 to 1
-            if target_class > 0:
-                target_matrix = target_matrix.at[i, :target_class].set(1.0)
+        # Create binary matrix: 1 if class > threshold, 0 otherwise
+        target_matrix = (targets_expanded > threshold_indices).astype(mx.float32)
         
         # Binary cross-entropy loss for each threshold
-        loss = mx.sigmoid_cross_entropy_with_logits(threshold_logits, target_matrix)
+        # Using manual sigmoid + BCE calculation as MLX might not have sigmoid_cross_entropy_with_logits
+        probs = mx.sigmoid(threshold_logits)
+        epsilon = 1e-7  # For numerical stability
+        
+        # Binary cross entropy: -[y*log(p) + (1-y)*log(1-p)]
+        loss = -(target_matrix * mx.log(probs + epsilon) + 
+                (1 - target_matrix) * mx.log(1 - probs + epsilon))
         
         return loss.mean()

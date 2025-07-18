@@ -18,11 +18,8 @@ from enum import Enum
 from dataclasses import dataclass
 import numpy as np
 
-# Import unified modules
-from .modernbert import ModernBertModel
-from .modernbert_cnn_hybrid import CNNEnhancedModernBERT
-from .bert import BertConfig, ModernBertConfig, CNNHybridConfig  # Use consolidated config
-from .classification import TitanicClassifier, create_classifier
+# Import only BERT config
+from .bert import BertConfig
 
 # Import new modular BERT architecture
 from .bert import (
@@ -50,7 +47,7 @@ except ImportError:
     logger.warning("Dataset analysis not available")
 
 
-ModelType = Literal["standard", "cnn_hybrid", "classifier", "bert_core", "bert_with_head"]
+ModelType = Literal["bert_core", "bert_with_head"]
 
 
 class CompetitionType(Enum):
@@ -103,7 +100,7 @@ class CompetitionAnalysis:
 
 
 def create_model(
-    model_type: ModelType = "standard",
+    model_type: ModelType = "bert_with_head",
     config: Optional[Union[Dict[str, Any], BertConfig]] = None,
     pretrained_path: Optional[Union[str, Path]] = None,
     head_type: Optional[Union[HeadType, str]] = None,
@@ -114,8 +111,7 @@ def create_model(
     Create a model based on type and configuration.
 
     Args:
-        model_type: Type of model to create ("standard", "cnn_hybrid", "classifier", 
-                   "bert_core", "bert_with_head")
+        model_type: Type of model to create ("bert_core", "bert_with_head")
         config: Model configuration (dict or Config object)
         pretrained_path: Path to pretrained weights
         head_type: Type of head to attach (for bert_with_head)
@@ -127,32 +123,12 @@ def create_model(
     """
     # Convert config dict to Config object if needed
     if isinstance(config, dict):
-        if model_type == "cnn_hybrid" or "cnn_kernel_sizes" in config:
-            config = CNNHybridConfig(**config)
-        else:
-            config = BertConfig(**config)
+        config = BertConfig(**config)
     elif config is None:
-        # Use default config
-        if model_type == "cnn_hybrid":
-            config = CNNHybridConfig()
-        else:
-            config = BertConfig()
+        config = BertConfig()
 
     # Create base model
-    if model_type == "cnn_hybrid":
-        model = CNNEnhancedModernBERT(config, **kwargs)
-        logger.info("Created CNN-enhanced ModernBERT model")
-    elif model_type == "standard":
-        model = ModernBertModel(config, **kwargs)
-        logger.info("Created standard ModernBERT model")
-    elif model_type == "classifier":
-        # Create base model first
-        base_model = ModernBertModel(config)
-        # Wrap with classifier
-        loss_type = kwargs.pop("loss_type", "cross_entropy")
-        model = create_classifier(base_model, loss_type=loss_type, **kwargs)
-        logger.info(f"Created ModernBERT with {loss_type} classifier")
-    elif model_type == "bert_core":
+    if model_type == "bert_core":
         # Create new modular BERT core
         model = create_bert_core(config=config, **kwargs)
         logger.info("Created modular BertCore model")
@@ -203,11 +179,19 @@ def create_model_from_checkpoint(checkpoint_path: Union[str, Path]) -> nn.Module
         config_dict = json.load(f)
 
     # Determine model type from config
-    if "cnn_kernel_sizes" in config_dict:
-        model_type = "cnn_hybrid"
-    else:
-        model_type = "standard"
-
+    # Check if this is a BertWithHead model by looking for head metadata
+    metadata_path = checkpoint_path / "model_metadata.json"
+    if metadata_path.exists():
+        with open(metadata_path) as f:
+            metadata = json.load(f)
+        if metadata.get("model_type") == "BertWithHead":
+            # Load as BertWithHead
+            from .bert.model import BertWithHead
+            return BertWithHead.from_pretrained(checkpoint_path)
+    
+    # Default to bert_core
+    model_type = "bert_core"
+    
     # Create model
     model = create_model(model_type, config_dict)
 
@@ -255,9 +239,9 @@ def load_pretrained_weights(model: nn.Module, weights_path: Union[str, Path]):
 
 
 def get_model_config(
-    model_type: ModelType = "standard", 
+    model_type: ModelType = "bert_with_head", 
     **kwargs
-) -> Union[BertConfig, CNNHybridConfig]:
+) -> BertConfig:
     """
     Get default configuration for a model type.
 
@@ -268,56 +252,14 @@ def get_model_config(
     Returns:
         Model configuration object
     """
-    if model_type == "cnn_hybrid":
-        config = CNNHybridConfig(**kwargs)
-    else:
-        config = ModernBertConfig(**kwargs)
-
-    return config
+    return BertConfig(**kwargs)
 
 
-def create_titanic_model(
-    model_type: ModelType = "standard",
-    loss_type: str = "cross_entropy",
-    pretrained_path: Optional[Union[str, Path]] = None,
-    **kwargs,
-) -> TitanicClassifier:
-    """
-    Create a model specifically for Titanic classification.
-
-    Args:
-        model_type: Base model type ("standard" or "cnn_hybrid")
-        loss_type: Loss function type
-        pretrained_path: Path to pretrained weights
-        **kwargs: Additional model configuration
-
-    Returns:
-        TitanicClassifier model
-    """
-    # Create base model
-    if model_type == "cnn_hybrid":
-        # CNN hybrid already has built-in classifier
-        return create_model("cnn_hybrid", pretrained_path=pretrained_path, **kwargs)
-    else:
-        # Create standard model and wrap with classifier
-        base_model = create_model("standard", **kwargs)
-
-        # Load pretrained weights if provided
-        if pretrained_path:
-            load_pretrained_weights(base_model, pretrained_path)
-
-        # Wrap with classifier
-        return create_classifier(base_model, loss_type=loss_type, **kwargs)
 
 
 # Model registry for easy access
 MODEL_REGISTRY = {
-    # Basic models
-    "modernbert-base": lambda **kwargs: create_model("standard", **kwargs),
-    "modernbert-cnn": lambda **kwargs: create_model("cnn_hybrid", **kwargs),
-    "modernbert-classifier": lambda **kwargs: create_model("classifier", **kwargs),
-    
-    # Modular BERT models
+    # Core BERT models
     "bert-core": lambda **kwargs: create_model("bert_core", **kwargs),
     "bert-binary": lambda **kwargs: create_model("bert_with_head", head_type="binary_classification", **kwargs),
     "bert-multiclass": lambda **kwargs: create_model("bert_with_head", head_type="multiclass_classification", **kwargs),
@@ -325,8 +267,6 @@ MODEL_REGISTRY = {
     "bert-regression": lambda **kwargs: create_model("bert_with_head", head_type="regression", **kwargs),
     
     # Competition-specific models
-    "titanic-base": lambda **kwargs: create_titanic_model("standard", **kwargs),
-    "titanic-cnn": lambda **kwargs: create_titanic_model("cnn_hybrid", **kwargs),
     "titanic-bert": lambda **kwargs: create_bert_for_task("binary_classification", num_labels=2, **kwargs),
 }
 

@@ -312,6 +312,9 @@ class MeanPooling(nn.Module):
 class MaxPooling(nn.Module):
     """Max pooling over sequence dimension."""
     
+    def __call__(self, hidden_states: mx.array, attention_mask: Optional[mx.array] = None) -> mx.array:
+        return self.forward(hidden_states, attention_mask)
+    
     def forward(self, hidden_states: mx.array, attention_mask: Optional[mx.array] = None) -> mx.array:
         if attention_mask is not None:
             # Mask out padding tokens with large negative values
@@ -328,6 +331,9 @@ class AttentionPooling(nn.Module):
     def __init__(self, hidden_size: int):
         super().__init__()
         self.attention = nn.Linear(hidden_size, 1)
+    
+    def __call__(self, hidden_states: mx.array, attention_mask: Optional[mx.array] = None) -> mx.array:
+        return self.forward(hidden_states, attention_mask)
     
     def forward(self, hidden_states: mx.array, attention_mask: Optional[mx.array] = None) -> mx.array:
         # Compute attention scores
@@ -353,6 +359,9 @@ class WeightedMeanPooling(nn.Module):
         super().__init__()
         self.weights = nn.Linear(hidden_size, 1)
     
+    def __call__(self, hidden_states: mx.array, attention_mask: Optional[mx.array] = None) -> mx.array:
+        return self.forward(hidden_states, attention_mask)
+    
     def forward(self, hidden_states: mx.array, attention_mask: Optional[mx.array] = None) -> mx.array:
         # Compute position weights
         position_weights = mx.sigmoid(self.weights(hidden_states)).squeeze(-1)  # [batch_size, seq_len]
@@ -373,6 +382,9 @@ class WeightedMeanPooling(nn.Module):
 
 class LastTokenPooling(nn.Module):
     """Use the last non-padding token."""
+    
+    def __call__(self, hidden_states: mx.array, attention_mask: Optional[mx.array] = None) -> mx.array:
+        return self.forward(hidden_states, attention_mask)
     
     def forward(self, hidden_states: mx.array, attention_mask: Optional[mx.array] = None) -> mx.array:
         if attention_mask is not None:

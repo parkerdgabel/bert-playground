@@ -73,7 +73,7 @@ class ModelConfig:
     
     # Base model settings
     model_name: str = "answerdotai/ModernBERT-base"
-    model_type: str = "modernbert"  # modernbert, cnn_hybrid, custom
+    model_type: str = "bert_with_head"  # bert_core, bert_with_head
     max_length: int = 256
     
     # Task configuration
