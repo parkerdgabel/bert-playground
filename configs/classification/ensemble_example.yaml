@@ -1,0 +1,84 @@
+# Ensemble Classification Configuration Example
+# For problems requiring multiple diverse models
+
+model:
+  name: "mlx-community/answerdotai-ModernBERT-base-4bit"
+  task_type: "ensemble"
+  num_classes: 20  # Number of target classes
+  pooling_type: "mean"
+  
+  # Head-specific configuration
+  head_config:
+    num_heads: 5  # Number of ensemble members
+    ensemble_method: "attention"  # "average", "weighted", "attention"
+    temperature: 1.0
+    
+    # Different configurations for each head
+    hidden_dims: [256, 384, 512, 256, 384]
+    activations: ["gelu", "relu", "silu", "mish", "gelu"]
+    dropout_rates: [0.1, 0.15, 0.2, 0.1, 0.25]
+    
+    # Diversity encouragement
+    diversity_weight: 0.01  # Encourages different predictions
+
+training:
+  batch_size: 24  # Smaller due to multiple heads
+  learning_rate: 1e-5
+  num_epochs: 25
+  gradient_accumulation_steps: 4
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  
+  # Different learning rates for different heads
+  differential_learning_rates:
+    enabled: true
+    head_lr_multipliers: [1.0, 0.8, 1.2, 0.9, 1.1]
+  
+  # Training strategy
+  strategy:
+    # Train heads with different strategies
+    stochastic_depth: true  # Randomly drop heads during training
+    drop_rate: 0.1
+    
+    # Progressive training
+    progressive_heads: true
+    head_schedule:
+      0: 1    # Start with 1 head
+      5: 3    # Add to 3 heads after 5 epochs
+      10: 5   # Use all 5 heads after 10 epochs
+
+data:
+  max_sequence_length: 256
+  text_column: "text"
+  label_column: "category"
+  
+  # Different augmentation for ensemble diversity
+  augmentation:
+    enabled: true
+    per_head_augmentation: true  # Different augmentation per head
+    head_techniques:
+      0: ["paraphrase", "back_translation"]
+      1: ["word_swap", "synonym_replacement"]
+      2: ["sentence_shuffle", "noise_injection"]
+      3: ["back_translation", "word_deletion"]
+      4: ["paraphrase", "entity_replacement"]
+
+evaluation:
+  # Ensemble evaluation metrics
+  metrics:
+    - "ensemble_accuracy"
+    - "individual_head_accuracy"  # Track each head
+    - "ensemble_f1_macro"
+    - "ensemble_diversity"  # Measure prediction diversity
+    - "calibration_error"  # Ensemble calibration
+  
+  primary_metric: "ensemble_accuracy"
+  
+  # Evaluation options
+  evaluate_individual_heads: true
+  analyze_head_agreement: true
+  plot_head_contributions: true
+  
+  # Ensemble calibration
+  calibrate_ensemble: true
+  calibration_method: "temperature_scaling"

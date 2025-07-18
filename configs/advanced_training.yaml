@@ -1,0 +1,255 @@
+# Advanced Training Configuration
+# Showcases all new classification features
+
+# Model configuration
+model:
+  # Model selection
+  name: "mlx-community/answerdotai-ModernBERT-base-4bit"
+  
+  # Task type - choose one:
+  # - "binary": Binary classification
+  # - "multiclass": Multi-class classification  
+  # - "regression": Regression tasks
+  # - "multilabel": Multiple labels per sample
+  # - "ordinal": Ordered categories
+  # - "hierarchical": Tree-structured labels
+  # - "ensemble": Ensemble of models
+  task_type: "multiclass"
+  
+  # Number of classes/labels/outputs
+  num_classes: 10
+  
+  # Pooling strategy for sequence representations
+  # Options: "mean", "max", "cls", "attention", "weighted", "learned"
+  pooling_type: "attention"
+  
+  # Architecture configuration
+  hidden_dim: 384  # Can be int or list [256, 384] for multiple layers
+  activation: "gelu"  # relu, gelu, silu, mish, tanh, swish
+  dropout_rate: 0.1
+  use_layer_norm: true
+  use_batch_norm: false
+  
+  # Training options
+  freeze_embeddings: false
+  label_smoothing: 0.1
+  
+  # Optional class names for interpretability
+  class_names:
+    - "class_0"
+    - "class_1"
+    - "class_2"
+    - "class_3"
+    - "class_4"
+    - "class_5"
+    - "class_6"
+    - "class_7"
+    - "class_8"
+    - "class_9"
+  
+  # Task-specific head configuration
+  head_config:
+    # For ordinal regression
+    temperature: 1.0
+    
+    # For hierarchical classification
+    hierarchy: {}  # Define parent-child relationships
+    label_to_idx: {}  # Label name to index mapping
+    consistency_weight: 1.0
+    
+    # For ensemble
+    num_heads: 3
+    ensemble_method: "attention"  # average, weighted, attention
+    diversity_weight: 0.01
+    
+    # For multilabel
+    pos_weights: []  # Positive class weights per label
+  
+  # Multi-task learning configuration (optional)
+  auxiliary_heads:
+    # Example auxiliary task
+    sentiment:
+      task_type: "multiclass"
+      num_classes: 5
+      hidden_dim: 256
+      activation: "gelu"
+      dropout_rate: 0.15
+
+# Training configuration
+training:
+  # Batch settings
+  batch_size: 32
+  gradient_accumulation_steps: 2
+  
+  # Learning rate
+  learning_rate: 2e-5
+  weight_decay: 0.01
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 1e-8
+  max_grad_norm: 1.0
+  
+  # Schedule
+  num_epochs: 20
+  warmup_ratio: 0.1
+  lr_scheduler_type: "cosine"
+  
+  # Checkpointing
+  save_steps: 500
+  save_total_limit: 3
+  save_best_only: true
+  best_metric: "accuracy"
+  best_metric_mode: "max"
+  
+  # Evaluation
+  evaluation_strategy: "steps"
+  eval_steps: 100
+  logging_steps: 50
+  
+  # Early stopping
+  early_stopping_patience: 5
+  early_stopping_threshold: 0.001
+  
+  # Mixed precision
+  fp16: false  # MLX handles this automatically
+  
+  # Multi-task loss weights (if using auxiliary heads)
+  task_weights:
+    main: 1.0
+    sentiment: 0.5
+
+# Data configuration
+data:
+  # Data paths
+  train_file: "data/train.csv"
+  validation_file: "data/val.csv"
+  test_file: "data/test.csv"
+  
+  # Text processing
+  max_sequence_length: 256
+  text_column: "text"
+  label_column: "label"  # Or label_columns for multilabel
+  
+  # For multilabel tasks
+  label_columns: []  # List of column names
+  
+  # Data loading
+  num_workers: 4
+  prefetch_size: 4
+  shuffle_buffer_size: 10000
+  
+  # Augmentation
+  augmentation:
+    enabled: true
+    techniques:
+      - "paraphrase"
+      - "back_translation"
+      - "synonym_replacement"
+      - "word_swap"
+    augmentation_prob: 0.3
+
+# Evaluation configuration
+evaluation:
+  # Metrics to compute
+  metrics:
+    - "accuracy"
+    - "f1_macro"
+    - "f1_micro"
+    - "precision"
+    - "recall"
+    - "confusion_matrix"
+  
+  # Task-specific metrics
+  multilabel_metrics:
+    - "hamming_loss"
+    - "roc_auc"
+    - "per_label_f1"
+  
+  ordinal_metrics:
+    - "mae"
+    - "quadratic_weighted_kappa"
+    - "spearman_correlation"
+  
+  hierarchical_metrics:
+    - "hierarchical_f1"
+    - "level_wise_accuracy"
+    - "ancestor_f1"
+  
+  # Evaluation options
+  compute_confidence_intervals: true
+  bootstrap_samples: 1000
+  
+  # Threshold optimization (for binary/multilabel)
+  optimize_threshold: true
+  threshold_search_range: [0.1, 0.9]
+  threshold_search_steps: 20
+
+# MLflow configuration
+mlflow:
+  experiment_name: "advanced_classification"
+  run_name: "bert_advanced_${task_type}"
+  tracking_uri: "./mlruns"
+  
+  # What to log
+  log_model: true
+  log_artifacts: true
+  log_system_metrics: true
+  log_gradients: false
+  log_predictions: true
+  
+  # Tags
+  tags:
+    model_type: "bert"
+    task_type: "${model.task_type}"
+    pooling: "${model.pooling_type}"
+
+# Advanced features
+advanced:
+  # Gradient accumulation with different strategies
+  gradient_checkpointing: false
+  
+  # Progressive training
+  progressive_unfreezing:
+    enabled: false
+    schedule:
+      0: ["head"]
+      5: ["pooling", "head"]
+      10: ["all"]
+  
+  # Stochastic depth (for ensemble)
+  stochastic_depth:
+    enabled: false
+    drop_rate: 0.1
+  
+  # Label smoothing schedules
+  label_smoothing_schedule:
+    enabled: false
+    initial: 0.0
+    final: 0.1
+    warmup_steps: 1000
+  
+  # Dynamic loss weighting (for multi-task)
+  dynamic_loss_weighting:
+    enabled: false
+    method: "uncertainty"  # gradnorm, cosine
+    update_frequency: 100
+
+# Hardware configuration
+hardware:
+  device: "gpu"  # MLX auto-selects
+  mixed_precision: true
+  compile_model: false
+  
+# Random seed
+seed: 42
+
+# Logging
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "training.log"
+  rich_progress: true
+  wandb:
+    enabled: false
+    project: "bert-classification"
+    entity: null

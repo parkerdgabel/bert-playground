@@ -1,0 +1,501 @@
+PassengerId,HomePlanet,CryoSleep,Cabin,Destination,Age,VIP,RoomService,FoodCourt,ShoppingMall,Spa,VRDeck,Name
+1000_01,Europa,True,C/200/P,PSO J318.5-22,36.0,False,0,0,0,0,0,Firstname1000 Lastname1000
+1001_01,Europa,False,D/77/P,55 Cancri e,25.0,False,118,89,132,49,55,Firstname1001 Lastname1001
+1002_01,Earth,False,F/281/S,PSO J318.5-22,47.0,False,178,92,204,73,181,Firstname1002 Lastname1002
+1003_01,Earth,False,B/227/P,55 Cancri e,31.0,False,54,95,21,139,315,Firstname1003 Lastname1003
+1004_01,Europa,False,B/204/P,,43.0,False,222,319,62,124,6,Firstname1004 Lastname1004
+1005_01,Earth,True,G/252/S,55 Cancri e,17.0,False,0,0,0,0,0,Firstname1005 Lastname1005
+1006_01,Europa,True,B/199/S,TRAPPIST-1e,21.0,False,0,0,0,0,0,Firstname1006 Lastname1006
+1007_01,Earth,True,G/240/P,PSO J318.5-22,31.0,True,0,0,0,0,0,Firstname1007 Lastname1007
+1008_01,Earth,,B/49/S,PSO J318.5-22,11.0,False,10,6,227,78,154,Firstname1008 Lastname1008
+1009_01,Earth,True,C/251/P,,24.0,False,0,0,0,0,0,Firstname1009 Lastname1009
+1010_01,Earth,True,G/219/P,PSO J318.5-22,10.0,True,0,0,0,0,0,Firstname1010 Lastname1010
+1011_01,Earth,False,C/145/S,TRAPPIST-1e,6.0,False,393,57,509,292,678,Firstname1011 Lastname1011
+1012_01,Earth,False,B/121/S,55 Cancri e,66.0,False,49,22,16,112,262,Firstname1012 Lastname1012
+1013_01,Earth,False,F/268/P,55 Cancri e,20.0,False,217,11,94,4,71,Firstname1013 Lastname1013
+1014_01,Earth,True,A/161/S,55 Cancri e,22.0,False,0,0,0,0,0,Firstname1014 Lastname1014
+1015_01,Earth,False,G/251/P,55 Cancri e,31.0,False,126,26,68,168,182,Firstname1015 Lastname1015
+1016_01,Europa,True,C/248/S,55 Cancri e,14.0,False,0,0,0,0,0,Firstname1016 Lastname1016
+1017_01,Earth,False,A/115/P,55 Cancri e,22.0,False,81,197,41,19,39,Firstname1017 Lastname1017
+1018_01,Europa,True,A/41/P,55 Cancri e,57.0,True,0,0,0,0,0,Firstname1018 Lastname1018
+1019_01,Europa,False,B/98/S,PSO J318.5-22,35.0,False,31,69,40,103,103,Firstname1019 Lastname1019
+1020_01,Europa,False,C/141/P,55 Cancri e,44.0,False,83,259,51,121,42,Firstname1020 Lastname1020
+1021_01,,False,A/99/P,55 Cancri e,53.0,False,164,18,8,17,296,Firstname1021 Lastname1021
+1022_01,Earth,True,F/175/P,,33.0,False,0,0,0,0,0,Firstname1022 Lastname1022
+1023_01,Europa,False,G/257/S,PSO J318.5-22,26.0,False,275,153,4,43,74,Firstname1023 Lastname1023
+1024_01,Mars,False,C/65/P,TRAPPIST-1e,8.0,True,166,62,17,321,35,Firstname1024 Lastname1024
+1025_01,Mars,True,C/50/S,55 Cancri e,24.0,False,0,0,0,0,0,Firstname1025 Lastname1025
+1026_01,Earth,False,,55 Cancri e,27.0,False,49,14,1,158,219,Firstname1026 Lastname1026
+1027_01,Earth,False,F/57/S,TRAPPIST-1e,17.0,False,110,61,13,87,221,Firstname1027 Lastname1027
+1028_01,Earth,False,B/272/S,TRAPPIST-1e,53.0,False,278,22,121,1,49,Firstname1028 Lastname1028
+1029_01,Europa,False,G/269/P,TRAPPIST-1e,46.0,False,439,46,114,87,180,Firstname1029 Lastname1029
+1030_01,Europa,,C/202/P,PSO J318.5-22,44.0,False,144,8,124,12,471,Firstname1030 Lastname1030
+1031_01,Earth,False,A/159/S,TRAPPIST-1e,28.0,False,85,135,203,129,87,Firstname1031 Lastname1031
+1032_01,,False,A/73/S,,14.0,False,141,23,10,100,47,Firstname1032 Lastname1032
+1033_01,Europa,,B/267/S,55 Cancri e,49.0,False,31,212,14,1,295,Firstname1033 Lastname1033
+1034_01,Earth,False,D/19/S,PSO J318.5-22,35.0,False,33,36,32,27,38,Firstname1034 Lastname1034
+1035_01,Mars,False,D/74/S,TRAPPIST-1e,41.0,False,106,239,197,179,58,Firstname1035 Lastname1035
+1036_01,Europa,False,E/125/S,55 Cancri e,39.0,False,205,31,119,38,21,Firstname1036 Lastname1036
+1037_01,Earth,True,F/181/S,PSO J318.5-22,34.0,False,0,0,0,0,0,Firstname1037 Lastname1037
+1038_01,Europa,False,E/164/P,TRAPPIST-1e,59.0,False,41,60,7,44,105,Firstname1038 Lastname1038
+1039_01,Earth,,C/222/S,PSO J318.5-22,,False,159,131,76,305,13,Firstname1039 Lastname1039
+1040_01,Europa,True,A/176/P,PSO J318.5-22,25.0,False,0,0,0,0,0,Firstname1040 Lastname1040
+1041_01,Mars,True,F/85/S,55 Cancri e,54.0,False,0,0,0,0,0,Firstname1041 Lastname1041
+1042_01,Mars,False,G/121/P,55 Cancri e,31.0,False,42,24,227,10,177,Firstname1042 Lastname1042
+1043_01,Earth,True,G/6/S,TRAPPIST-1e,28.0,False,0,0,0,0,0,Firstname1043 Lastname1043
+1044_01,Earth,False,G/38/P,TRAPPIST-1e,26.0,False,87,22,205,36,221,Firstname1044 Lastname1044
+1045_01,Earth,False,D/102/S,TRAPPIST-1e,40.0,False,93,86,39,44,113,Firstname1045 Lastname1045
+1046_01,Europa,True,B/207/S,55 Cancri e,26.0,False,0,0,0,0,0,Firstname1046 Lastname1046
+1047_01,Earth,,D/55/S,55 Cancri e,24.0,False,187,37,179,101,344,Firstname1047 Lastname1047
+1048_01,Europa,False,C/228/S,PSO J318.5-22,39.0,False,18,135,70,56,222,Firstname1048 Lastname1048
+1049_01,Earth,False,B/290/S,,31.0,False,45,563,76,127,135,Firstname1049 Lastname1049
+1050_01,Earth,False,G/144/P,55 Cancri e,14.0,True,88,89,100,21,304,Firstname1050 Lastname1050
+1051_01,Earth,False,B/71/P,55 Cancri e,,False,33,174,171,7,136,Firstname1051 Lastname1051
+1052_01,Mars,False,F/288/P,TRAPPIST-1e,50.0,False,382,116,7,231,23,Firstname1052 Lastname1052
+1053_01,Europa,False,,55 Cancri e,41.0,False,30,103,32,99,24,Firstname1053 Lastname1053
+1054_01,Earth,False,C/268/S,PSO J318.5-22,52.0,,63,10,40,125,593,Firstname1054 Lastname1054
+1055_01,Earth,False,E/123/S,TRAPPIST-1e,19.0,False,209,23,192,44,48,Firstname1055 Lastname1055
+1056_01,Europa,False,C/201/P,TRAPPIST-1e,,False,8,321,249,55,338,Firstname1056 Lastname1056
+1057_01,Earth,True,A/112/S,TRAPPIST-1e,20.0,False,0,0,0,0,0,Firstname1057 Lastname1057
+1058_01,Europa,False,D/234/S,TRAPPIST-1e,11.0,False,84,142,10,233,112,Firstname1058 Lastname1058
+1059_01,Mars,False,G/115/S,PSO J318.5-22,17.0,False,3,112,218,107,212,Firstname1059 Lastname1059
+1060_01,Europa,False,G/223/S,TRAPPIST-1e,31.0,False,233,71,28,10,34,Firstname1060 Lastname1060
+1061_01,Europa,True,E/160/S,TRAPPIST-1e,45.0,False,0,0,0,0,0,Firstname1061 Lastname1061
+1062_01,Europa,False,E/96/P,PSO J318.5-22,34.0,False,72,121,2,70,234,Firstname1062 Lastname1062
+1063_01,Mars,,E/103/S,TRAPPIST-1e,27.0,False,5,22,25,173,156,Firstname1063 Lastname1063
+1064_01,Mars,True,F/186/S,55 Cancri e,14.0,False,0,0,0,0,0,Firstname1064 Lastname1064
+1065_01,Europa,True,E/66/P,PSO J318.5-22,40.0,False,0,0,0,0,0,Firstname1065 Lastname1065
+1066_01,Earth,False,C/37/P,PSO J318.5-22,44.0,False,145,631,58,22,114,Firstname1066 Lastname1066
+1067_01,Earth,True,F/49/P,55 Cancri e,34.0,,0,0,0,0,0,Firstname1067 Lastname1067
+1068_01,Earth,False,G/168/P,,14.0,False,96,155,9,173,73,Firstname1068 Lastname1068
+1069_01,Europa,True,E/298/S,PSO J318.5-22,42.0,False,0,0,0,0,0,Firstname1069 Lastname1069
+1070_01,Europa,False,,TRAPPIST-1e,48.0,False,220,10,152,114,170,Firstname1070 Lastname1070
+1071_01,Earth,True,A/297/P,55 Cancri e,52.0,False,0,0,0,0,0,Firstname1071 Lastname1071
+1072_01,Earth,True,F/296/P,55 Cancri e,23.0,True,0,0,0,0,0,Firstname1072 Lastname1072
+1073_01,Earth,False,D/32/S,TRAPPIST-1e,36.0,False,70,57,31,281,43,Firstname1073 Lastname1073
+1074_01,Mars,False,G/252/P,,21.0,,116,105,29,288,180,Firstname1074 Lastname1074
+1075_01,Europa,True,D/89/P,TRAPPIST-1e,16.0,True,0,0,0,0,0,Firstname1075 Lastname1075
+1076_01,Europa,True,C/108/S,55 Cancri e,53.0,False,0,0,0,0,0,Firstname1076 Lastname1076
+1077_01,Earth,True,E/52/S,TRAPPIST-1e,38.0,False,0,0,0,0,0,Firstname1077 Lastname1077
+1078_01,Europa,False,G/68/P,55 Cancri e,49.0,False,41,212,11,49,162,Firstname1078 Lastname1078
+1079_01,Earth,False,D/209/P,,11.0,False,17,118,137,190,0,Firstname1079 Lastname1079
+1080_01,Europa,False,F/258/S,PSO J318.5-22,34.0,False,33,49,38,21,146,Firstname1080 Lastname1080
+1081_01,Earth,True,D/122/P,55 Cancri e,37.0,False,0,0,0,0,0,Firstname1081 Lastname1081
+1082_01,Earth,False,E/171/S,55 Cancri e,17.0,False,64,641,2,85,70,Firstname1082 Lastname1082
+1083_01,Earth,True,A/167/S,TRAPPIST-1e,52.0,False,0,0,0,0,0,Firstname1083 Lastname1083
+1084_01,Earth,True,F/63/S,PSO J318.5-22,26.0,False,0,0,0,0,0,Firstname1084 Lastname1084
+1085_01,Mars,False,G/41/S,TRAPPIST-1e,36.0,False,21,208,116,10,287,Firstname1085 Lastname1085
+1086_01,Earth,False,E/279/P,PSO J318.5-22,21.0,False,59,206,99,75,375,Firstname1086 Lastname1086
+1087_01,Earth,True,E/51/S,TRAPPIST-1e,12.0,False,0,0,0,0,0,Firstname1087 Lastname1087
+1088_01,Europa,False,,TRAPPIST-1e,43.0,False,14,100,8,37,487,Firstname1088 Lastname1088
+1089_01,Mars,False,F/243/S,PSO J318.5-22,35.0,True,360,168,94,173,24,Firstname1089 Lastname1089
+1090_01,Earth,False,G/89/S,TRAPPIST-1e,33.0,False,58,260,16,24,121,Firstname1090 Lastname1090
+1091_01,Europa,False,G/174/S,PSO J318.5-22,25.0,,295,97,8,134,0,Firstname1091 Lastname1091
+1092_01,Mars,False,E/61/S,TRAPPIST-1e,35.0,False,14,98,113,296,141,Firstname1092 Lastname1092
+1093_01,Earth,False,D/61/P,TRAPPIST-1e,48.0,False,145,57,176,46,516,Firstname1093 Lastname1093
+1094_01,Earth,False,F/12/S,55 Cancri e,19.0,True,96,227,100,276,44,Firstname1094 Lastname1094
+1095_01,Earth,False,E/232/S,TRAPPIST-1e,38.0,False,171,173,131,84,204,Firstname1095 Lastname1095
+1096_01,Mars,True,B/182/P,TRAPPIST-1e,33.0,False,0,0,0,0,0,Firstname1096 Lastname1096
+1097_01,Earth,False,D/206/S,PSO J318.5-22,27.0,False,329,81,11,272,34,Firstname1097 Lastname1097
+1098_01,Earth,True,A/242/P,PSO J318.5-22,5.0,False,0,0,0,0,0,Firstname1098 Lastname1098
+1099_01,Europa,True,C/31/P,PSO J318.5-22,29.0,False,0,0,0,0,0,Firstname1099 Lastname1099
+1100_01,,False,B/153/S,TRAPPIST-1e,40.0,False,210,112,134,109,41,Firstname1100 Lastname1100
+1101_01,Earth,True,B/269/S,TRAPPIST-1e,34.0,False,0,0,0,0,0,Firstname1101 Lastname1101
+1102_01,Europa,False,G/170/P,55 Cancri e,8.0,False,74,238,67,167,132,Firstname1102 Lastname1102
+1103_01,Earth,False,F/232/S,,,False,31,117,97,9,146,Firstname1103 Lastname1103
+1104_01,Earth,False,G/275/S,TRAPPIST-1e,54.0,False,192,413,30,360,28,Firstname1104 Lastname1104
+1105_01,Europa,True,G/32/P,PSO J318.5-22,28.0,False,0,0,0,0,0,Firstname1105 Lastname1105
+1106_01,Mars,True,E/65/S,TRAPPIST-1e,64.0,False,0,0,0,0,0,Firstname1106 Lastname1106
+1107_01,Earth,False,C/151/P,TRAPPIST-1e,17.0,False,8,53,30,47,426,Firstname1107 Lastname1107
+1108_01,Mars,False,G/268/P,TRAPPIST-1e,10.0,False,68,154,2,142,84,Firstname1108 Lastname1108
+1109_01,Europa,True,D/66/P,PSO J318.5-22,14.0,False,0,0,0,0,0,Firstname1109 Lastname1109
+1110_01,Earth,True,A/82/P,TRAPPIST-1e,33.0,False,0,0,0,0,0,Firstname1110 Lastname1110
+1111_01,Europa,False,,55 Cancri e,3.0,False,59,22,4,401,290,Firstname1111 Lastname1111
+1112_01,Earth,True,G/30/P,PSO J318.5-22,25.0,False,0,0,0,0,0,Firstname1112 Lastname1112
+1113_01,Mars,False,B/272/P,TRAPPIST-1e,74.0,False,37,186,50,45,51,Firstname1113 Lastname1113
+1114_01,Mars,False,E/157/P,55 Cancri e,7.0,False,120,71,6,303,104,Firstname1114 Lastname1114
+1115_01,,False,E/22/S,,21.0,False,25,487,24,419,4,Firstname1115 Lastname1115
+1116_01,Earth,False,A/83/P,PSO J318.5-22,14.0,False,97,59,245,40,502,Firstname1116 Lastname1116
+1117_01,Earth,True,B/60/S,TRAPPIST-1e,25.0,False,0,0,0,0,0,Firstname1117 Lastname1117
+1118_01,,,D/58/P,TRAPPIST-1e,24.0,False,352,34,29,170,894,Firstname1118 Lastname1118
+1119_01,Earth,False,B/2/P,,19.0,False,6,16,2,318,286,Firstname1119 Lastname1119
+1120_01,Earth,False,E/143/S,TRAPPIST-1e,27.0,True,11,56,12,110,16,Firstname1120 Lastname1120
+1121_01,Europa,False,E/224/S,TRAPPIST-1e,39.0,False,70,325,96,120,215,Firstname1121 Lastname1121
+1122_01,Earth,False,G/180/P,TRAPPIST-1e,50.0,False,74,110,36,172,63,Firstname1122 Lastname1122
+1123_01,Mars,True,C/37/P,55 Cancri e,,True,0,0,0,0,0,Firstname1123 Lastname1123
+1124_01,Mars,False,A/229/P,TRAPPIST-1e,30.0,False,174,33,13,435,59,Firstname1124 Lastname1124
+1125_01,Earth,False,A/281/S,TRAPPIST-1e,36.0,False,68,55,91,54,495,Firstname1125 Lastname1125
+1126_01,Mars,False,E/40/P,55 Cancri e,11.0,False,42,133,111,118,138,Firstname1126 Lastname1126
+1127_01,Earth,False,F/188/S,PSO J318.5-22,27.0,False,38,60,15,75,221,Firstname1127 Lastname1127
+1128_01,Earth,False,F/19/P,PSO J318.5-22,22.0,False,197,206,3,75,65,Firstname1128 Lastname1128
+1129_01,Europa,False,A/261/P,TRAPPIST-1e,44.0,False,21,143,6,145,148,Firstname1129 Lastname1129
+1130_01,Earth,False,B/158/S,PSO J318.5-22,56.0,False,17,310,85,627,86,Firstname1130 Lastname1130
+1131_01,Europa,True,G/18/S,TRAPPIST-1e,18.0,False,0,0,0,0,0,Firstname1131 Lastname1131
+1132_01,Mars,False,E/287/P,PSO J318.5-22,49.0,True,98,60,54,189,56,Firstname1132 Lastname1132
+1133_01,Mars,False,C/281/P,55 Cancri e,8.0,False,166,838,13,3,105,Firstname1133 Lastname1133
+1134_01,Europa,False,A/7/S,PSO J318.5-22,33.0,False,40,65,14,199,215,Firstname1134 Lastname1134
+1135_01,Europa,False,C/139/P,TRAPPIST-1e,33.0,False,19,83,0,42,50,Firstname1135 Lastname1135
+1136_01,Earth,False,A/177/P,PSO J318.5-22,,False,23,248,30,16,673,Firstname1136 Lastname1136
+1137_01,Earth,False,F/41/S,PSO J318.5-22,17.0,False,96,13,7,14,26,Firstname1137 Lastname1137
+1138_01,Europa,False,B/180/S,PSO J318.5-22,16.0,True,28,73,40,136,130,Firstname1138 Lastname1138
+1139_01,Earth,True,D/225/P,PSO J318.5-22,10.0,False,0,0,0,0,0,Firstname1139 Lastname1139
+1140_01,Earth,True,C/261/S,PSO J318.5-22,0.0,False,0,0,0,0,0,Firstname1140 Lastname1140
+1141_01,Earth,False,D/150/S,PSO J318.5-22,26.0,False,3,0,97,36,511,Firstname1141 Lastname1141
+1142_01,Europa,False,E/252/P,55 Cancri e,28.0,False,9,1,108,27,332,Firstname1142 Lastname1142
+1143_01,Earth,True,D/181/P,55 Cancri e,28.0,False,0,0,0,0,0,Firstname1143 Lastname1143
+1144_01,Europa,True,F/116/P,TRAPPIST-1e,41.0,False,0,0,0,0,0,Firstname1144 Lastname1144
+1145_01,Earth,False,C/13/S,55 Cancri e,0.0,False,316,132,21,61,324,Firstname1145 Lastname1145
+1146_01,Earth,False,F/267/P,TRAPPIST-1e,24.0,False,40,151,16,131,208,Firstname1146 Lastname1146
+1147_01,Earth,False,E/244/P,55 Cancri e,68.0,False,23,109,75,411,375,Firstname1147 Lastname1147
+1148_01,Earth,True,G/273/S,TRAPPIST-1e,43.0,False,0,0,0,0,0,Firstname1148 Lastname1148
+1149_01,Mars,False,F/191/S,PSO J318.5-22,43.0,False,77,318,57,26,160,Firstname1149 Lastname1149
+1150_01,Earth,False,A/205/P,55 Cancri e,14.0,False,89,284,0,204,299,Firstname1150 Lastname1150
+1151_01,,False,B/137/P,TRAPPIST-1e,27.0,False,42,250,64,163,17,Firstname1151 Lastname1151
+1152_01,Europa,False,E/286/P,55 Cancri e,0.0,True,0,30,216,235,391,Firstname1152 Lastname1152
+1153_01,Earth,True,E/135/S,PSO J318.5-22,38.0,False,0,0,0,0,0,Firstname1153 Lastname1153
+1154_01,Earth,False,F/48/P,TRAPPIST-1e,51.0,False,109,130,274,62,399,Firstname1154 Lastname1154
+1155_01,Earth,True,F/290/S,PSO J318.5-22,8.0,False,0,0,0,0,0,Firstname1155 Lastname1155
+1156_01,Mars,True,C/101/S,55 Cancri e,12.0,False,0,0,0,0,0,Firstname1156 Lastname1156
+1157_01,Europa,False,F/70/S,TRAPPIST-1e,29.0,True,35,14,40,133,15,Firstname1157 Lastname1157
+1158_01,,False,C/4/S,PSO J318.5-22,32.0,False,168,16,54,32,434,Firstname1158 Lastname1158
+1159_01,Earth,False,A/290/P,55 Cancri e,21.0,False,55,348,79,83,38,Firstname1159 Lastname1159
+1160_01,Earth,,A/63/S,55 Cancri e,17.0,False,10,149,56,193,198,Firstname1160 Lastname1160
+1161_01,Earth,False,B/138/S,55 Cancri e,17.0,False,381,45,61,80,206,Firstname1161 Lastname1161
+1162_01,Europa,False,D/262/S,PSO J318.5-22,29.0,False,71,49,1,196,66,Firstname1162 Lastname1162
+1163_01,Mars,True,A/152/P,55 Cancri e,38.0,False,0,0,0,0,0,Firstname1163 Lastname1163
+1164_01,Earth,,B/111/S,55 Cancri e,29.0,False,111,78,29,881,13,Firstname1164 Lastname1164
+1165_01,Mars,True,A/222/S,55 Cancri e,27.0,False,0,0,0,0,0,Firstname1165 Lastname1165
+1166_01,Earth,False,B/210/S,TRAPPIST-1e,3.0,False,137,9,28,19,130,Firstname1166 Lastname1166
+1167_01,Earth,True,C/71/P,TRAPPIST-1e,43.0,False,0,0,0,0,0,Firstname1167 Lastname1167
+1168_01,Earth,False,A/262/P,PSO J318.5-22,29.0,False,48,74,29,162,35,Firstname1168 Lastname1168
+1169_01,Earth,False,F/188/S,PSO J318.5-22,23.0,True,107,180,8,226,267,Firstname1169 Lastname1169
+1170_01,Mars,False,D/239/S,TRAPPIST-1e,33.0,False,141,7,22,73,496,Firstname1170 Lastname1170
+1171_01,Earth,False,F/127/S,TRAPPIST-1e,17.0,False,21,61,25,108,22,Firstname1171 Lastname1171
+1172_01,Earth,False,G/274/P,PSO J318.5-22,,False,40,178,306,223,43,Firstname1172 Lastname1172
+1173_01,Mars,False,F/139/P,TRAPPIST-1e,31.0,False,11,235,89,201,857,Firstname1173 Lastname1173
+1174_01,Mars,False,B/117/S,,19.0,,92,31,214,128,3,Firstname1174 Lastname1174
+1175_01,Europa,False,D/17/P,,5.0,False,161,197,144,202,141,Firstname1175 Lastname1175
+1176_01,Mars,True,F/134/S,55 Cancri e,2.0,False,0,0,0,0,0,Firstname1176 Lastname1176
+1177_01,Earth,True,A/132/P,PSO J318.5-22,36.0,False,0,0,0,0,0,Firstname1177 Lastname1177
+1178_01,Mars,True,E/232/S,TRAPPIST-1e,29.0,False,0,0,0,0,0,Firstname1178 Lastname1178
+1179_01,Europa,True,G/92/P,TRAPPIST-1e,29.0,True,0,0,0,0,0,Firstname1179 Lastname1179
+1180_01,Mars,False,C/207/S,PSO J318.5-22,,False,36,40,24,18,119,Firstname1180 Lastname1180
+1181_01,Europa,True,D/93/S,55 Cancri e,29.0,False,0,0,0,0,0,Firstname1181 Lastname1181
+1182_01,Earth,True,F/99/P,PSO J318.5-22,23.0,False,0,0,0,0,0,Firstname1182 Lastname1182
+1183_01,Europa,True,D/208/P,TRAPPIST-1e,20.0,False,0,0,0,0,0,Firstname1183 Lastname1183
+1184_01,Earth,False,G/59/P,PSO J318.5-22,28.0,True,27,101,52,222,10,Firstname1184 Lastname1184
+1185_01,Earth,False,G/198/S,55 Cancri e,34.0,False,78,177,157,204,270,Firstname1185 Lastname1185
+1186_01,Earth,False,G/7/S,TRAPPIST-1e,56.0,False,126,455,54,515,90,Firstname1186 Lastname1186
+1187_01,Mars,False,B/98/S,PSO J318.5-22,38.0,False,212,52,64,39,50,Firstname1187 Lastname1187
+1188_01,Earth,True,D/140/P,TRAPPIST-1e,42.0,False,0,0,0,0,0,Firstname1188 Lastname1188
+1189_01,Europa,False,F/125/P,TRAPPIST-1e,46.0,False,47,138,126,279,297,Firstname1189 Lastname1189
+1190_01,Earth,False,C/60/P,TRAPPIST-1e,18.0,False,20,21,35,32,655,Firstname1190 Lastname1190
+1191_01,Mars,True,G/76/P,PSO J318.5-22,25.0,False,0,0,0,0,0,Firstname1191 Lastname1191
+1192_01,,False,E/258/P,TRAPPIST-1e,16.0,False,23,13,405,147,361,Firstname1192 Lastname1192
+1193_01,Europa,False,F/296/P,TRAPPIST-1e,19.0,False,118,101,198,38,187,Firstname1193 Lastname1193
+1194_01,Mars,False,A/288/S,TRAPPIST-1e,23.0,False,19,145,7,334,798,Firstname1194 Lastname1194
+1195_01,,False,D/207/P,TRAPPIST-1e,19.0,False,9,10,32,131,584,Firstname1195 Lastname1195
+1196_01,,True,E/85/S,PSO J318.5-22,33.0,False,0,0,0,0,0,Firstname1196 Lastname1196
+1197_01,Europa,True,D/128/P,TRAPPIST-1e,36.0,False,0,0,0,0,0,Firstname1197 Lastname1197
+1198_01,Mars,True,G/23/S,,10.0,False,0,0,0,0,0,Firstname1198 Lastname1198
+1199_01,Europa,True,F/107/S,55 Cancri e,,False,0,0,0,0,0,Firstname1199 Lastname1199
+1200_01,Earth,True,F/145/S,PSO J318.5-22,25.0,False,0,0,0,0,0,Firstname1200 Lastname1200
+1201_01,Mars,False,,PSO J318.5-22,7.0,False,80,72,9,11,244,Firstname1201 Lastname1201
+1202_01,Earth,True,C/112/S,TRAPPIST-1e,18.0,False,0,0,0,0,0,Firstname1202 Lastname1202
+1203_01,Europa,False,B/200/P,PSO J318.5-22,43.0,,57,1,109,290,8,Firstname1203 Lastname1203
+1204_01,Mars,False,E/7/S,TRAPPIST-1e,42.0,True,83,220,4,97,167,Firstname1204 Lastname1204
+1205_01,Earth,False,E/80/S,TRAPPIST-1e,5.0,False,2,6,18,37,265,Firstname1205 Lastname1205
+1206_01,Europa,False,G/272/P,PSO J318.5-22,37.0,True,461,265,65,377,58,Firstname1206 Lastname1206
+1207_01,Europa,False,A/150/S,55 Cancri e,7.0,False,81,116,92,33,51,Firstname1207 Lastname1207
+1208_01,Mars,False,G/296/P,PSO J318.5-22,23.0,False,3,112,11,282,12,Firstname1208 Lastname1208
+1209_01,Earth,False,E/272/P,TRAPPIST-1e,28.0,False,89,182,22,155,19,Firstname1209 Lastname1209
+1210_01,Earth,False,D/15/S,55 Cancri e,41.0,False,57,294,17,161,213,Firstname1210 Lastname1210
+1211_01,Mars,False,D/218/P,TRAPPIST-1e,27.0,,2,428,19,173,140,Firstname1211 Lastname1211
+1212_01,Earth,True,A/227/S,55 Cancri e,14.0,False,0,0,0,0,0,Firstname1212 Lastname1212
+1213_01,Earth,False,D/119/S,TRAPPIST-1e,12.0,False,1,24,100,202,699,Firstname1213 Lastname1213
+1214_01,Mars,False,B/262/P,TRAPPIST-1e,32.0,False,86,316,106,217,213,Firstname1214 Lastname1214
+1215_01,Earth,False,G/274/S,PSO J318.5-22,20.0,False,326,6,126,53,144,Firstname1215 Lastname1215
+1216_01,Mars,True,D/252/S,55 Cancri e,23.0,True,0,0,0,0,0,Firstname1216 Lastname1216
+1217_01,Earth,False,E/239/S,55 Cancri e,44.0,False,29,171,116,263,214,Firstname1217 Lastname1217
+1218_01,Earth,False,B/175/S,PSO J318.5-22,36.0,False,0,352,306,89,90,Firstname1218 Lastname1218
+1219_01,Europa,True,D/295/P,PSO J318.5-22,53.0,False,0,0,0,0,0,Firstname1219 Lastname1219
+1220_01,Europa,False,B/203/S,PSO J318.5-22,,False,4,8,43,118,229,Firstname1220 Lastname1220
+1221_01,Europa,False,B/257/P,PSO J318.5-22,19.0,False,172,141,100,108,19,Firstname1221 Lastname1221
+1222_01,Europa,False,B/142/S,,32.0,False,181,19,184,3,479,Firstname1222 Lastname1222
+1223_01,Mars,False,G/171/S,TRAPPIST-1e,57.0,False,129,12,11,39,133,Firstname1223 Lastname1223
+1224_01,,False,D/228/P,TRAPPIST-1e,18.0,False,43,89,24,83,99,Firstname1224 Lastname1224
+1225_01,Earth,False,B/179/S,55 Cancri e,30.0,False,172,15,201,106,622,Firstname1225 Lastname1225
+1226_01,Earth,True,C/62/P,,49.0,False,0,0,0,0,0,Firstname1226 Lastname1226
+1227_01,Europa,False,D/133/S,TRAPPIST-1e,30.0,False,36,520,52,151,255,Firstname1227 Lastname1227
+1228_01,Earth,False,F/189/S,TRAPPIST-1e,45.0,False,57,126,37,128,212,Firstname1228 Lastname1228
+1229_01,Earth,,G/263/S,55 Cancri e,59.0,False,6,40,26,226,36,Firstname1229 Lastname1229
+1230_01,Earth,False,F/224/S,PSO J318.5-22,34.0,True,289,277,55,42,945,Firstname1230 Lastname1230
+1231_01,Earth,True,,PSO J318.5-22,36.0,False,0,0,0,0,0,Firstname1231 Lastname1231
+1232_01,Earth,False,G/142/P,TRAPPIST-1e,41.0,False,131,197,12,6,100,Firstname1232 Lastname1232
+1233_01,Europa,False,F/94/P,,16.0,True,112,143,43,78,504,Firstname1233 Lastname1233
+1234_01,Earth,True,A/193/P,TRAPPIST-1e,7.0,False,0,0,0,0,0,Firstname1234 Lastname1234
+1235_01,Mars,True,F/20/P,TRAPPIST-1e,32.0,False,0,0,0,0,0,Firstname1235 Lastname1235
+1236_01,Europa,True,C/195/S,TRAPPIST-1e,20.0,False,0,0,0,0,0,Firstname1236 Lastname1236
+1237_01,Earth,False,F/107/P,55 Cancri e,45.0,False,172,441,39,7,53,Firstname1237 Lastname1237
+1238_01,Europa,True,E/267/S,55 Cancri e,34.0,False,0,0,0,0,0,Firstname1238 Lastname1238
+1239_01,Earth,True,E/202/S,55 Cancri e,45.0,False,0,0,0,0,0,Firstname1239 Lastname1239
+1240_01,Europa,False,F/112/P,TRAPPIST-1e,11.0,False,55,292,39,42,454,Firstname1240 Lastname1240
+1241_01,Mars,False,C/98/S,55 Cancri e,45.0,False,34,103,149,159,44,Firstname1241 Lastname1241
+1242_01,Europa,True,G/261/P,55 Cancri e,0.0,False,0,0,0,0,0,Firstname1242 Lastname1242
+1243_01,Europa,True,E/48/S,55 Cancri e,13.0,False,0,0,0,0,0,Firstname1243 Lastname1243
+1244_01,Earth,True,B/226/S,55 Cancri e,39.0,False,0,0,0,0,0,Firstname1244 Lastname1244
+1245_01,Earth,True,A/285/S,TRAPPIST-1e,22.0,,0,0,0,0,0,Firstname1245 Lastname1245
+1246_01,Mars,True,F/153/S,PSO J318.5-22,,False,0,0,0,0,0,Firstname1246 Lastname1246
+1247_01,Earth,False,G/94/S,55 Cancri e,31.0,False,99,252,30,39,79,Firstname1247 Lastname1247
+1248_01,Earth,True,E/290/S,,51.0,,0,0,0,0,0,Firstname1248 Lastname1248
+1249_01,Earth,False,E/285/P,PSO J318.5-22,1.0,True,3,27,17,48,294,Firstname1249 Lastname1249
+1250_01,Europa,False,B/185/P,TRAPPIST-1e,48.0,False,14,183,99,105,113,Firstname1250 Lastname1250
+1251_01,Earth,False,G/110/P,PSO J318.5-22,49.0,False,33,23,61,145,520,Firstname1251 Lastname1251
+1252_01,Mars,False,G/274/S,PSO J318.5-22,22.0,False,29,230,182,58,139,Firstname1252 Lastname1252
+1253_01,Earth,False,F/177/P,TRAPPIST-1e,19.0,,95,42,133,82,85,Firstname1253 Lastname1253
+1254_01,Earth,False,E/272/P,55 Cancri e,28.0,False,60,200,31,72,712,Firstname1254 Lastname1254
+1255_01,Europa,False,B/132/S,TRAPPIST-1e,19.0,False,3,91,56,1,110,Firstname1255 Lastname1255
+1256_01,Earth,True,C/136/P,TRAPPIST-1e,35.0,False,0,0,0,0,0,Firstname1256 Lastname1256
+1257_01,Europa,True,,PSO J318.5-22,37.0,False,0,0,0,0,0,Firstname1257 Lastname1257
+1258_01,Earth,False,C/64/S,PSO J318.5-22,6.0,False,43,150,2,101,1067,Firstname1258 Lastname1258
+1259_01,Earth,False,C/137/S,TRAPPIST-1e,16.0,False,0,68,153,166,279,Firstname1259 Lastname1259
+1260_01,Earth,False,,TRAPPIST-1e,12.0,False,68,198,11,133,105,Firstname1260 Lastname1260
+1261_01,Mars,False,C/128/S,TRAPPIST-1e,33.0,False,44,102,176,38,350,Firstname1261 Lastname1261
+1262_01,Europa,False,E/80/S,TRAPPIST-1e,43.0,False,81,2,195,35,158,Firstname1262 Lastname1262
+1263_01,Europa,False,A/175/P,TRAPPIST-1e,13.0,False,127,140,49,74,76,Firstname1263 Lastname1263
+1264_01,Earth,False,A/126/S,TRAPPIST-1e,42.0,False,28,266,131,158,272,Firstname1264 Lastname1264
+1265_01,Europa,False,C/278/P,TRAPPIST-1e,16.0,False,17,40,36,11,274,Firstname1265 Lastname1265
+1266_01,Earth,False,C/141/S,PSO J318.5-22,40.0,False,32,37,156,355,138,Firstname1266 Lastname1266
+1267_01,Mars,False,G/194/S,55 Cancri e,25.0,False,0,140,139,94,9,Firstname1267 Lastname1267
+1268_01,Europa,True,D/103/P,PSO J318.5-22,23.0,False,0,0,0,0,0,Firstname1268 Lastname1268
+1269_01,Europa,False,F/201/S,55 Cancri e,47.0,False,138,43,69,141,310,Firstname1269 Lastname1269
+1270_01,Earth,True,G/199/S,TRAPPIST-1e,56.0,False,0,0,0,0,0,Firstname1270 Lastname1270
+1271_01,Europa,True,F/217/S,55 Cancri e,0.0,False,0,0,0,0,0,Firstname1271 Lastname1271
+1272_01,Earth,,A/28/S,PSO J318.5-22,38.0,False,18,33,312,79,365,Firstname1272 Lastname1272
+1273_01,Mars,True,G/17/P,PSO J318.5-22,32.0,False,0,0,0,0,0,Firstname1273 Lastname1273
+1274_01,Earth,False,D/77/S,TRAPPIST-1e,39.0,False,122,180,58,217,454,Firstname1274 Lastname1274
+1275_01,Earth,True,C/165/P,TRAPPIST-1e,8.0,False,0,0,0,0,0,Firstname1275 Lastname1275
+1276_01,Earth,False,A/24/S,PSO J318.5-22,13.0,False,40,185,75,19,98,Firstname1276 Lastname1276
+1277_01,Earth,True,C/2/P,PSO J318.5-22,19.0,False,0,0,0,0,0,Firstname1277 Lastname1277
+1278_01,Earth,False,,55 Cancri e,33.0,False,191,27,70,12,70,Firstname1278 Lastname1278
+1279_01,Mars,True,F/299/P,TRAPPIST-1e,19.0,False,0,0,0,0,0,Firstname1279 Lastname1279
+1280_01,Europa,False,A/59/P,TRAPPIST-1e,25.0,False,6,140,105,46,487,Firstname1280 Lastname1280
+1281_01,Mars,False,E/188/P,,42.0,True,46,60,21,69,106,Firstname1281 Lastname1281
+1282_01,Mars,False,D/279/S,55 Cancri e,60.0,False,23,107,45,46,567,Firstname1282 Lastname1282
+1283_01,Earth,True,,TRAPPIST-1e,41.0,False,0,0,0,0,0,Firstname1283 Lastname1283
+1284_01,Europa,True,A/135/S,PSO J318.5-22,42.0,False,0,0,0,0,0,Firstname1284 Lastname1284
+1285_01,Earth,True,G/87/P,TRAPPIST-1e,27.0,False,0,0,0,0,0,Firstname1285 Lastname1285
+1286_01,Mars,False,A/69/S,,16.0,False,34,7,228,87,62,Firstname1286 Lastname1286
+1287_01,Earth,,C/146/S,55 Cancri e,25.0,False,5,291,333,128,96,Firstname1287 Lastname1287
+1288_01,Earth,False,E/263/P,55 Cancri e,29.0,False,177,34,7,86,161,Firstname1288 Lastname1288
+1289_01,Earth,True,E/86/S,TRAPPIST-1e,12.0,False,0,0,0,0,0,Firstname1289 Lastname1289
+1290_01,Earth,False,D/118/S,TRAPPIST-1e,42.0,False,11,24,9,8,205,Firstname1290 Lastname1290
+1291_01,Earth,False,C/162/S,PSO J318.5-22,52.0,False,58,45,143,58,81,Firstname1291 Lastname1291
+1292_01,Earth,True,E/167/S,TRAPPIST-1e,31.0,,0,0,0,0,0,Firstname1292 Lastname1292
+1293_01,Europa,False,D/272/S,PSO J318.5-22,46.0,False,15,23,77,293,799,Firstname1293 Lastname1293
+1294_01,Mars,False,C/156/S,PSO J318.5-22,48.0,False,34,7,62,3,135,Firstname1294 Lastname1294
+1295_01,,True,D/121/S,TRAPPIST-1e,14.0,False,0,0,0,0,0,Firstname1295 Lastname1295
+1296_01,Earth,True,D/16/P,,3.0,False,0,0,0,0,0,Firstname1296 Lastname1296
+1297_01,Mars,True,F/49/S,TRAPPIST-1e,22.0,False,0,0,0,0,0,Firstname1297 Lastname1297
+1298_01,Earth,False,F/154/S,55 Cancri e,31.0,False,305,245,1,224,248,Firstname1298 Lastname1298
+1299_01,Mars,True,B/150/S,55 Cancri e,12.0,False,0,0,0,0,0,Firstname1299 Lastname1299
+1300_01,Earth,True,A/69/P,55 Cancri e,51.0,False,0,0,0,0,0,Firstname1300 Lastname1300
+1301_01,Europa,False,A/2/P,,,False,47,23,29,157,149,Firstname1301 Lastname1301
+1302_01,Europa,True,G/7/P,55 Cancri e,32.0,False,0,0,0,0,0,Firstname1302 Lastname1302
+1303_01,Europa,True,D/75/P,55 Cancri e,15.0,False,0,0,0,0,0,Firstname1303 Lastname1303
+1304_01,,False,,TRAPPIST-1e,37.0,False,25,671,8,116,40,Firstname1304 Lastname1304
+1305_01,Earth,,B/3/S,TRAPPIST-1e,15.0,False,10,11,4,3,190,Firstname1305 Lastname1305
+1306_01,Earth,False,G/273/S,TRAPPIST-1e,47.0,False,130,76,169,62,10,Firstname1306 Lastname1306
+1307_01,Europa,False,D/263/S,55 Cancri e,26.0,False,19,6,96,20,21,Firstname1307 Lastname1307
+1308_01,Mars,False,E/225/S,55 Cancri e,40.0,True,7,33,43,93,224,Firstname1308 Lastname1308
+1309_01,Earth,False,E/16/P,55 Cancri e,43.0,False,55,357,111,222,14,Firstname1309 Lastname1309
+1310_01,Mars,True,C/251/P,55 Cancri e,38.0,,0,0,0,0,0,Firstname1310 Lastname1310
+1311_01,Earth,False,G/48/P,PSO J318.5-22,56.0,False,335,291,3,4,49,Firstname1311 Lastname1311
+1312_01,Earth,False,A/50/P,TRAPPIST-1e,32.0,False,98,29,90,3,72,Firstname1312 Lastname1312
+1313_01,Europa,False,A/22/P,TRAPPIST-1e,22.0,False,16,296,81,111,27,Firstname1313 Lastname1313
+1314_01,Earth,False,F/5/P,TRAPPIST-1e,0.0,,18,115,265,47,57,Firstname1314 Lastname1314
+1315_01,Europa,False,E/78/P,PSO J318.5-22,,False,84,315,271,102,344,Firstname1315 Lastname1315
+1316_01,Earth,False,A/209/P,55 Cancri e,,False,44,24,37,21,203,Firstname1316 Lastname1316
+1317_01,Earth,False,F/237/S,,27.0,False,148,215,71,179,598,Firstname1317 Lastname1317
+1318_01,Europa,False,E/10/S,TRAPPIST-1e,17.0,False,78,171,12,236,9,Firstname1318 Lastname1318
+1319_01,Europa,False,C/236/S,PSO J318.5-22,13.0,,56,117,5,264,314,Firstname1319 Lastname1319
+1320_01,Earth,,B/71/S,PSO J318.5-22,41.0,False,329,249,45,43,240,Firstname1320 Lastname1320
+1321_01,Earth,False,C/55/S,PSO J318.5-22,15.0,False,49,156,93,129,60,Firstname1321 Lastname1321
+1322_01,Earth,False,G/209/P,PSO J318.5-22,,False,51,314,67,39,261,Firstname1322 Lastname1322
+1323_01,Earth,False,B/249/S,TRAPPIST-1e,65.0,False,109,71,44,172,252,Firstname1323 Lastname1323
+1324_01,Mars,False,C/296/P,55 Cancri e,16.0,False,165,133,136,15,122,Firstname1324 Lastname1324
+1325_01,Mars,True,E/20/S,55 Cancri e,40.0,False,0,0,0,0,0,Firstname1325 Lastname1325
+1326_01,Earth,False,G/120/P,55 Cancri e,36.0,False,119,36,105,69,117,Firstname1326 Lastname1326
+1327_01,Earth,True,A/153/P,TRAPPIST-1e,15.0,False,0,0,0,0,0,Firstname1327 Lastname1327
+1328_01,Mars,False,D/4/P,TRAPPIST-1e,15.0,False,65,485,127,161,125,Firstname1328 Lastname1328
+1329_01,Europa,False,G/282/P,TRAPPIST-1e,28.0,False,21,96,201,56,451,Firstname1329 Lastname1329
+1330_01,Europa,True,B/220/P,55 Cancri e,12.0,False,0,0,0,0,0,Firstname1330 Lastname1330
+1331_01,Europa,False,D/99/S,55 Cancri e,46.0,False,25,64,41,39,103,Firstname1331 Lastname1331
+1332_01,Earth,False,G/32/P,PSO J318.5-22,26.0,True,0,324,356,409,187,Firstname1332 Lastname1332
+1333_01,Earth,True,F/13/S,55 Cancri e,13.0,False,0,0,0,0,0,Firstname1333 Lastname1333
+1334_01,Mars,False,D/202/S,PSO J318.5-22,28.0,False,36,449,57,561,265,Firstname1334 Lastname1334
+1335_01,Europa,False,B/93/S,TRAPPIST-1e,36.0,False,21,180,15,6,3,Firstname1335 Lastname1335
+1336_01,Earth,True,F/60/P,55 Cancri e,19.0,False,0,0,0,0,0,Firstname1336 Lastname1336
+1337_01,Earth,False,F/100/P,55 Cancri e,0.0,False,40,30,46,162,119,Firstname1337 Lastname1337
+1338_01,Earth,False,C/168/S,TRAPPIST-1e,31.0,False,64,19,10,306,148,Firstname1338 Lastname1338
+1339_01,Europa,True,B/34/S,TRAPPIST-1e,11.0,False,0,0,0,0,0,Firstname1339 Lastname1339
+1340_01,Earth,True,A/196/S,PSO J318.5-22,18.0,False,0,0,0,0,0,Firstname1340 Lastname1340
+1341_01,Earth,False,F/245/S,TRAPPIST-1e,37.0,False,34,315,104,35,355,Firstname1341 Lastname1341
+1342_01,Mars,False,F/71/P,55 Cancri e,21.0,False,35,248,290,229,207,Firstname1342 Lastname1342
+1343_01,Earth,True,B/285/P,PSO J318.5-22,27.0,False,0,0,0,0,0,Firstname1343 Lastname1343
+1344_01,Earth,True,B/143/P,TRAPPIST-1e,51.0,False,0,0,0,0,0,Firstname1344 Lastname1344
+1345_01,Earth,False,E/212/P,TRAPPIST-1e,24.0,,33,458,45,0,29,Firstname1345 Lastname1345
+1346_01,Earth,False,A/205/S,55 Cancri e,60.0,False,2,159,11,97,636,Firstname1346 Lastname1346
+1347_01,Earth,False,F/239/S,55 Cancri e,41.0,False,216,93,282,32,123,Firstname1347 Lastname1347
+1348_01,Mars,False,E/8/P,55 Cancri e,16.0,False,217,24,11,164,167,Firstname1348 Lastname1348
+1349_01,Mars,False,F/277/P,TRAPPIST-1e,22.0,False,23,108,9,70,278,Firstname1349 Lastname1349
+1350_01,Earth,,F/202/S,55 Cancri e,,False,17,25,49,136,14,Firstname1350 Lastname1350
+1351_01,Earth,False,F/75/S,PSO J318.5-22,39.0,False,79,76,86,229,386,Firstname1351 Lastname1351
+1352_01,Europa,False,E/153/S,,49.0,False,99,428,35,92,318,Firstname1352 Lastname1352
+1353_01,Earth,False,F/78/S,55 Cancri e,24.0,False,315,62,17,49,297,Firstname1353 Lastname1353
+1354_01,Earth,False,F/195/S,TRAPPIST-1e,2.0,False,47,24,136,176,4,Firstname1354 Lastname1354
+1355_01,Mars,False,B/54/S,PSO J318.5-22,35.0,False,96,130,36,36,149,Firstname1355 Lastname1355
+1356_01,Earth,False,E/83/S,TRAPPIST-1e,17.0,False,210,138,17,266,11,Firstname1356 Lastname1356
+1357_01,,False,D/4/P,PSO J318.5-22,19.0,False,59,32,36,8,160,Firstname1357 Lastname1357
+1358_01,Earth,True,G/271/S,TRAPPIST-1e,34.0,False,0,0,0,0,0,Firstname1358 Lastname1358
+1359_01,Earth,False,A/112/P,55 Cancri e,48.0,False,47,684,58,11,25,Firstname1359 Lastname1359
+1360_01,Earth,False,F/20/S,,41.0,False,14,41,88,6,237,Firstname1360 Lastname1360
+1361_01,Earth,True,A/81/P,PSO J318.5-22,36.0,False,0,0,0,0,0,Firstname1361 Lastname1361
+1362_01,Earth,False,F/69/S,55 Cancri e,27.0,False,139,95,20,376,333,Firstname1362 Lastname1362
+1363_01,Europa,True,G/205/S,55 Cancri e,10.0,False,0,0,0,0,0,Firstname1363 Lastname1363
+1364_01,Earth,False,D/94/P,PSO J318.5-22,35.0,False,0,52,1,27,81,Firstname1364 Lastname1364
+1365_01,Earth,True,D/21/P,PSO J318.5-22,40.0,False,0,0,0,0,0,Firstname1365 Lastname1365
+1366_01,Europa,False,E/24/P,TRAPPIST-1e,21.0,False,58,318,1,52,455,Firstname1366 Lastname1366
+1367_01,,False,E/83/S,TRAPPIST-1e,24.0,False,27,45,33,49,120,Firstname1367 Lastname1367
+1368_01,Earth,True,F/78/S,PSO J318.5-22,46.0,False,0,0,0,0,0,Firstname1368 Lastname1368
+1369_01,Earth,False,D/140/S,TRAPPIST-1e,24.0,False,27,22,69,70,8,Firstname1369 Lastname1369
+1370_01,Earth,True,G/169/P,TRAPPIST-1e,25.0,False,0,0,0,0,0,Firstname1370 Lastname1370
+1371_01,Europa,False,E/262/P,TRAPPIST-1e,28.0,False,184,85,7,165,378,Firstname1371 Lastname1371
+1372_01,,False,,PSO J318.5-22,39.0,False,18,21,40,103,286,Firstname1372 Lastname1372
+1373_01,Earth,True,C/122/P,PSO J318.5-22,34.0,False,0,0,0,0,0,Firstname1373 Lastname1373
+1374_01,Earth,,D/193/P,TRAPPIST-1e,33.0,,8,108,91,26,106,Firstname1374 Lastname1374
+1375_01,Earth,True,G/145/P,TRAPPIST-1e,52.0,False,0,0,0,0,0,Firstname1375 Lastname1375
+1376_01,Earth,False,F/218/S,PSO J318.5-22,23.0,False,92,153,12,166,616,Firstname1376 Lastname1376
+1377_01,Earth,False,B/236/P,PSO J318.5-22,15.0,,233,29,34,33,182,Firstname1377 Lastname1377
+1378_01,Mars,False,E/153/P,PSO J318.5-22,45.0,False,50,25,20,0,280,Firstname1378 Lastname1378
+1379_01,Europa,False,F/151/S,55 Cancri e,,False,166,79,127,291,250,Firstname1379 Lastname1379
+1380_01,Earth,,E/182/P,TRAPPIST-1e,21.0,False,192,11,327,117,413,Firstname1380 Lastname1380
+1381_01,Earth,False,F/76/P,TRAPPIST-1e,24.0,False,121,211,2,70,596,Firstname1381 Lastname1381
+1382_01,,False,C/229/S,TRAPPIST-1e,10.0,,9,76,93,155,6,Firstname1382 Lastname1382
+1383_01,Earth,True,G/72/P,PSO J318.5-22,33.0,False,0,0,0,0,0,Firstname1383 Lastname1383
+1384_01,Mars,False,A/131/S,55 Cancri e,8.0,False,18,106,5,368,408,Firstname1384 Lastname1384
+1385_01,Mars,True,D/299/P,TRAPPIST-1e,40.0,False,0,0,0,0,0,Firstname1385 Lastname1385
+1386_01,Earth,True,F/1/S,PSO J318.5-22,22.0,False,0,0,0,0,0,Firstname1386 Lastname1386
+1387_01,Earth,False,E/219/S,,,,81,243,34,180,266,Firstname1387 Lastname1387
+1388_01,,False,C/204/S,55 Cancri e,46.0,False,74,148,416,75,315,Firstname1388 Lastname1388
+1389_01,Europa,False,F/280/P,55 Cancri e,63.0,False,29,232,46,168,49,Firstname1389 Lastname1389
+1390_01,Europa,False,D/278/P,PSO J318.5-22,36.0,,16,178,16,313,209,Firstname1390 Lastname1390
+1391_01,Mars,False,E/87/S,PSO J318.5-22,25.0,True,23,32,120,163,5,Firstname1391 Lastname1391
+1392_01,Europa,False,C/211/S,55 Cancri e,15.0,True,51,8,208,44,377,Firstname1392 Lastname1392
+1393_01,Earth,True,A/33/P,55 Cancri e,33.0,False,0,0,0,0,0,Firstname1393 Lastname1393
+1394_01,Europa,False,C/198/S,PSO J318.5-22,39.0,False,29,436,109,291,217,Firstname1394 Lastname1394
+1395_01,Europa,False,G/228/S,PSO J318.5-22,30.0,True,119,194,32,71,143,Firstname1395 Lastname1395
+1396_01,,False,A/24/P,PSO J318.5-22,43.0,False,67,193,5,137,258,Firstname1396 Lastname1396
+1397_01,Earth,False,A/75/P,PSO J318.5-22,52.0,False,216,47,17,75,79,Firstname1397 Lastname1397
+1398_01,Europa,False,G/161/P,PSO J318.5-22,11.0,False,26,117,47,15,196,Firstname1398 Lastname1398
+1399_01,,False,F/239/S,TRAPPIST-1e,34.0,False,59,728,250,7,253,Firstname1399 Lastname1399
+1400_01,Europa,False,E/98/S,55 Cancri e,1.0,False,10,290,102,365,30,Firstname1400 Lastname1400
+1401_01,Europa,False,B/262/S,PSO J318.5-22,17.0,False,40,54,140,113,30,Firstname1401 Lastname1401
+1402_01,Europa,False,A/239/S,55 Cancri e,40.0,False,70,53,25,13,251,Firstname1402 Lastname1402
+1403_01,Europa,True,F/196/S,PSO J318.5-22,29.0,False,0,0,0,0,0,Firstname1403 Lastname1403
+1404_01,Europa,True,B/235/P,55 Cancri e,5.0,False,0,0,0,0,0,Firstname1404 Lastname1404
+1405_01,Europa,,A/69/P,TRAPPIST-1e,45.0,False,24,69,52,177,74,Firstname1405 Lastname1405
+1406_01,,False,C/219/S,PSO J318.5-22,21.0,False,99,147,44,16,8,Firstname1406 Lastname1406
+1407_01,Earth,False,B/103/P,PSO J318.5-22,42.0,False,48,1,101,284,209,Firstname1407 Lastname1407
+1408_01,Earth,False,C/102/S,TRAPPIST-1e,37.0,False,65,216,65,107,230,Firstname1408 Lastname1408
+1409_01,Europa,True,A/161/P,55 Cancri e,,False,0,0,0,0,0,Firstname1409 Lastname1409
+1410_01,Europa,False,,TRAPPIST-1e,43.0,False,69,266,44,3,229,Firstname1410 Lastname1410
+1411_01,Mars,False,G/139/P,PSO J318.5-22,34.0,False,105,276,15,45,148,Firstname1411 Lastname1411
+1412_01,Earth,False,A/86/P,TRAPPIST-1e,32.0,False,106,125,51,37,235,Firstname1412 Lastname1412
+1413_01,Earth,False,E/217/P,55 Cancri e,22.0,False,162,227,21,358,8,Firstname1413 Lastname1413
+1414_01,Earth,False,B/257/P,TRAPPIST-1e,13.0,False,101,101,65,24,91,Firstname1414 Lastname1414
+1415_01,Earth,True,D/55/S,PSO J318.5-22,23.0,False,0,0,0,0,0,Firstname1415 Lastname1415
+1416_01,Europa,True,C/252/P,TRAPPIST-1e,,False,0,0,0,0,0,Firstname1416 Lastname1416
+1417_01,Earth,True,C/163/S,PSO J318.5-22,42.0,False,0,0,0,0,0,Firstname1417 Lastname1417
+1418_01,Europa,False,B/68/P,55 Cancri e,5.0,False,21,44,13,49,42,Firstname1418 Lastname1418
+1419_01,Europa,True,C/199/S,TRAPPIST-1e,52.0,False,0,0,0,0,0,Firstname1419 Lastname1419
+1420_01,Earth,False,B/257/S,PSO J318.5-22,52.0,False,185,86,57,187,67,Firstname1420 Lastname1420
+1421_01,Mars,False,A/115/P,TRAPPIST-1e,20.0,True,88,143,118,365,52,Firstname1421 Lastname1421
+1422_01,Earth,False,E/92/S,PSO J318.5-22,51.0,False,46,39,19,298,360,Firstname1422 Lastname1422
+1423_01,Earth,False,B/160/P,PSO J318.5-22,14.0,False,8,121,5,10,108,Firstname1423 Lastname1423
+1424_01,Mars,True,A/73/P,PSO J318.5-22,46.0,False,0,0,0,0,0,Firstname1424 Lastname1424
+1425_01,,False,A/196/S,PSO J318.5-22,17.0,False,20,44,94,71,117,Firstname1425 Lastname1425
+1426_01,Earth,False,G/224/S,PSO J318.5-22,45.0,False,324,130,22,241,107,Firstname1426 Lastname1426
+1427_01,Earth,True,F/138/S,TRAPPIST-1e,8.0,False,0,0,0,0,0,Firstname1427 Lastname1427
+1428_01,Earth,False,G/36/S,PSO J318.5-22,46.0,False,138,113,240,207,67,Firstname1428 Lastname1428
+1429_01,Earth,False,B/16/P,TRAPPIST-1e,49.0,,57,164,11,20,427,Firstname1429 Lastname1429
+1430_01,Mars,False,E/41/P,55 Cancri e,7.0,False,11,64,57,48,35,Firstname1430 Lastname1430
+1431_01,Europa,False,A/126/S,55 Cancri e,56.0,False,31,779,4,3,39,Firstname1431 Lastname1431
+1432_01,Earth,False,D/176/S,TRAPPIST-1e,45.0,False,30,124,18,15,169,Firstname1432 Lastname1432
+1433_01,Mars,False,F/18/S,TRAPPIST-1e,0.0,False,66,260,7,70,84,Firstname1433 Lastname1433
+1434_01,,True,G/35/S,TRAPPIST-1e,,False,0,0,0,0,0,Firstname1434 Lastname1434
+1435_01,Earth,True,F/282/S,55 Cancri e,45.0,False,0,0,0,0,0,Firstname1435 Lastname1435
+1436_01,Mars,True,E/61/S,55 Cancri e,40.0,False,0,0,0,0,0,Firstname1436 Lastname1436
+1437_01,Mars,False,G/32/S,TRAPPIST-1e,31.0,False,434,37,20,19,312,Firstname1437 Lastname1437
+1438_01,Mars,False,E/64/P,PSO J318.5-22,43.0,False,35,100,3,59,53,Firstname1438 Lastname1438
+1439_01,Europa,,F/155/P,,16.0,False,95,286,64,257,782,Firstname1439 Lastname1439
+1440_01,Europa,False,G/35/S,PSO J318.5-22,,True,27,33,11,11,90,Firstname1440 Lastname1440
+1441_01,Earth,False,G/141/S,55 Cancri e,17.0,False,62,531,33,93,37,Firstname1441 Lastname1441
+1442_01,Europa,False,C/285/S,PSO J318.5-22,32.0,True,22,20,57,11,138,Firstname1442 Lastname1442
+1443_01,Mars,False,D/113/S,55 Cancri e,45.0,False,81,28,187,76,258,Firstname1443 Lastname1443
+1444_01,Earth,True,C/209/P,PSO J318.5-22,41.0,False,0,0,0,0,0,Firstname1444 Lastname1444
+1445_01,Europa,False,D/86/P,TRAPPIST-1e,33.0,False,3,132,88,10,201,Firstname1445 Lastname1445
+1446_01,Earth,False,D/54/P,PSO J318.5-22,44.0,True,168,374,1,25,390,Firstname1446 Lastname1446
+1447_01,Earth,True,E/265/S,PSO J318.5-22,46.0,False,0,0,0,0,0,Firstname1447 Lastname1447
+1448_01,Europa,False,E/10/S,55 Cancri e,56.0,False,45,120,64,38,236,Firstname1448 Lastname1448
+1449_01,Earth,False,C/196/S,TRAPPIST-1e,47.0,False,64,28,133,124,102,Firstname1449 Lastname1449
+1450_01,Europa,True,F/256/P,PSO J318.5-22,39.0,True,0,0,0,0,0,Firstname1450 Lastname1450
+1451_01,Earth,True,A/180/S,,44.0,False,0,0,0,0,0,Firstname1451 Lastname1451
+1452_01,Mars,True,B/35/P,PSO J318.5-22,,False,0,0,0,0,0,Firstname1452 Lastname1452
+1453_01,Earth,False,G/161/S,TRAPPIST-1e,25.0,False,35,159,7,246,89,Firstname1453 Lastname1453
+1454_01,Earth,False,G/136/S,55 Cancri e,43.0,False,5,129,61,118,355,Firstname1454 Lastname1454
+1455_01,Earth,False,F/226/S,TRAPPIST-1e,41.0,False,145,22,175,157,658,Firstname1455 Lastname1455
+1456_01,Mars,False,C/106/P,TRAPPIST-1e,34.0,False,43,26,57,55,546,Firstname1456 Lastname1456
+1457_01,Europa,False,E/54/P,55 Cancri e,27.0,False,220,166,107,28,35,Firstname1457 Lastname1457
+1458_01,Europa,False,G/224/P,TRAPPIST-1e,26.0,False,50,248,28,4,2,Firstname1458 Lastname1458
+1459_01,Earth,False,B/14/P,TRAPPIST-1e,23.0,False,126,358,47,80,115,Firstname1459 Lastname1459
+1460_01,,False,B/189/S,PSO J318.5-22,48.0,False,280,251,31,102,261,Firstname1460 Lastname1460
+1461_01,Earth,False,G/91/S,TRAPPIST-1e,47.0,False,105,547,9,272,758,Firstname1461 Lastname1461
+1462_01,Europa,False,A/12/S,55 Cancri e,47.0,False,53,78,43,256,305,Firstname1462 Lastname1462
+1463_01,Earth,,G/146/S,PSO J318.5-22,14.0,,83,60,115,66,173,Firstname1463 Lastname1463
+1464_01,Mars,False,G/37/S,PSO J318.5-22,24.0,False,78,4,40,66,5,Firstname1464 Lastname1464
+1465_01,Europa,True,A/170/P,TRAPPIST-1e,26.0,False,0,0,0,0,0,Firstname1465 Lastname1465
+1466_01,Earth,True,E/297/P,TRAPPIST-1e,20.0,False,0,0,0,0,0,Firstname1466 Lastname1466
+1467_01,Earth,False,,PSO J318.5-22,57.0,False,119,253,31,311,11,Firstname1467 Lastname1467
+1468_01,Europa,True,G/221/P,PSO J318.5-22,36.0,False,0,0,0,0,0,Firstname1468 Lastname1468
+1469_01,,False,F/159/S,55 Cancri e,34.0,True,1,108,33,415,167,Firstname1469 Lastname1469
+1470_01,Earth,False,F/77/S,TRAPPIST-1e,23.0,False,98,162,23,84,27,Firstname1470 Lastname1470
+1471_01,Earth,True,B/45/S,PSO J318.5-22,42.0,False,0,0,0,0,0,Firstname1471 Lastname1471
+1472_01,Europa,True,C/205/P,TRAPPIST-1e,62.0,False,0,0,0,0,0,Firstname1472 Lastname1472
+1473_01,Europa,True,D/83/S,PSO J318.5-22,31.0,False,0,0,0,0,0,Firstname1473 Lastname1473
+1474_01,Earth,True,A/166/P,PSO J318.5-22,26.0,True,0,0,0,0,0,Firstname1474 Lastname1474
+1475_01,Earth,False,A/164/S,TRAPPIST-1e,28.0,False,109,353,20,55,402,Firstname1475 Lastname1475
+1476_01,Earth,False,G/128/P,,,False,65,457,7,36,88,Firstname1476 Lastname1476
+1477_01,Europa,False,B/247/S,TRAPPIST-1e,29.0,True,43,68,30,8,136,Firstname1477 Lastname1477
+1478_01,Earth,,C/239/P,PSO J318.5-22,20.0,False,67,70,85,87,13,Firstname1478 Lastname1478
+1479_01,,False,D/224/S,PSO J318.5-22,16.0,False,21,203,36,45,64,Firstname1479 Lastname1479
+1480_01,Mars,False,A/220/P,TRAPPIST-1e,29.0,False,42,91,63,147,225,Firstname1480 Lastname1480
+1481_01,Mars,False,G/233/P,55 Cancri e,31.0,False,126,4,109,154,266,Firstname1481 Lastname1481
+1482_01,Mars,False,B/80/P,PSO J318.5-22,25.0,False,24,378,42,48,55,Firstname1482 Lastname1482
+1483_01,Mars,True,G/125/S,55 Cancri e,51.0,False,0,0,0,0,0,Firstname1483 Lastname1483
+1484_01,Earth,True,G/277/S,TRAPPIST-1e,36.0,False,0,0,0,0,0,Firstname1484 Lastname1484
+1485_01,Earth,True,D/267/S,55 Cancri e,41.0,True,0,0,0,0,0,Firstname1485 Lastname1485
+1486_01,Earth,True,G/89/P,TRAPPIST-1e,41.0,False,0,0,0,0,0,Firstname1486 Lastname1486
+1487_01,Earth,,F/216/S,PSO J318.5-22,31.0,False,1,34,9,19,113,Firstname1487 Lastname1487
+1488_01,Mars,True,E/36/P,55 Cancri e,33.0,False,0,0,0,0,0,Firstname1488 Lastname1488
+1489_01,Europa,False,F/182/S,TRAPPIST-1e,17.0,True,96,74,96,177,1,Firstname1489 Lastname1489
+1490_01,Europa,False,B/159/P,TRAPPIST-1e,39.0,False,118,127,133,8,85,Firstname1490 Lastname1490
+1491_01,Earth,False,C/164/P,55 Cancri e,25.0,True,24,862,33,24,187,Firstname1491 Lastname1491
+1492_01,Mars,False,A/73/P,PSO J318.5-22,20.0,False,116,293,213,53,606,Firstname1492 Lastname1492
+1493_01,Mars,True,E/195/P,PSO J318.5-22,49.0,True,0,0,0,0,0,Firstname1493 Lastname1493
+1494_01,Earth,False,A/76/P,TRAPPIST-1e,10.0,False,45,7,2,172,35,Firstname1494 Lastname1494
+1495_01,Mars,True,C/241/P,PSO J318.5-22,55.0,False,0,0,0,0,0,Firstname1495 Lastname1495
+1496_01,Earth,False,B/53/S,TRAPPIST-1e,54.0,False,83,147,127,277,67,Firstname1496 Lastname1496
+1497_01,Earth,False,B/31/P,55 Cancri e,26.0,False,67,315,89,3,48,Firstname1497 Lastname1497
+1498_01,Europa,False,D/266/S,PSO J318.5-22,56.0,False,102,148,45,37,178,Firstname1498 Lastname1498
+1499_01,Europa,False,D/44/S,55 Cancri e,16.0,False,19,38,23,157,495,Firstname1499 Lastname1499

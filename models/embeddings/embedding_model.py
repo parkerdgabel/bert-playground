@@ -61,6 +61,9 @@ class EmbeddingModel(nn.Module):
         # Store the embedding model reference
         self.embedding_model = self.adapter.model
         
+        # Initialize freeze status
+        self._freeze = False
+        
         logger.info(f"Initialized EmbeddingModel: {model_name} (hidden_size={self.hidden_size})")
     
     def __call__(
@@ -84,6 +87,11 @@ class EmbeddingModel(nn.Module):
         """
         # Get embeddings from the base model
         if self.use_mlx_embeddings and self.embedding_model is not None:
+            # Convert attention mask to float16 if provided
+            if attention_mask is not None:
+                # Cast to float16 for model compatibility
+                attention_mask = mx.array(attention_mask, dtype=mx.float16)
+            
             # Use the embedding model directly
             outputs = self.embedding_model(
                 input_ids,
@@ -91,15 +99,14 @@ class EmbeddingModel(nn.Module):
                 **kwargs
             )
             
-            # Always use manual pooling for consistent results
-            # The text_embeds from mlx-embeddings is not properly pooled
+            # Return the full sequence embeddings - pooling is done by classifier
             if hasattr(outputs, 'last_hidden_state'):
                 hidden_states = outputs.last_hidden_state
-                embeddings = self._pool_embeddings(hidden_states, attention_mask)
             else:
-                # Fallback: use text_embeds but still apply pooling
+                # Fallback: use text_embeds 
                 hidden_states = outputs.text_embeds if hasattr(outputs, 'text_embeds') else outputs
-                embeddings = self._pool_embeddings(hidden_states, attention_mask)
+            
+            embeddings = hidden_states
         else:
             # Fallback: return random embeddings for testing
             batch_size = input_ids.shape[0]
@@ -229,6 +236,17 @@ class EmbeddingModel(nn.Module):
             logger.info(f"Loaded embedding model config from {file_path}")
         else:
             logger.warning("No config found in weights file")
+    
+    def freeze(self):
+        """Freeze the embedding model parameters."""
+        self._freeze = True
+        # Note: Actual parameter freezing would be handled during training
+        logger.info("Froze embedding model parameters")
+    
+    def unfreeze(self):
+        """Unfreeze the embedding model parameters."""
+        self._freeze = False
+        logger.info("Unfroze embedding model parameters")
     
     @classmethod
     def from_pretrained(

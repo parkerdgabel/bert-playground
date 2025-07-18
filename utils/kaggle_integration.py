@@ -100,11 +100,19 @@ class KaggleIntegration:
         ) as progress:
             task = progress.add_task(f"Downloading {competition_id} data...", total=None)
             
+            # Download files without unzip parameter (not supported in newer versions)
             self.api.competition_download_files(
                 competition_id, 
-                path=str(path),
-                unzip=unzip
+                path=str(path)
             )
+            
+            # If unzip is requested, do it manually
+            if unzip:
+                import zipfile
+                for file in path.glob("*.zip"):
+                    with zipfile.ZipFile(file, 'r') as zip_ref:
+                        zip_ref.extractall(path)
+                    file.unlink()  # Remove zip file after extraction
             
             progress.update(task, completed=True)
         

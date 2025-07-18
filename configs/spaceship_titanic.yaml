@@ -1,0 +1,230 @@
+# Spaceship Titanic Competition Configuration
+# Binary classification: Predict if passengers were transported to alternate dimension
+
+# Model configuration
+model:
+  # Model type and name
+  name: "mlx-community/answerdotai-ModernBERT-base-4bit"
+  task_type: "binary"
+  
+  # Architecture settings
+  pooling_type: "attention"  # Attention pooling works well for this task
+  hidden_dim: 384
+  activation: "gelu"
+  dropout_rate: 0.2
+  use_layer_norm: true
+  use_batch_norm: false
+  
+  # Training settings
+  freeze_embeddings: false
+  label_smoothing: 0.1
+  
+  # Class names
+  class_names:
+    - "Not Transported"
+    - "Transported"
+
+# Training configuration
+training:
+  # Batch settings
+  batch_size: 32
+  gradient_accumulation_steps: 2
+  effective_batch_size: 64  # batch_size * gradient_accumulation_steps
+  
+  # Optimizer settings
+  learning_rate: 2e-5
+  weight_decay: 0.01
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 1e-8
+  max_grad_norm: 1.0
+  
+  # Training schedule
+  num_epochs: 10
+  warmup_ratio: 0.1
+  lr_scheduler_type: "cosine"
+  
+  # Evaluation
+  evaluation_strategy: "steps"
+  eval_steps: 100
+  save_steps: 200
+  logging_steps: 50
+  
+  # Early stopping
+  early_stopping_patience: 5
+  early_stopping_threshold: 0.001
+  metric_for_best_model: "eval_accuracy"
+  greater_is_better: true
+  
+  # Checkpointing
+  save_total_limit: 3
+  save_best_only: true
+  resume_from_checkpoint: null
+
+# Data configuration
+data:
+  # Data paths
+  train_file: "data/spaceship-titanic/train.csv"
+  test_file: "data/spaceship-titanic/test.csv"
+  val_split: 0.2  # Create validation split from training data
+  
+  # Text processing
+  max_sequence_length: 256
+  tokenizer_backend: "mlx"  # Use MLX tokenizer backend
+  
+  # Data loading
+  num_workers: 8
+  prefetch_size: 4
+  shuffle_buffer_size: 10000
+  
+  # Augmentation
+  augmentation:
+    enabled: true
+    n_augmentations: 2  # Create 2 augmented versions per sample
+    augment_train_only: true
+  
+  # Caching
+  cache_dir: ".cache/spaceship_titanic"
+
+# Evaluation metrics
+evaluation:
+  metrics:
+    - "accuracy"
+    - "f1"
+    - "precision"
+    - "recall"
+    - "roc_auc"
+    - "confusion_matrix"
+  
+  # Threshold optimization
+  optimize_threshold: true
+  threshold_search_range: [0.3, 0.7]
+  threshold_search_steps: 20
+  
+  # Confidence intervals
+  compute_confidence_intervals: true
+  bootstrap_samples: 1000
+
+# MLflow tracking
+mlflow:
+  experiment_name: "spaceship_titanic"
+  run_name: "modernbert_attention_pool"
+  tracking_uri: "./mlruns"
+  
+  # What to log
+  log_model: true
+  log_artifacts: true
+  log_predictions: true
+  log_confusion_matrix: true
+  
+  # Tags
+  tags:
+    competition: "spaceship-titanic"
+    model_type: "modernbert"
+    task: "binary_classification"
+    pooling: "attention"
+
+# Advanced configuration for ensemble
+ensemble:
+  enabled: false
+  num_heads: 5
+  ensemble_method: "attention"
+  
+  # Head configurations
+  head_configs:
+    - hidden_dim: 256
+      activation: "gelu"
+      dropout_rate: 0.1
+    - hidden_dim: 384
+      activation: "relu"
+      dropout_rate: 0.2
+    - hidden_dim: 512
+      activation: "silu"
+      dropout_rate: 0.3
+    - hidden_dim: 192
+      activation: "mish"
+      dropout_rate: 0.15
+    - hidden_dim: 384
+      activation: "gelu"
+      dropout_rate: 0.25
+
+# Multi-task learning configuration (advanced)
+multi_task:
+  enabled: false
+  auxiliary_tasks:
+    # Predict cryosleep status (correlated with transported)
+    cryosleep:
+      task_type: "binary"
+      weight: 0.3
+      hidden_dim: 128
+      activation: "relu"
+    
+    # Predict spending level
+    spending_level:
+      task_type: "multiclass"
+      num_classes: 3
+      weight: 0.2
+      hidden_dim: 192
+      activation: "gelu"
+    
+    # Predict home planet
+    home_planet:
+      task_type: "multiclass"
+      num_classes: 3
+      weight: 0.1
+      hidden_dim: 128
+      activation: "silu"
+
+# Submission configuration
+submission:
+  output_dir: "submissions/spaceship_titanic"
+  submission_message_template: "MLX-BERT {model_type} - Val accuracy: {val_accuracy:.4f}"
+  
+  # Post-processing
+  post_processing:
+    # Calibration
+    calibrate_probabilities: true
+    calibration_method: "isotonic"
+    
+    # Ensemble multiple checkpoints
+    ensemble_checkpoints: false
+    checkpoint_weights: "uniform"  # or "performance"
+
+# Hardware settings
+hardware:
+  device: "gpu"  # MLX will use Metal automatically
+  mixed_precision: true
+  compile_model: false
+
+# Random seed
+seed: 42
+
+# Logging
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "logs/spaceship_titanic_training.log"
+  use_rich_progress: true
+  
+  # Weights & Biases (optional)
+  wandb:
+    enabled: false
+    project: "spaceship-titanic"
+    entity: null
+    group: "modernbert"
+    tags: ["competition", "binary-classification"]
+
+# Quick test configuration (override with --config-name quick_test)
+quick_test:
+  training:
+    num_epochs: 1
+    eval_steps: 10
+    save_steps: 20
+    logging_steps: 5
+  data:
+    augmentation:
+      enabled: false
+  ensemble:
+    enabled: false
+  multi_task:
+    enabled: false

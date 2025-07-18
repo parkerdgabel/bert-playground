@@ -1,0 +1,88 @@
+# Multilabel Classification Configuration Example
+# For problems where each sample can have multiple labels
+
+model:
+  name: "mlx-community/answerdotai-ModernBERT-base-4bit"
+  task_type: "multilabel"
+  num_labels: 10  # Number of independent labels
+  pooling_type: "mean"
+  hidden_dim: 256
+  activation: "gelu"
+  dropout_rate: 0.1
+  use_layer_norm: true
+  label_smoothing: 0.1
+  
+  # Optional label names for better interpretability
+  class_names:
+    - "toxic"
+    - "severe_toxic"
+    - "obscene"
+    - "threat"
+    - "insult"
+    - "identity_hate"
+    - "spam"
+    - "clickbait"
+    - "offensive"
+    - "misleading"
+  
+  # Head-specific configuration
+  head_config:
+    # Positive class weights for imbalanced labels
+    pos_weights: [2.0, 5.0, 3.0, 10.0, 2.5, 8.0, 1.5, 1.2, 2.0, 3.0]
+
+training:
+  batch_size: 32
+  learning_rate: 2e-5
+  num_epochs: 10
+  gradient_accumulation_steps: 2
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  
+  # Loss configuration
+  loss:
+    type: "binary_cross_entropy"
+    reduction: "mean"
+    
+  # Metrics for multilabel
+  metrics:
+    - "multilabel_accuracy"
+    - "f1_macro"
+    - "f1_micro"
+    - "hamming_loss"
+    - "roc_auc"
+
+data:
+  max_sequence_length: 256
+  text_column: "text"
+  label_columns:  # Multiple columns, one per label
+    - "toxic"
+    - "severe_toxic"
+    - "obscene"
+    - "threat"
+    - "insult"
+    - "identity_hate"
+    - "spam"
+    - "clickbait"
+    - "offensive"
+    - "misleading"
+  
+  # Data augmentation
+  augmentation:
+    enabled: true
+    techniques:
+      - "paraphrase"
+      - "back_translation"
+      - "word_swap"
+
+evaluation:
+  # Threshold for converting probabilities to predictions
+  threshold: 0.5
+  # Per-label thresholds (optional)
+  per_label_thresholds:
+    toxic: 0.4
+    severe_toxic: 0.3
+    threat: 0.2
+  
+  # Evaluation metrics
+  primary_metric: "f1_macro"
+  report_per_label_metrics: true

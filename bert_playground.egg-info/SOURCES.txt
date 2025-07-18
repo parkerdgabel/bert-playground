@@ -29,7 +29,10 @@ models/modernbert_cnn_hybrid.py
 models/modernbert_optimized.py
 models/quantization_utils.py
 models/classification/__init__.py
+models/classification/advanced_heads.py
+models/classification/base_classifier.py
 models/classification/factory.py
+models/classification/generic_classifier.py
 models/classification/heads.py
 models/classification/titanic_classifier.py
 models/embeddings/__init__.py

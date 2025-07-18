@@ -1,0 +1,103 @@
+# Hierarchical Classification Configuration Example
+# For problems with tree-structured label hierarchies
+
+model:
+  name: "mlx-community/answerdotai-ModernBERT-base-4bit"
+  task_type: "hierarchical"
+  num_classes: 15  # Total number of labels across all levels
+  pooling_type: "weighted"  # Weighted pooling for hierarchical
+  hidden_dim: 384
+  activation: "gelu"
+  dropout_rate: 0.1
+  use_layer_norm: true
+  
+  # Head-specific configuration
+  head_config:
+    # Define the label hierarchy
+    hierarchy:
+      # Parent -> Children mapping
+      "animals": ["mammals", "birds", "reptiles"]
+      "mammals": ["dogs", "cats", "horses", "primates"]
+      "birds": ["eagles", "parrots", "penguins"]
+      "reptiles": ["snakes", "lizards", "turtles"]
+      "plants": ["trees", "flowers", "grasses"]
+    
+    # Label to index mapping (all labels)
+    label_to_idx:
+      "animals": 0
+      "mammals": 1
+      "birds": 2
+      "reptiles": 3
+      "dogs": 4
+      "cats": 5
+      "horses": 6
+      "primates": 7
+      "eagles": 8
+      "parrots": 9
+      "penguins": 10
+      "snakes": 11
+      "lizards": 12
+      "turtles": 13
+      "plants": 14
+      "trees": 15
+      "flowers": 16
+      "grasses": 17
+    
+    # Weight for hierarchical consistency loss
+    consistency_weight: 1.0
+
+training:
+  batch_size: 32
+  learning_rate: 2e-5
+  num_epochs: 20
+  gradient_accumulation_steps: 2
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  
+  # Loss weights for different hierarchy levels
+  level_loss_weights:
+    0: 1.0  # Root level
+    1: 1.5  # Middle level
+    2: 2.0  # Leaf level
+  
+  # Training strategy
+  strategy:
+    # Train coarse-to-fine
+    progressive_unfreezing: true
+    unfreeze_schedule:
+      0: ["head"]  # Only train head initially
+      5: ["pooling", "head"]  # Add pooling after 5 epochs
+      10: ["all"]  # Unfreeze everything after 10 epochs
+
+data:
+  max_sequence_length: 256
+  text_column: "description"
+  label_column: "category"  # Should contain leaf labels
+  
+  # Optional: provide full path labels
+  hierarchical_labels_column: "category_path"  # e.g., "animals/mammals/dogs"
+  
+  # Data augmentation
+  augmentation:
+    enabled: true
+    hierarchy_aware: true  # Ensures augmentations preserve hierarchy
+    techniques:
+      - "paraphrase"
+      - "entity_replacement"  # Replace with siblings in hierarchy
+
+evaluation:
+  # Hierarchical evaluation metrics
+  metrics:
+    - "hierarchical_precision"
+    - "hierarchical_recall"
+    - "hierarchical_f1"
+    - "level_wise_accuracy"  # Accuracy at each level
+    - "ancestor_f1"  # Credit for predicting ancestors
+    - "leaf_accuracy"  # Accuracy on leaf nodes only
+  
+  primary_metric: "hierarchical_f1"
+  
+  # Evaluation options
+  evaluate_per_level: true
+  evaluate_consistency: true  # Check if predictions respect hierarchy
+  plot_hierarchy_confusion: true
