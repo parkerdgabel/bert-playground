@@ -88,3 +88,17 @@ def confirm(message: str, default: bool = False) -> bool:
     return console.input(f"{message} ({'Y/n' if default else 'y/N'}): ").lower() in (
         ['y', 'yes'] if not default else ['y', 'yes', '']
     )
+
+def format_bytes(size: int) -> str:
+    """Format byte size in human-readable format."""
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if size < 1024.0:
+            return f"{size:.1f} {unit}"
+        size /= 1024.0
+    return f"{size:.1f} PB"
+
+def format_timestamp(timestamp: float) -> str:
+    """Format timestamp to human-readable string."""
+    from datetime import datetime
+    dt = datetime.fromtimestamp(timestamp)
+    return dt.strftime("%Y-%m-%d %H:%M:%S")

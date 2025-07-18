@@ -62,17 +62,20 @@ def competitions_command(
             category=category,
             search=search,
             sort_by=sort_by,
-            page_size=limit
+            page=1  # KaggleIntegration expects 'page', not 'page_size'
         )
         
-        if not competitions:
+        if competitions.empty:
             print_info("No competitions found matching your criteria.")
             return
         
+        # Convert DataFrame to list of dicts for easier manipulation
+        competitions_list = competitions.to_dict('records')
+        
         # Filter active competitions if requested
         if active_only:
-            competitions = [c for c in competitions if not c.get("isCompleted", True)]
-            if not competitions:
+            competitions_list = [c for c in competitions_list if not c.get("isCompleted", True)]
+            if not competitions_list:
                 print_info("No active competitions found. Use --all to see completed ones.")
                 return
         
@@ -83,44 +86,53 @@ def competitions_command(
         
         comp_table = create_table("Available Competitions", columns)
         
-        for comp in competitions[:limit]:
+        for comp in competitions_list[:limit]:
             # Format competition data
             comp_id = comp.get("id", "unknown")
             title = comp.get("title", "Unknown")[:50]
-            category = comp.get("category", "Unknown")
-            teams = str(comp.get("numberOfTeams", 0))
+            # Category might not be in the response, use evaluationMetric as fallback
+            category_val = comp.get("category", comp.get("evaluationMetric", "Unknown"))
+            teams = str(comp.get("numTeams", 0))
             
             # Format prize
-            prize = comp.get("rewardQuantity", 0)
+            prize = comp.get("reward", None)
             if prize:
-                prize_str = f"${prize:,}"
+                prize_str = prize
             else:
-                prize_str = comp.get("rewardTypeName", "Knowledge")
+                prize_str = "Knowledge"
             
             # Format deadline
             deadline = comp.get("deadline", "")
             if deadline:
                 from datetime import datetime
+                import pandas as pd
                 try:
-                    deadline_dt = datetime.fromisoformat(deadline.replace("Z", "+00:00"))
+                    # Handle pandas Timestamp objects
+                    if isinstance(deadline, pd.Timestamp):
+                        deadline_dt = deadline.to_pydatetime()
+                    else:
+                        # Handle string dates
+                        deadline_dt = datetime.fromisoformat(str(deadline).replace("Z", "+00:00"))
+                    
                     deadline_str = deadline_dt.strftime("%Y-%m-%d")
                     days_left = (deadline_dt - datetime.now(deadline_dt.tzinfo)).days
                     if days_left >= 0:
                         deadline_str += f" ({days_left}d)"
-                except:
-                    deadline_str = deadline[:10]
+                except Exception as e:
+                    # Fallback to string representation
+                    deadline_str = str(deadline)[:10]
             else:
                 deadline_str = "No deadline"
             
-            # Status
-            if comp.get("isCompleted", False):
-                status = "[red]Completed[/red]"
-            elif comp.get("isKernelsSubmissionsOnly", False):
+            # Status  
+            if comp.get("isKernelsSubmissionsOnly", False):
                 status = "[yellow]Kernels Only[/yellow]"
+            elif comp.get("userHasEntered", False):
+                status = "[cyan]Entered[/cyan]"
             else:
                 status = "[green]Active[/green]"
             
-            row = [f"[cyan]{comp_id}[/cyan]\n{title}", category, teams, prize_str, deadline_str, status]
+            row = [f"[cyan]{comp_id}[/cyan]\n{title}", category_val, teams, prize_str, deadline_str, status]
             
             # Add tags if requested
             if show_tags:
@@ -135,7 +147,7 @@ def competitions_command(
         console.print(comp_table)
         
         # Show summary
-        console.print(f"\n[cyan]Showing {len(competitions[:limit])} of {len(competitions)} competitions[/cyan]")
+        console.print(f"\n[cyan]Showing {min(limit, len(competitions_list))} of {len(competitions_list)} competitions[/cyan]")
         
         # Show next steps
         console.print("\n[bold]Next steps:[/bold]")

@@ -2,3 +2,6 @@
 output/
 mlruns/
 cache/
+.idea
+.claude
+.venv

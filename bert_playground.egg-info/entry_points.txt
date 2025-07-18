@@ -1,0 +1,3 @@
+[console_scripts]
+bert = cli:main
+mlx-bert = cli:main

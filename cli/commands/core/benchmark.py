@@ -4,6 +4,7 @@ import typer
 from pathlib import Path
 import sys
 import time
+from typing import Optional
 import numpy as np
 import mlx.core as mx
 import mlx.nn as nn
@@ -18,6 +19,9 @@ from ...utils.console import create_table
 
 # Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
+from models.factory import create_model, create_bert_with_head
+from models.heads.base_head import HeadType
 
 @handle_errors
 @track_time("Running benchmarks")
@@ -174,8 +178,12 @@ def _run_single_benchmark(
                     use_mlx_embeddings=True,
                 )
         else:
-            bert_model = create_model("standard")
-            model = UnifiedTitanicClassifier(bert_model)
+            # Create a BERT model with classification head for benchmarking
+            model = create_bert_with_head(
+                bert_config={"hidden_size": 768, "num_hidden_layers": 12, "num_attention_heads": 12},
+                head_type=HeadType.BINARY_CLASSIFICATION,
+                num_labels=2
+            )
     
     # Create optimizer
     optimizer = optim.AdamW(learning_rate=2e-5)
@@ -189,19 +197,22 @@ def _run_single_benchmark(
     config_table.add_row("Warmup Steps", str(warmup_steps))
     console.print(config_table)
     
-    # Warmup
-    console.print("\n[yellow]Warming up...[/yellow]")
-    for _ in range(warmup_steps):
+    # Define loss function for value_and_grad
+    def loss_fn():
         outputs = model(
             input_ids=dummy_batch["input_ids"],
             attention_mask=dummy_batch["attention_mask"],
+            labels=dummy_batch["labels"],
         )
-        loss = outputs["loss"]
-        loss_value, grads = mx.value_and_grad(model, loss)(
-            dummy_batch["input_ids"],
-            dummy_batch["attention_mask"],
-            dummy_batch["labels"],
-        )
+        return outputs["loss"]
+    
+    # Create value_and_grad function
+    value_and_grad_fn = nn.value_and_grad(model, loss_fn)
+    
+    # Warmup
+    console.print("\n[yellow]Warming up...[/yellow]")
+    for _ in range(warmup_steps):
+        loss_value, grads = value_and_grad_fn()
         optimizer.update(model, grads)
         mx.eval(model.parameters())
     
@@ -228,6 +239,7 @@ def _run_single_benchmark(
         outputs = model(
             input_ids=dummy_batch["input_ids"],
             attention_mask=dummy_batch["attention_mask"],
+            labels=dummy_batch["labels"],
         )
         loss = outputs["loss"]
         mx.eval(loss)
@@ -236,11 +248,7 @@ def _run_single_benchmark(
         
         # Backward pass
         start_time = time.time()
-        loss_value, grads = mx.value_and_grad(model, loss)(
-            dummy_batch["input_ids"],
-            dummy_batch["attention_mask"],
-            dummy_batch["labels"],
-        )
+        loss_value, grads = value_and_grad_fn()
         optimizer.update(model, grads)
         mx.eval(model.parameters())
         backward_time = time.time() - start_time

@@ -4,7 +4,12 @@ This package provides a comprehensive CLI for training, evaluating, and deployin
 BERT models optimized for Apple Silicon using MLX framework.
 """
 
-from .app import app, main
+from .app import app
 
 __version__ = "2.0.0"
+
+def main():
+    """Entry point for the CLI."""
+    app()
+
 __all__ = ["app", "main"]

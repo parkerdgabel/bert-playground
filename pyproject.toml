@@ -33,6 +33,10 @@ dependencies = [
     "pyyaml>=6.0.2",
 ]
 
+[project.scripts]
+bert = "cli:main"
+mlx-bert = "cli:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
@@ -124,7 +128,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["models*", "data*", "training*", "utils*", "embeddings*"]
+include = ["cli*", "models*", "data*", "training*", "utils*", "embeddings*"]
 exclude = ["tests*", "legacy*", "cache*", "output*", "mlruns*"]
 
 [tool.setuptools.package-data]

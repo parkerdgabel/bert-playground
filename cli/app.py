@@ -24,7 +24,6 @@ app = typer.Typer(
 )
 
 # Add command groups
-app.add_typer(core_app, name="train", help="Train BERT models")
 app.add_typer(kaggle_app, name="kaggle", help="Kaggle competition workflows")
 app.add_typer(mlflow_app, name="mlflow", help="MLflow experiment tracking")
 app.add_typer(model_app, name="model", help="Model management and serving")
@@ -32,18 +31,23 @@ app.add_typer(model_app, name="model", help="Model management and serving")
 # Global options
 console = Console()
 
+def version_callback(value: bool):
+    if value:
+        from . import __version__
+        console.print(f"MLX BERT CLI version {__version__}")
+        raise typer.Exit()
+
 @app.callback()
-def main(
-    version: bool = typer.Option(False, "--version", "-v", help="Show version"),
+def callback(
+    version: bool = typer.Option(
+        None, "--version", "-v", 
+        callback=version_callback, is_eager=True,
+        help="Show version"
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-V", help="Enable verbose output"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output"),
 ):
     """MLX BERT CLI - The ultimate BERT playground for Kaggle competitions."""
-    if version:
-        from . import __version__
-        console.print(f"MLX BERT CLI version {__version__}")
-        raise typer.Exit()
-    
     # Set global verbosity
     if verbose:
         import os
