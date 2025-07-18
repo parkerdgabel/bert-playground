@@ -6,6 +6,7 @@ It supports:
 - Head attachment via BertWithHead
 - Competition-specific model creation
 - Automatic dataset analysis and optimization
+- LoRA/QLoRA adapter injection for efficient fine-tuning
 """
 
 from typing import Dict, Any, Optional, Union, Literal, List, Tuple
@@ -32,8 +33,8 @@ from .bert import (
     ModernBertConfig, ModernBertCore,
     create_modernbert_core, create_modernbert_base, create_modernbert_large
 )
-from .heads.base_head import HeadType, HeadConfig
-from .heads.head_registry import HeadRegistry
+from .heads.base import HeadType, HeadConfig
+from .heads import get_head_registry
 
 # Import Kaggle heads if available
 try:
@@ -52,8 +53,14 @@ except ImportError:
     DATASET_ANALYSIS_AVAILABLE = False
     logger.warning("Dataset analysis not available")
 
+# Import LoRA components
+from .lora import (
+    LoRAConfig, QLoRAConfig, LoRAAdapter, MultiAdapterManager,
+    get_lora_preset, KAGGLE_LORA_PRESETS
+)
 
-ModelType = Literal["bert_core", "bert_with_head", "modernbert_core", "modernbert_with_head"]
+ModelType = Literal["bert_core", "bert_with_head", "modernbert_core", "modernbert_with_head", 
+                   "bert_with_lora", "modernbert_with_lora"]
 
 
 class CompetitionType(Enum):
@@ -198,7 +205,7 @@ def create_model(
                 head_type = HeadType(head_type)
             
             # Get default config for head type
-            from .heads.base_head import get_default_config_for_head_type
+            from .heads.base import get_default_config_for_head_type
             head_config = get_default_config_for_head_type(
                 head_type,
                 input_size=modernbert_core.get_hidden_size(),
@@ -210,7 +217,6 @@ def create_model(
             head_config = HeadConfig(**head_config)
         
         # Get head class from registry
-        from .heads.head_registry import get_head_registry
         registry = get_head_registry()
         
         # Find a head that matches the head type
@@ -242,6 +248,296 @@ def create_model(
         load_pretrained_weights(model, pretrained_path)
 
     return model
+
+
+def create_model_with_lora(
+    base_model: Optional[nn.Module] = None,
+    model_type: Optional[ModelType] = None,
+    lora_config: Optional[Union[LoRAConfig, QLoRAConfig, str, Dict]] = None,
+    inject_lora: bool = True,
+    verbose: bool = False,
+    **model_kwargs
+) -> Tuple[nn.Module, LoRAAdapter]:
+    """
+    Create a model with LoRA adapters for efficient fine-tuning.
+    
+    Args:
+        base_model: Existing model to add LoRA to (optional)
+        model_type: Type of model to create if base_model not provided
+        lora_config: LoRA configuration (config object, preset name, or dict)
+        inject_lora: Whether to inject LoRA adapters immediately
+        verbose: Print injection details
+        **model_kwargs: Arguments for model creation
+        
+    Returns:
+        Tuple of (model, lora_adapter)
+    """
+    # Create base model if not provided
+    if base_model is None:
+        if model_type is None:
+            model_type = "bert_with_head"
+        base_model = create_model(model_type, **model_kwargs)
+    
+    # Process LoRA config
+    if lora_config is None:
+        lora_config = LoRAConfig()  # Default config
+    elif isinstance(lora_config, str):
+        # Load preset
+        lora_config = get_lora_preset(lora_config)
+    elif isinstance(lora_config, dict):
+        # Determine if it's QLoRA based on config
+        if any(k.startswith("bnb_") for k in lora_config):
+            lora_config = QLoRAConfig(**lora_config)
+        else:
+            lora_config = LoRAConfig(**lora_config)
+    
+    # Create LoRA adapter
+    lora_adapter = LoRAAdapter(base_model, lora_config)
+    
+    # Inject adapters if requested
+    if inject_lora:
+        stats = lora_adapter.inject_adapters(verbose=verbose)
+        if verbose:
+            total_params = sum(p.size for p in base_model.parameters())
+            lora_params = sum(stats.values())
+            reduction = (1 - lora_params / total_params) * 100
+            logger.info(f"Parameter reduction: {reduction:.1f}%")
+    
+    return base_model, lora_adapter
+
+
+def create_bert_with_lora(
+    head_type: Optional[Union[HeadType, str]] = None,
+    lora_preset: str = "balanced",
+    num_labels: int = 2,
+    freeze_bert: bool = True,
+    **kwargs
+) -> Tuple[BertWithHead, LoRAAdapter]:
+    """
+    Create a BERT model with head and LoRA adapters.
+    
+    Convenience function for common use case of BERT + head + LoRA.
+    
+    Args:
+        head_type: Type of head to attach
+        lora_preset: LoRA preset name from KAGGLE_LORA_PRESETS
+        num_labels: Number of output labels
+        freeze_bert: Whether to freeze BERT (recommended with LoRA)
+        **kwargs: Additional arguments
+        
+    Returns:
+        Tuple of (model, lora_adapter)
+    """
+    return create_model_with_lora(
+        model_type="bert_with_head",
+        lora_config=lora_preset,
+        head_type=head_type,
+        num_labels=num_labels,
+        freeze_bert=freeze_bert,
+        inject_lora=True,
+        **kwargs
+    )
+
+
+def create_modernbert_with_lora(
+    head_type: Optional[Union[HeadType, str]] = None,
+    lora_preset: str = "balanced",
+    model_size: str = "base",
+    num_labels: int = 2,
+    freeze_bert: bool = True,
+    **kwargs
+) -> Tuple[nn.Module, LoRAAdapter]:
+    """
+    Create a ModernBERT model with head and LoRA adapters.
+    
+    Args:
+        head_type: Type of head to attach
+        lora_preset: LoRA preset name
+        model_size: Model size ("base" or "large")
+        num_labels: Number of output labels
+        freeze_bert: Whether to freeze ModernBERT
+        **kwargs: Additional arguments
+        
+    Returns:
+        Tuple of (model, lora_adapter)
+    """
+    return create_model_with_lora(
+        model_type="modernbert_with_head",
+        lora_config=lora_preset,
+        head_type=head_type,
+        model_size=model_size,
+        num_labels=num_labels,
+        freeze_bert=freeze_bert,
+        inject_lora=True,
+        **kwargs
+    )
+
+
+def create_qlora_model(
+    model_type: ModelType = "bert_with_head",
+    qlora_preset: str = "qlora_memory",
+    quantize_base: bool = True,
+    **kwargs
+) -> Tuple[nn.Module, LoRAAdapter]:
+    """
+    Create a model with QLoRA (quantized base + LoRA adapters).
+    
+    Args:
+        model_type: Type of model to create
+        qlora_preset: QLoRA preset name
+        quantize_base: Whether to quantize the base model
+        **kwargs: Additional arguments
+        
+    Returns:
+        Tuple of (model, lora_adapter)
+    """
+    # Get QLoRA config
+    qlora_config = get_lora_preset(qlora_preset)
+    if not isinstance(qlora_config, QLoRAConfig):
+        # Convert to QLoRA config if needed
+        qlora_config = QLoRAConfig(**qlora_config.__dict__)
+    
+    # Create base model
+    base_model = create_model(model_type, **kwargs)
+    
+    # Quantize base model if requested
+    if quantize_base:
+        from .quantization_utils import ModelQuantizer, QuantizationConfig
+        
+        quant_config = QuantizationConfig(
+            bits=4,
+            quantization_type=qlora_config.bnb_4bit_quant_type,
+            use_double_quant=qlora_config.bnb_4bit_use_double_quant,
+        )
+        
+        quantizer = ModelQuantizer(quant_config)
+        base_model = quantizer.quantize_model(base_model)
+        logger.info("Quantized base model to 4-bit")
+    
+    # Create QLoRA adapter
+    lora_adapter = LoRAAdapter(base_model, qlora_config)
+    stats = lora_adapter.inject_adapters(verbose=True)
+    
+    return base_model, lora_adapter
+
+
+def create_kaggle_lora_model(
+    competition_type: Union[str, CompetitionType],
+    data_path: Optional[str] = None,
+    lora_preset: Optional[str] = None,
+    auto_select_preset: bool = True,
+    **kwargs
+) -> Tuple[nn.Module, LoRAAdapter]:
+    """
+    Create an optimized LoRA model for a Kaggle competition.
+    
+    This function automatically selects the best LoRA configuration
+    based on the competition type and dataset characteristics.
+    
+    Args:
+        competition_type: Type of competition
+        data_path: Optional path to data for analysis
+        lora_preset: LoRA preset (auto-selected if None)
+        auto_select_preset: Whether to auto-select preset
+        **kwargs: Additional arguments
+        
+    Returns:
+        Tuple of (model, lora_adapter)
+    """
+    # Convert string to CompetitionType if needed
+    if isinstance(competition_type, str):
+        competition_type = CompetitionType(competition_type)
+    
+    # Auto-select LoRA preset based on competition type
+    if lora_preset is None and auto_select_preset:
+        preset_map = {
+            CompetitionType.BINARY_CLASSIFICATION: "balanced",
+            CompetitionType.MULTICLASS_CLASSIFICATION: "balanced",
+            CompetitionType.MULTILABEL_CLASSIFICATION: "expressive",
+            CompetitionType.REGRESSION: "efficient",
+            CompetitionType.ORDINAL_REGRESSION: "balanced",
+            CompetitionType.TIME_SERIES: "expressive",
+            CompetitionType.RANKING: "expressive",
+        }
+        lora_preset = preset_map.get(competition_type, "balanced")
+        logger.info(f"Auto-selected LoRA preset: {lora_preset}")
+    
+    # Analyze dataset if provided
+    if data_path and DATASET_ANALYSIS_AVAILABLE:
+        target_column = kwargs.pop("target_column", "target")
+        analysis = analyze_competition_dataset(data_path, target_column)
+        
+        # Adjust preset based on dataset size
+        if analysis.num_samples > 100000 and lora_preset == "expressive":
+            lora_preset = "balanced"  # Use smaller rank for large datasets
+            logger.info("Adjusted to 'balanced' preset for large dataset")
+        elif analysis.num_samples < 5000 and lora_preset == "efficient":
+            lora_preset = "balanced"  # Use larger rank for small datasets
+            logger.info("Adjusted to 'balanced' preset for small dataset")
+        
+        # Use analysis results
+        kwargs["num_labels"] = analysis.num_classes
+    
+    # Map competition type to head type
+    head_type_map = {
+        CompetitionType.BINARY_CLASSIFICATION: HeadType.BINARY_CLASSIFICATION,
+        CompetitionType.MULTICLASS_CLASSIFICATION: HeadType.MULTICLASS_CLASSIFICATION,
+        CompetitionType.MULTILABEL_CLASSIFICATION: HeadType.MULTILABEL_CLASSIFICATION,
+        CompetitionType.REGRESSION: HeadType.REGRESSION,
+        CompetitionType.ORDINAL_REGRESSION: HeadType.ORDINAL_REGRESSION,
+        CompetitionType.TIME_SERIES: HeadType.TIME_SERIES,
+        CompetitionType.RANKING: HeadType.RANKING,
+    }
+    
+    head_type = head_type_map.get(competition_type, HeadType.BINARY_CLASSIFICATION)
+    
+    # Create model with LoRA
+    return create_bert_with_lora(
+        head_type=head_type,
+        lora_preset=lora_preset,
+        **kwargs
+    )
+
+
+def create_multi_adapter_model(
+    base_model: Optional[nn.Module] = None,
+    adapter_configs: Optional[Dict[str, Union[LoRAConfig, Dict, str]]] = None,
+    **model_kwargs
+) -> Tuple[nn.Module, MultiAdapterManager]:
+    """
+    Create a model with multiple LoRA adapters for multi-task learning.
+    
+    Args:
+        base_model: Base model (created if None)
+        adapter_configs: Dict mapping adapter names to configs
+        **model_kwargs: Arguments for model creation
+        
+    Returns:
+        Tuple of (model, multi_adapter_manager)
+    """
+    # Create base model if needed
+    if base_model is None:
+        base_model = create_model(**model_kwargs)
+    
+    # Create multi-adapter manager
+    manager = MultiAdapterManager(base_model)
+    
+    # Add adapters
+    if adapter_configs:
+        for name, config in adapter_configs.items():
+            # Process config
+            if isinstance(config, str):
+                config = get_lora_preset(config)
+            elif isinstance(config, dict):
+                if any(k.startswith("bnb_") for k in config):
+                    config = QLoRAConfig(**config)
+                else:
+                    config = LoRAConfig(**config)
+            
+            manager.add_adapter(name, config)
+            logger.info(f"Added adapter '{name}'")
+    
+    return base_model, manager
 
 
 def create_model_from_checkpoint(checkpoint_path: Union[str, Path]) -> nn.Module:
@@ -361,9 +657,23 @@ MODEL_REGISTRY = {
     "modernbert-multilabel": lambda **kwargs: create_model("modernbert_with_head", head_type="multilabel_classification", **kwargs),
     "modernbert-regression": lambda **kwargs: create_model("modernbert_with_head", head_type="regression", **kwargs),
     
+    # LoRA models
+    "bert-lora-binary": lambda **kwargs: create_bert_with_lora(head_type="binary_classification", **kwargs),
+    "bert-lora-multiclass": lambda **kwargs: create_bert_with_lora(head_type="multiclass_classification", **kwargs),
+    "bert-lora-regression": lambda **kwargs: create_bert_with_lora(head_type="regression", **kwargs),
+    "modernbert-lora-binary": lambda **kwargs: create_modernbert_with_lora(head_type="binary_classification", **kwargs),
+    "modernbert-lora-multiclass": lambda **kwargs: create_modernbert_with_lora(head_type="multiclass_classification", **kwargs),
+    "modernbert-lora-regression": lambda **kwargs: create_modernbert_with_lora(head_type="regression", **kwargs),
+    
+    # QLoRA models (memory efficient)
+    "bert-qlora-binary": lambda **kwargs: create_qlora_model(model_type="bert_with_head", head_type="binary_classification", **kwargs),
+    "modernbert-qlora-binary": lambda **kwargs: create_qlora_model(model_type="modernbert_with_head", head_type="binary_classification", **kwargs),
+    
     # Competition-specific models
     "titanic-bert": lambda **kwargs: create_bert_for_task("binary_classification", num_labels=2, **kwargs),
     "titanic-modernbert": lambda **kwargs: create_model("modernbert_with_head", head_type="binary_classification", num_labels=2, **kwargs),
+    "titanic-bert-lora": lambda **kwargs: create_kaggle_lora_model("binary_classification", num_labels=2, **kwargs),
+    "titanic-modernbert-lora": lambda **kwargs: create_modernbert_with_lora(head_type="binary_classification", lora_preset="balanced", num_labels=2, **kwargs),
 }
 
 
@@ -663,6 +973,32 @@ analyze_dataset = analyze_competition_dataset
 
 # Legacy function names
 create_enhanced_classifier = create_kaggle_classifier
+
+
+# === BACKWARD COMPATIBILITY FOR LORA ===
+
+# Export LoRA creation functions
+__all__ = [
+    # Core creation functions
+    "create_model",
+    "create_model_from_checkpoint",
+    "create_from_registry",
+    "list_available_models",
+    # LoRA creation functions
+    "create_model_with_lora",
+    "create_bert_with_lora",
+    "create_modernbert_with_lora",
+    "create_qlora_model",
+    "create_kaggle_lora_model",
+    "create_multi_adapter_model",
+    # Competition functions
+    "create_kaggle_classifier",
+    "create_competition_classifier",
+    "analyze_competition_dataset",
+    # Legacy compatibility
+    "create_bert_for_task",
+    "create_bert_from_dataset",
+]
 
 
 # === NEW MODULAR BERT ARCHITECTURE FUNCTIONS ===
