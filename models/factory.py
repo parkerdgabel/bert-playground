@@ -25,6 +25,14 @@ from .modernbert import ModernBertModel, ModernBertConfig
 from .modernbert_cnn_hybrid import CNNEnhancedModernBERT, CNNHybridConfig
 from .classification import TitanicClassifier, create_classifier
 
+# Import new modular BERT architecture
+from .bert import (
+    BertCore, BertWithHead, BertOutput,
+    create_bert_core, create_bert_with_head, create_bert_for_competition
+)
+from .heads.base_head import HeadType, HeadConfig
+from .heads.head_registry import HeadRegistry
+
 # Import all classification factories
 try:
     from .classification.factory import (
@@ -69,7 +77,7 @@ except ImportError:
     logger.warning("Dataset analysis not available")
 
 
-ModelType = Literal["standard", "cnn_hybrid", "classifier", "mlx_embedding", "new_mlx_embedding"]
+ModelType = Literal["standard", "cnn_hybrid", "classifier", "mlx_embedding", "new_mlx_embedding", "bert_core", "bert_with_head"]
 
 
 class CompetitionType(Enum):
@@ -126,16 +134,21 @@ def create_model(
     config: Optional[Union[Dict[str, Any], ModernBertConfig, "MLXEmbeddingsConfig"]] = None,
     pretrained_path: Optional[Union[str, Path]] = None,
     use_mlx_embeddings: bool = False,
+    head_type: Optional[Union[HeadType, str]] = None,
+    head_config: Optional[Union[HeadConfig, Dict]] = None,
     **kwargs,
 ) -> nn.Module:
     """
     Create a model based on type and configuration.
 
     Args:
-        model_type: Type of model to create ("standard", "cnn_hybrid", "classifier", "mlx_embedding", "new_mlx_embedding")
+        model_type: Type of model to create ("standard", "cnn_hybrid", "classifier", 
+                   "mlx_embedding", "new_mlx_embedding", "bert_core", "bert_with_head")
         config: Model configuration (dict or Config object)
         pretrained_path: Path to pretrained weights
         use_mlx_embeddings: Whether to use MLX embeddings backend
+        head_type: Type of head to attach (for bert_with_head)
+        head_config: Head configuration (for bert_with_head)
         **kwargs: Additional arguments passed to model constructor
 
     Returns:
@@ -206,6 +219,26 @@ def create_model(
         loss_type = kwargs.pop("loss_type", "cross_entropy")
         model = create_classifier(base_model, loss_type=loss_type, **kwargs)
         logger.info(f"Created ModernBERT with {loss_type} classifier")
+    elif model_type == "bert_core":
+        # Create new modular BERT core
+        model = create_bert_core(config=config, **kwargs)
+        logger.info("Created modular BertCore model")
+    elif model_type == "bert_with_head":
+        # Create BERT with attached head
+        num_labels = kwargs.pop("num_labels", 2)
+        freeze_bert = kwargs.pop("freeze_bert", False)
+        freeze_bert_layers = kwargs.pop("freeze_bert_layers", None)
+        
+        model = create_bert_with_head(
+            bert_config=config,
+            head_config=head_config,
+            head_type=head_type,
+            num_labels=num_labels,
+            freeze_bert=freeze_bert,
+            freeze_bert_layers=freeze_bert_layers,
+            **kwargs
+        )
+        logger.info(f"Created BertWithHead model (head_type: {head_type})")
     else:
         raise ValueError(f"Unknown model type: {model_type}")
 
@@ -697,3 +730,133 @@ analyze_dataset = analyze_competition_dataset
 
 # Legacy function names
 create_enhanced_classifier = create_kaggle_classifier
+
+
+# === NEW MODULAR BERT ARCHITECTURE FUNCTIONS ===
+
+def create_modular_bert(
+    pretrained_name: Optional[str] = None,
+    config: Optional[Union[ModernBertConfig, Dict]] = None,
+    **kwargs
+) -> BertCore:
+    """Create a modular BERT core model.
+    
+    Args:
+        pretrained_name: Optional pretrained model name
+        config: Optional configuration
+        **kwargs: Additional configuration parameters
+        
+    Returns:
+        BertCore model
+    """
+    return create_bert_core(model_name=pretrained_name, config=config, **kwargs)
+
+
+def create_bert_for_task(
+    task: Union[str, HeadType, CompetitionType],
+    pretrained_name: Optional[str] = None,
+    num_labels: int = 2,
+    freeze_bert: bool = False,
+    **kwargs
+) -> BertWithHead:
+    """Create a BERT model with appropriate head for a specific task.
+    
+    Args:
+        task: Task type (string, HeadType, or CompetitionType)
+        pretrained_name: Optional pretrained model name
+        num_labels: Number of output labels
+        freeze_bert: Whether to freeze BERT parameters
+        **kwargs: Additional arguments
+        
+    Returns:
+        BertWithHead model
+    """
+    # Convert task to HeadType if needed
+    if isinstance(task, str):
+        # Try to parse as HeadType first
+        try:
+            head_type = HeadType(task)
+        except ValueError:
+            # Try to parse as CompetitionType
+            try:
+                comp_type = CompetitionType(task)
+                # Map competition type to head type
+                comp_to_head_map = {
+                    CompetitionType.BINARY_CLASSIFICATION: HeadType.BINARY_CLASSIFICATION,
+                    CompetitionType.MULTICLASS_CLASSIFICATION: HeadType.MULTICLASS_CLASSIFICATION,
+                    CompetitionType.MULTILABEL_CLASSIFICATION: HeadType.MULTILABEL_CLASSIFICATION,
+                    CompetitionType.REGRESSION: HeadType.REGRESSION,
+                    CompetitionType.ORDINAL_REGRESSION: HeadType.ORDINAL_REGRESSION,
+                    CompetitionType.TIME_SERIES: HeadType.TIME_SERIES,
+                    CompetitionType.RANKING: HeadType.RANKING,
+                }
+                head_type = comp_to_head_map.get(comp_type, HeadType.BINARY_CLASSIFICATION)
+            except ValueError:
+                # Default to binary classification
+                logger.warning(f"Unknown task type: {task}, defaulting to binary classification")
+                head_type = HeadType.BINARY_CLASSIFICATION
+    elif isinstance(task, CompetitionType):
+        # Map competition type to head type
+        comp_to_head_map = {
+            CompetitionType.BINARY_CLASSIFICATION: HeadType.BINARY_CLASSIFICATION,
+            CompetitionType.MULTICLASS_CLASSIFICATION: HeadType.MULTICLASS_CLASSIFICATION,
+            CompetitionType.MULTILABEL_CLASSIFICATION: HeadType.MULTILABEL_CLASSIFICATION,
+            CompetitionType.REGRESSION: HeadType.REGRESSION,
+            CompetitionType.ORDINAL_REGRESSION: HeadType.ORDINAL_REGRESSION,
+            CompetitionType.TIME_SERIES: HeadType.TIME_SERIES,
+            CompetitionType.RANKING: HeadType.RANKING,
+        }
+        head_type = comp_to_head_map.get(task, HeadType.BINARY_CLASSIFICATION)
+    else:
+        head_type = task
+    
+    return create_bert_with_head(
+        bert_name=pretrained_name,
+        head_type=head_type,
+        num_labels=num_labels,
+        freeze_bert=freeze_bert,
+        **kwargs
+    )
+
+
+def create_bert_from_dataset(
+    dataset_path: Union[str, Path],
+    pretrained_name: Optional[str] = None,
+    auto_analyze: bool = True,
+    **kwargs
+) -> BertWithHead:
+    """Create a BERT model optimized for a specific dataset.
+    
+    Args:
+        dataset_path: Path to dataset file
+        pretrained_name: Optional pretrained model name  
+        auto_analyze: Whether to automatically analyze dataset
+        **kwargs: Additional arguments
+        
+    Returns:
+        BertWithHead model optimized for the dataset
+    """
+    if auto_analyze and DATASET_ANALYSIS_AVAILABLE:
+        # Analyze dataset
+        analysis = analyze_competition_dataset(dataset_path)
+        
+        # Get competition type
+        comp_type = analysis.competition_type
+        num_labels = analysis.num_classes or 2
+        
+        logger.info(f"Dataset analysis: {comp_type.value}, {num_labels} classes")
+        
+        # Create optimized model
+        return create_bert_for_competition(
+            competition_type=comp_type,
+            bert_name=pretrained_name,
+            num_labels=num_labels,
+            **kwargs
+        )
+    else:
+        # Default to binary classification
+        return create_bert_for_task(
+            task="binary_classification",
+            pretrained_name=pretrained_name,
+            **kwargs
+        )
