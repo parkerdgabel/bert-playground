@@ -1,0 +1,67 @@
+# House Prices Competition Configuration
+competition_id: house-prices-advanced-regression-techniques
+title: "House Prices - Advanced Regression Techniques"
+
+# Data configuration
+data:
+  train_file: train.csv
+  test_file: test.csv
+  sample_submission: sample_submission.csv
+  
+# Column specifications
+columns:
+  id: Id
+  target: SalePrice
+  features:
+    # Lot features
+    - MSSubClass
+    - MSZoning
+    - LotFrontage
+    - LotArea
+    - Street
+    - LotShape
+    - LandContour
+    - Utilities
+    - LotConfig
+    - LandSlope
+    - Neighborhood
+    - Condition1
+    - Condition2
+    - BldgType
+    - HouseStyle
+    # House features
+    - OverallQual
+    - OverallCond
+    - YearBuilt
+    - YearRemodAdd
+    - RoofStyle
+    - RoofMatl
+    # Many more features...
+
+# Submission configuration
+submission:
+  id_column: Id
+  target_column: SalePrice
+  format: csv
+  encoding: utf-8
+  
+# Evaluation configuration
+evaluation:
+  metric: rmse_log  # Root Mean Squared Logarithmic Error
+  higher_is_better: false
+  scoring_function: regression_rmse_log
+  
+# Model configuration suggestions
+model:
+  suggested_batch_size: 64
+  suggested_epochs: 20
+  suggested_lr: 1e-5
+  augmentation_enabled: false
+  task_type: regression
+  
+# Text template configuration
+text_template:
+  style: "structured"  # More structured for many features
+  include_missing: false
+  max_length: 512
+  group_features: true  # Group related features in text

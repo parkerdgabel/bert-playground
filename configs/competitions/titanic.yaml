@@ -1,0 +1,51 @@
+# Titanic Competition Configuration
+competition_id: titanic
+title: "Titanic - Machine Learning from Disaster"
+
+# Data configuration
+data:
+  train_file: train.csv
+  test_file: test.csv
+  sample_submission: gender_submission.csv
+  
+# Column specifications
+columns:
+  id: PassengerId
+  target: Survived
+  features:
+    - Pclass
+    - Name
+    - Sex
+    - Age
+    - SibSp
+    - Parch
+    - Ticket
+    - Fare
+    - Cabin
+    - Embarked
+
+# Submission configuration
+submission:
+  id_column: PassengerId
+  target_column: Survived
+  format: csv
+  encoding: utf-8
+  
+# Evaluation configuration
+evaluation:
+  metric: accuracy
+  higher_is_better: true
+  scoring_function: classification_accuracy
+  
+# Model configuration suggestions
+model:
+  suggested_batch_size: 32
+  suggested_epochs: 10
+  suggested_lr: 2e-5
+  augmentation_enabled: true
+  
+# Text template configuration
+text_template:
+  style: "narrative"  # narrative, factual, or structured
+  include_missing: true
+  max_length: 256

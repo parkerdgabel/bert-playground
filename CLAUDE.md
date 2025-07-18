@@ -274,6 +274,67 @@ uv run python train_titanic_v2.py --launch_mlflow
    uv run python mlx_bert_cli.py train --config configs/production.json
    ```
 
+## Kaggle Integration
+
+The project now includes comprehensive Kaggle competition integration with dedicated CLI commands:
+
+### Competition Management
+
+```bash
+# List active competitions
+uv run python mlx_bert_cli.py kaggle-competitions --limit 10
+
+# Filter by category or search
+uv run python mlx_bert_cli.py kaggle-competitions --category "tabular" --search "classification"
+
+# Download competition data
+uv run python mlx_bert_cli.py kaggle-download titanic --output data/titanic
+```
+
+### Submission Commands
+
+```bash
+# Submit predictions to Kaggle
+uv run python mlx_bert_cli.py kaggle-submit titanic submission.csv \
+    --message "MLX-BERT with attention heads" \
+    --checkpoint output/run_001/best_model
+
+# Auto-submit from checkpoint
+uv run python mlx_bert_cli.py kaggle-auto-submit titanic \
+    output/run_001/best_model \
+    data/titanic/test.csv
+```
+
+### Leaderboard & History
+
+```bash
+# View competition leaderboard
+uv run python mlx_bert_cli.py kaggle-leaderboard titanic --top 50
+
+# View your submission history
+uv run python mlx_bert_cli.py kaggle-history titanic --limit 20
+
+# Generate detailed submission report
+uv run python mlx_bert_cli.py kaggle-history titanic \
+    --report reports/titanic_submissions.json
+```
+
+### Dataset Management
+
+```bash
+# Search Kaggle datasets
+uv run python mlx_bert_cli.py kaggle-datasets --search "nlp classification"
+
+# Download specific dataset
+uv run python mlx_bert_cli.py kaggle-download-dataset username/dataset-name
+```
+
+### MLflow Integration
+All Kaggle submissions are automatically tracked in MLflow when active:
+- Submission scores logged as metrics
+- Submission files saved as artifacts
+- Competition metadata tracked as parameters
+
 ## Adding New Kaggle Datasets
 
 1. Create data converter in `data/` following `text_templates.py` pattern

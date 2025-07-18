@@ -1415,5 +1415,346 @@ def model_compare(
         raise typer.Exit(1)
 
 
+@app.command()
+def kaggle_competitions(
+    category: Optional[str] = typer.Option(None, "--category", "-c", help="Filter by category"),
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search competitions"),
+    sort_by: str = typer.Option("latestDeadline", "--sort", help="Sort by: latestDeadline, prize, numberOfTeams"),
+    limit: int = typer.Option(20, "--limit", "-l", help="Number of competitions to show"),
+):
+    """List active Kaggle competitions."""
+    from utils.kaggle_integration import KaggleIntegration
+    
+    try:
+        kaggle = KaggleIntegration()
+        competitions = kaggle.list_competitions(
+            category=category,
+            search=search,
+            sort_by=sort_by
+        )
+        
+        if competitions.empty:
+            console.print("[yellow]No competitions found[/yellow]")
+            return
+        
+        # Display competitions table
+        table = Table(title="Kaggle Competitions", show_header=True, header_style="bold magenta")
+        table.add_column("Competition", style="cyan", no_wrap=True)
+        table.add_column("Title", style="magenta")
+        table.add_column("Metric", style="green")
+        table.add_column("Teams", style="yellow", justify="right")
+        table.add_column("Deadline", style="red")
+        table.add_column("Reward", style="bold green")
+        
+        for _, comp in competitions.head(limit).iterrows():
+            # Extract competition ID from URL
+            comp_id = str(comp['id']).split('/')[-1] if '/' in str(comp['id']) else str(comp['id'])
+            
+            table.add_row(
+                comp_id,
+                str(comp['title']),
+                str(comp['evaluationMetric']),
+                str(comp['numTeams']),
+                str(comp['deadline'])[:10] if comp['deadline'] else 'N/A',
+                str(comp['reward']) if comp['reward'] else 'Knowledge'
+            )
+        
+        console.print(table)
+        
+    except Exception as e:
+        console.print(f"[red]Error listing competitions: {e}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command()
+def kaggle_download(
+    competition: str = typer.Argument(..., help="Competition ID (e.g., titanic)"),
+    output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output directory"),
+    unzip: bool = typer.Option(True, "--unzip/--no-unzip", help="Unzip downloaded files"),
+):
+    """Download competition data from Kaggle."""
+    from utils.kaggle_integration import KaggleIntegration
+    
+    try:
+        kaggle = KaggleIntegration()
+        output_path = kaggle.download_competition_data(
+            competition_id=competition,
+            path=output_dir,
+            unzip=unzip
+        )
+        
+        console.print(f"[green]✓ Downloaded competition data to {output_path}[/green]")
+        
+        # List downloaded files
+        files = list(output_path.glob("*"))
+        if files:
+            console.print(f"\n[bold]Downloaded files:[/bold]")
+            for file in files:
+                size_mb = file.stat().st_size / (1024 * 1024)
+                console.print(f"  • {file.name} ({size_mb:.1f} MB)")
+        
+    except Exception as e:
+        console.print(f"[red]Error downloading competition data: {e}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command()
+def kaggle_submit(
+    competition: str = typer.Argument(..., help="Competition ID (e.g., titanic)"),
+    submission_file: Path = typer.Argument(..., help="Path to submission CSV file"),
+    message: str = typer.Option("Submission from MLX-BERT CLI", "--message", "-m", help="Submission message"),
+    checkpoint: Optional[Path] = typer.Option(None, "--checkpoint", help="Associated model checkpoint"),
+):
+    """Submit predictions to a Kaggle competition."""
+    from utils.kaggle_integration import KaggleIntegration
+    import mlflow
+    
+    try:
+        if not submission_file.exists():
+            console.print(f"[red]Submission file not found: {submission_file}[/red]")
+            raise typer.Exit(1)
+        
+        # Setup MLflow if checkpoint is provided
+        if checkpoint and checkpoint.exists():
+            setup_central_mlflow()
+            mlflow.set_experiment(f"kaggle_{competition}")
+            mlflow.start_run()
+            mlflow.log_artifact(str(checkpoint), "model")
+        
+        kaggle = KaggleIntegration()
+        
+        with console.status(f"Submitting to {competition}..."):
+            result = kaggle.submit_predictions(
+                competition_id=competition,
+                submission_file=submission_file,
+                message=message,
+                track_with_mlflow=mlflow.active_run() is not None
+            )
+        
+        console.print(f"[green]✓ Successfully submitted to {competition}![/green]")
+        console.print(f"[cyan]Message: {result['message']}[/cyan]")
+        console.print(f"[cyan]Time: {result['submission_time']:.2f}s[/cyan]")
+        
+        if result.get('score') is not None:
+            console.print(f"[bold green]Public Score: {result['score']}[/bold green]")
+        
+        if mlflow.active_run():
+            mlflow.end_run()
+            
+    except Exception as e:
+        console.print(f"[red]Error submitting to Kaggle: {e}[/red]")
+        if mlflow.active_run():
+            mlflow.end_run()
+        raise typer.Exit(1)
+
+
+@app.command()
+def kaggle_leaderboard(
+    competition: str = typer.Argument(..., help="Competition ID (e.g., titanic)"),
+    top_n: int = typer.Option(20, "--top", "-t", help="Number of top entries to show"),
+    save: Optional[Path] = typer.Option(None, "--save", "-s", help="Save leaderboard to file"),
+):
+    """View competition leaderboard."""
+    from utils.kaggle_integration import KaggleIntegration
+    
+    try:
+        kaggle = KaggleIntegration()
+        
+        # Display leaderboard
+        kaggle.display_leaderboard(competition, top_n=top_n)
+        
+        # Save if requested
+        if save:
+            leaderboard = kaggle.get_leaderboard(competition)
+            if leaderboard is not None:
+                save.parent.mkdir(parents=True, exist_ok=True)
+                leaderboard.to_csv(save, index=False)
+                console.print(f"\n[green]Leaderboard saved to {save}[/green]")
+        
+    except Exception as e:
+        console.print(f"[red]Error fetching leaderboard: {e}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command()
+def kaggle_history(
+    competition: str = typer.Argument(..., help="Competition ID (e.g., titanic)"),
+    limit: int = typer.Option(10, "--limit", "-l", help="Number of submissions to show"),
+    report: Optional[Path] = typer.Option(None, "--report", "-r", help="Generate detailed report"),
+):
+    """View submission history for a competition."""
+    from utils.kaggle_integration import KaggleIntegration
+    
+    try:
+        kaggle = KaggleIntegration()
+        
+        # Get submission history
+        submissions = kaggle.get_submissions_history(competition, limit=limit)
+        
+        if submissions.empty:
+            console.print("[yellow]No submissions found[/yellow]")
+            return
+        
+        # Display submissions table
+        table = Table(title=f"Submission History: {competition}")
+        table.add_column("Date", style="cyan")
+        table.add_column("Description", style="magenta", width=40)
+        table.add_column("Public Score", style="green")
+        table.add_column("Private Score", style="yellow")
+        table.add_column("Status", style="blue")
+        
+        for _, sub in submissions.iterrows():
+            table.add_row(
+                str(sub['date'])[:19],
+                sub['description'][:40] + '...' if len(str(sub['description'])) > 40 else str(sub['description']),
+                str(sub['publicScore']) if sub['publicScore'] is not None else 'N/A',
+                str(sub['privateScore']) if sub['privateScore'] is not None else 'N/A',
+                sub['status']
+            )
+        
+        console.print(table)
+        
+        # Generate report if requested
+        if report:
+            report_data = kaggle.create_submission_report(competition, output_file=report)
+            console.print(f"\n[green]Report saved to {report}[/green]")
+            console.print(f"[cyan]Total submissions: {report_data['total_submissions']}[/cyan]")
+            if report_data['best_public_score'] is not None:
+                console.print(f"[bold green]Best public score: {report_data['best_public_score']}[/bold green]")
+        
+    except Exception as e:
+        console.print(f"[red]Error fetching submission history: {e}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command()
+def kaggle_datasets(
+    search: Optional[str] = typer.Option(None, "--search", "-s", help="Search datasets"),
+    tag: Optional[str] = typer.Option(None, "--tag", "-t", help="Filter by tag"),
+    user: Optional[str] = typer.Option(None, "--user", "-u", help="Filter by user"),
+    sort_by: str = typer.Option("votes", "--sort", help="Sort by: votes, updated, size"),
+    limit: int = typer.Option(20, "--limit", "-l", help="Number of datasets to show"),
+):
+    """List Kaggle datasets."""
+    from utils.kaggle_integration import KaggleIntegration, KaggleDatasetManager
+    
+    try:
+        kaggle = KaggleIntegration()
+        dataset_manager = KaggleDatasetManager(kaggle.api)
+        
+        datasets = dataset_manager.list_datasets(
+            search=search,
+            tag=tag,
+            user=user,
+            sort_by=sort_by
+        )
+        
+        if datasets.empty:
+            console.print("[yellow]No datasets found[/yellow]")
+            return
+        
+        # Display datasets table
+        table = Table(title="Kaggle Datasets")
+        table.add_column("Reference", style="cyan", no_wrap=True)
+        table.add_column("Title", style="magenta", width=50)
+        table.add_column("Size", style="green")
+        table.add_column("Downloads", style="yellow")
+        table.add_column("Votes", style="blue")
+        table.add_column("Updated", style="red")
+        
+        for _, ds in datasets.head(limit).iterrows():
+            table.add_row(
+                ds['ref'],
+                ds['title'][:50] + '...' if len(ds['title']) > 50 else ds['title'],
+                ds['size'],
+                str(ds['downloadCount']),
+                str(ds['voteCount']),
+                str(ds['lastUpdated'])[:10]
+            )
+        
+        console.print(table)
+        
+    except Exception as e:
+        console.print(f"[red]Error listing datasets: {e}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command()
+def kaggle_auto_submit(
+    competition: str = typer.Argument(..., help="Competition ID (e.g., titanic)"),
+    checkpoint: Path = typer.Argument(..., help="Model checkpoint directory"),
+    test_data: Path = typer.Argument(..., help="Test data CSV file"),
+    config: Optional[Path] = typer.Option(None, "--config", "-c", help="Competition config file"),
+    message_template: str = typer.Option("Auto-submission: {model_name} - Score: {val_score:.4f}", "--template", help="Message template"),
+):
+    """Automatically generate and submit predictions from a checkpoint."""
+    from utils.kaggle_integration import KaggleIntegration, CompetitionConfig
+    from utils.evaluation import ModelEvaluator
+    import yaml
+    
+    try:
+        if not checkpoint.exists():
+            console.print(f"[red]Checkpoint not found: {checkpoint}[/red]")
+            raise typer.Exit(1)
+        
+        if not test_data.exists():
+            console.print(f"[red]Test data not found: {test_data}[/red]")
+            raise typer.Exit(1)
+        
+        # Load competition config
+        comp_config = CompetitionConfig(competition, config)
+        
+        # Generate predictions
+        console.print(f"[cyan]Generating predictions from {checkpoint}...[/cyan]")
+        
+        # Load model info
+        model_info_path = checkpoint / "model_info.json"
+        if model_info_path.exists():
+            with open(model_info_path, 'r') as f:
+                model_info = json.load(f)
+        else:
+            model_info = {"model_name": "MLX-BERT", "val_accuracy": 0.0}
+        
+        # Create evaluator and generate predictions
+        evaluator = ModelEvaluator(
+            model_dir=checkpoint,
+            config_path=config
+        )
+        
+        submission_path = checkpoint.parent / f"submission_{competition}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        evaluator.create_submission(
+            test_csv_path=test_data,
+            submission_path=submission_path,
+            id_column=comp_config.id_column,
+            target_column=comp_config.target_column
+        )
+        
+        # Prepare submission message
+        message = message_template.format(
+            model_name=model_info.get("model_name", "MLX-BERT"),
+            val_score=model_info.get("val_accuracy", 0.0),
+            timestamp=datetime.now().strftime("%Y-%m-%d %H:%M")
+        )
+        
+        # Submit to Kaggle
+        kaggle = KaggleIntegration()
+        result = kaggle.submit_predictions(
+            competition_id=competition,
+            submission_file=submission_path,
+            message=message
+        )
+        
+        console.print(f"[green]✓ Auto-submission complete![/green]")
+        console.print(f"[cyan]Submission file: {submission_path}[/cyan]")
+        console.print(f"[cyan]Message: {message}[/cyan]")
+        
+        if result.get('score') is not None:
+            console.print(f"[bold green]Public Score: {result['score']}[/bold green]")
+        
+    except Exception as e:
+        console.print(f"[red]Error in auto-submission: {e}[/red]")
+        raise typer.Exit(1)
+
+
 if __name__ == "__main__":
     app()

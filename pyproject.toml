@@ -9,12 +9,12 @@ description = "MLX-based ModernBERT implementation for Kaggle competitions"
 readme = "README.md"
 requires-python = ">=3.10,<3.11"
 dependencies = [
-    "mlx>=0.22.0,<0.25.0",  # Revert to version that works with dependencies
+    "mlx>=0.22.0,<0.25.0", # Revert to version that works with dependencies
     "mlx-data>=0.0.7",
     "mlx-lm>=0.20.0",
-    "mlx-vlm>=0.1.21,<0.4.0",  # Compatible with mlx-embeddings
+    "mlx-vlm>=0.1.21,<0.4.0", # Compatible with mlx-embeddings
     "mlx-embeddings @ git+https://github.com/Blaizzy/mlx-embeddings.git",
-    "numba>=0.57.0",  # Force newer numba that supports Python 3.10
+    "numba>=0.57.0", # Force newer numba that supports Python 3.10
     "transformers[sentencepiece]>=4.44.0",
     "pandas>=2.2.0",
     "numpy>=1.26.0",
