@@ -8,9 +8,9 @@ from pathlib import Path
 
 # Import command groups
 from .commands.core import app as core_app
-from .commands.kaggle import app as kaggle_app
-from .commands.mlflow import app as mlflow_app
-from .commands.models import app as models_app
+from .commands.kaggle import kaggle_app
+# from .commands.mlflow import app as mlflow_app
+# from .commands.models import app as models_app
 
 # Initialize the main app
 app = typer.Typer(
@@ -26,8 +26,8 @@ app = typer.Typer(
 # Add command groups
 app.add_typer(core_app, name="train", help="Train BERT models")
 app.add_typer(kaggle_app, name="kaggle", help="Kaggle competition workflows")
-app.add_typer(mlflow_app, name="mlflow", help="MLflow experiment tracking")
-app.add_typer(models_app, name="model", help="Model management and serving")
+# app.add_typer(mlflow_app, name="mlflow", help="MLflow experiment tracking")
+# app.add_typer(models_app, name="model", help="Model management and serving")
 
 # Global options
 console = Console()
@@ -63,32 +63,32 @@ app.command(name="predict", help="Generate predictions")(predict_command)
 app.command(name="benchmark", help="Run performance benchmarks")(benchmark_command)
 app.command(name="info", help="Show system information")(info_command)
 
-# Additional root-level commands
-@app.command()
-def init(
-    name: str = typer.Argument("my-bert-project", help="Project name"),
-    template: str = typer.Option("default", help="Project template to use"),
-    force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing files"),
-):
-    """Initialize a new BERT project with best practices."""
-    from .commands.core.init import init_project
-    init_project(name, template, force)
+# Additional root-level commands (to be implemented)
+# @app.command()
+# def init(
+#     name: str = typer.Argument("my-bert-project", help="Project name"),
+#     template: str = typer.Option("default", help="Project template to use"),
+#     force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing files"),
+# ):
+#     """Initialize a new BERT project with best practices."""
+#     from .commands.core.init import init_project
+#     init_project(name, template, force)
 
-@app.command()
-def config(
-    action: str = typer.Argument(..., help="Action: init, validate, show, edit"),
-    config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file path"),
-    interactive: bool = typer.Option(False, "--interactive", "-i", help="Interactive mode"),
-):
-    """Manage project configuration."""
-    from .commands.core.config import config_command
-    config_command(action, config_path, interactive)
+# @app.command()
+# def config(
+#     action: str = typer.Argument(..., help="Action: init, validate, show, edit"),
+#     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file path"),
+#     interactive: bool = typer.Option(False, "--interactive", "-i", help="Interactive mode"),
+# ):
+#     """Manage project configuration."""
+#     from .commands.core.config import config_command
+#     config_command(action, config_path, interactive)
 
-@app.command()
-def interactive():
-    """Start interactive CLI mode."""
-    from .commands.core.interactive import interactive_mode
-    interactive_mode()
+# @app.command()
+# def interactive():
+#     """Start interactive CLI mode."""
+#     from .commands.core.interactive import interactive_mode
+#     interactive_mode()
 
 if __name__ == "__main__":
     app()

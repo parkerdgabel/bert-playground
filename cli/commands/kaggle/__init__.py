@@ -1,27 +1,30 @@
-"""Kaggle integration commands."""
+"""Kaggle competition integration commands."""
 
-import typer
+from typer import Typer
 
-# Create the kaggle commands app
-app = typer.Typer(
-    help="Kaggle competition workflows",
+from .competitions import competitions_command
+from .datasets import datasets_command  
+from .submit import submit_command, auto_submit_command
+from .leaderboard import leaderboard_command
+from .history import history_command
+from .download import download_competition_command, download_dataset_command
+
+# Create Kaggle sub-app
+kaggle_app = Typer(
+    name="kaggle",
+    help="Kaggle competition integration commands",
     no_args_is_help=True,
+    rich_markup_mode="rich"
 )
 
-# Import and register subcommands
-from .competitions import competitions_app
-from .submissions import submissions_app
-from .datasets import datasets_app
+# Register commands with improved names
+kaggle_app.command("competitions", help="List and search Kaggle competitions")(competitions_command)
+kaggle_app.command("datasets", help="List and search Kaggle datasets")(datasets_command)
+kaggle_app.command("download", help="Download competition data")(download_competition_command)
+kaggle_app.command("download-dataset", help="Download a specific dataset")(download_dataset_command)
+kaggle_app.command("submit", help="Submit predictions to a competition")(submit_command)
+kaggle_app.command("auto-submit", help="Generate and submit predictions automatically")(auto_submit_command)
+kaggle_app.command("leaderboard", help="View competition leaderboard")(leaderboard_command)
+kaggle_app.command("history", help="View your submission history")(history_command)
 
-app.add_typer(competitions_app, name="competitions", help="Manage competitions")
-app.add_typer(submissions_app, name="submit", help="Submit predictions") 
-app.add_typer(datasets_app, name="datasets", help="Manage datasets")
-
-# Direct commands at kaggle level
-from .download import download_command
-from .leaderboard import leaderboard_command
-
-app.command(name="download")(download_command)
-app.command(name="leaderboard")(leaderboard_command)
-
-__all__ = ["app"]
+__all__ = ["kaggle_app"]
