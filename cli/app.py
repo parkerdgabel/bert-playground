@@ -9,7 +9,7 @@ from pathlib import Path
 # Import command groups
 from .commands.core import app as core_app
 from .commands.kaggle import kaggle_app
-# from .commands.mlflow import app as mlflow_app
+from .commands.mlflow import mlflow_app
 # from .commands.models import app as models_app
 
 # Initialize the main app
@@ -26,7 +26,7 @@ app = typer.Typer(
 # Add command groups
 app.add_typer(core_app, name="train", help="Train BERT models")
 app.add_typer(kaggle_app, name="kaggle", help="Kaggle competition workflows")
-# app.add_typer(mlflow_app, name="mlflow", help="MLflow experiment tracking")
+app.add_typer(mlflow_app, name="mlflow", help="MLflow experiment tracking")
 # app.add_typer(models_app, name="model", help="Model management and serving")
 
 # Global options

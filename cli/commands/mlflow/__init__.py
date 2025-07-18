@@ -1,25 +1,30 @@
-"""MLflow management commands."""
+"""MLflow experiment tracking and management commands."""
 
-import typer
+from typer import Typer
 
-# Create the mlflow commands app
-app = typer.Typer(
-    help="MLflow experiment tracking and model registry",
+from .server import server_command, restart_command
+from .experiments import list_experiments_command, clean_command
+from .runs import list_runs_command
+from .health import health_command
+from .dashboard import dashboard_command
+from .test import test_command
+
+# Create MLflow sub-app
+mlflow_app = Typer(
+    name="mlflow",
+    help="MLflow experiment tracking and management",
     no_args_is_help=True,
+    rich_markup_mode="rich"
 )
 
-# Import commands
-from .server import server_command
-from .experiments import experiments_command
-from .runs import runs_command
-from .ui import ui_command
-from .health import health_command
+# Register commands with improved organization
+mlflow_app.command("server", help="Start MLflow tracking server")(server_command)
+mlflow_app.command("restart", help="Restart MLflow server")(restart_command)
+mlflow_app.command("health", help="Check MLflow health and configuration")(health_command)
+mlflow_app.command("experiments", help="List experiments")(list_experiments_command)
+mlflow_app.command("runs", help="List runs for an experiment")(list_runs_command)
+mlflow_app.command("clean", help="Clean up experiments and runs")(clean_command)
+mlflow_app.command("dashboard", help="Launch real-time monitoring dashboard")(dashboard_command)
+mlflow_app.command("test", help="Run comprehensive MLflow test suite")(test_command)
 
-# Register commands
-app.command(name="server")(server_command)
-app.command(name="experiments")(experiments_command)
-app.command(name="runs")(runs_command)
-app.command(name="ui")(ui_command)
-app.command(name="health")(health_command)
-
-__all__ = ["app"]
+__all__ = ["mlflow_app"]
