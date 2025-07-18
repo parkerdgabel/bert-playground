@@ -9,7 +9,7 @@ import pickle
 import hashlib
 import shutil
 from pathlib import Path
-from typing import Dict, Any, Optional, Union, List, Callable
+from typing import Dict, Any, Optional, Union, List, Callable, Tuple
 import numpy as np
 import mlx.core as mx
 from loguru import logger

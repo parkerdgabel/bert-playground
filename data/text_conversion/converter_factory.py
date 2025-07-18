@@ -2,7 +2,7 @@
 Factory for creating text converters with registration system.
 """
 
-from typing import Dict, Any, Type, Optional, Union, Callable
+from typing import Dict, Any, Type, Optional, Union, Callable, List
 from pathlib import Path
 import json
 from loguru import logger

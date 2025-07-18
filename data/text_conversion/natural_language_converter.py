@@ -2,7 +2,7 @@
 Natural language text converter with context-aware generation.
 """
 
-from typing import Dict, Any, List, Optional, Tuple, Union
+from typing import Dict, Any, List, Optional, Tuple, Union, Callable
 from dataclasses import dataclass, field
 import random
 from loguru import logger

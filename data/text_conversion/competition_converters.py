@@ -50,26 +50,26 @@ class TitanicConverter(TemplateConverter):
         # Set up Titanic-specific templates
         config.templates = [
             # Basic template
-            "A {age_desc} {sex} passenger traveling in {class_desc} class. "
-            "{family_desc} {fare_desc} {embark_desc}",
+            "A $age_desc $sex passenger traveling in $class_desc class. "
+            "$family_desc $fare_desc $embark_desc",
             
             # Narrative style
-            "{name_info} was a {age_desc} {sex} who boarded the Titanic {embark_desc}. "
-            "Traveling in {class_desc} class, {pronoun} paid ${fare} for the journey. {family_desc}",
+            "$name_info was a $age_desc $sex who boarded the Titanic $embark_desc. "
+            "Traveling in $class_desc class, $pronoun paid $$$fare for the journey. $family_desc",
             
             # Descriptive style
-            "Passenger details: {sex}, {age} years old, {class_desc} class ticket. "
-            "Embarked from {embarked_full}. {family_desc} Fare paid: ${fare}.",
+            "Passenger details: $sex, $age years old, $class_desc class ticket. "
+            "Embarked from $embarked_full. $family_desc Fare paid: $$$fare.",
         ]
         
         config.augmentation_templates = [
             # Story style
-            "On that fateful voyage, {a_an} {age_desc} {sex} {embark_desc} "
-            "with a {class_desc} class ticket costing ${fare}. {family_desc}",
+            "On that fateful voyage, $a_an $age_desc $sex $embark_desc "
+            "with a $class_desc class ticket costing $$$fare. $family_desc",
             
             # Report style
-            "Record shows: {sex} passenger, age {age}, {class_desc} class. "
-            "Boarding location: {embarked_full}. Family status: {family_desc}",
+            "Record shows: $sex passenger, age $age, $class_desc class. "
+            "Boarding location: $embarked_full. Family status: $family_desc",
         ]
         
         # Custom formatters
@@ -238,19 +238,19 @@ class SpaceshipTitanicConverter(TemplateConverter):
         
         # Set up templates
         config.templates = [
-            "Passenger {passenger_id} is {demographics}, traveling to {destination}. "
-            "{cryo_status} {vip_status} Cabin: {cabin}. {spending_summary}",
+            "Passenger $passenger_id is $demographics, traveling to $destination. "
+            "$cryo_status $vip_status Cabin: $cabin. $spending_summary",
             
-            "Record for {passenger_id}: {age} year old from {home_planet}, "
-            "destination {destination}. {facilities_usage} Total spent: ${total_spent}.",
+            "Record for $passenger_id: $age year old from $home_planet, "
+            "destination $destination. $facilities_usage Total spent: $$$total_spent.",
         ]
         
         config.augmentation_templates = [
-            "{passenger_id} - {home_planet} resident, age {age}. "
-            "Journey to {destination}. {cryo_status} {spending_details}",
+            "$passenger_id - $home_planet resident, age $age. "
+            "Journey to $destination. $cryo_status $spending_details",
             
-            "Spaceship passenger {passenger_id}: {demographics}. "
-            "{vip_status} {facilities_summary} Cabin location: {cabin}.",
+            "Spaceship passenger $passenger_id: $demographics. "
+            "$vip_status $facilities_summary Cabin location: $cabin.",
         ]
         
         # Custom formatters
