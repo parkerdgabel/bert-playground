@@ -1,6 +1,5 @@
 cli
 data
-embeddings
 models
 training
 utils

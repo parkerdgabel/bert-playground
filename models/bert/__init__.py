@@ -30,6 +30,11 @@ from .core import (
     create_neobert_core,
     create_neobert_mini,
 )
+from .core_base import (
+    BaseBertModel,
+    BertLayer,
+    BertModelOutput,
+)
 from .model import (
     BertWithHead,
     create_bert_for_competition,
@@ -48,6 +53,10 @@ __all__ = [
     # Configuration
     "BertConfig",
     "ModernBertConfig",
+    # Base classes
+    "BaseBertModel",
+    "BertModelOutput",
+    "BertLayer",
     # Core classes
     "BertCore",
     "BertOutput",

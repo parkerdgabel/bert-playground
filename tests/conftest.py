@@ -11,11 +11,8 @@ import pandas as pd
 import pytest
 from loguru import logger
 
-from models.factory import create_model
-from models.classification import TitanicClassifier
-from training.mlx_trainer import MLXTrainer
-from training.config import TrainingConfig
-from utils.mlflow_central import MLflowCentral
+from models.factory import create_bert_with_head
+from models.bert import BertConfig
 
 
 @pytest.fixture(autouse=True)
@@ -98,32 +95,17 @@ def sample_test_data(temp_dir: Path) -> Path:
 @pytest.fixture
 def base_model():
     """Create a base ModernBERT model for testing."""
-    return create_model("standard")
-
-
-@pytest.fixture
-def titanic_classifier(base_model):
-    """Create a TitanicClassifier for testing."""
-    return TitanicClassifier(base_model)
-
-
-@pytest.fixture
-def training_config(temp_dir: Path) -> TrainingConfig:
-    """Create a minimal training configuration for testing."""
-    return TrainingConfig(
-        learning_rate=2e-5,
-        epochs=1,
-        batch_size=4,
-        output_dir=str(temp_dir / "output")
+    config = BertConfig(
+        hidden_size=768,
+        num_hidden_layers=12,
+        num_attention_heads=12,
+        intermediate_size=3072,
+        vocab_size=50265,
     )
-
-
-@pytest.fixture
-def mlx_trainer(titanic_classifier, training_config) -> MLXTrainer:
-    """Create an MLXTrainer instance for testing."""
-    return MLXTrainer(
-        model=titanic_classifier,
-        config=training_config,
+    return create_bert_with_head(
+        bert_config=config,
+        head_type="binary_classification",
+        num_labels=2
     )
 
 
@@ -133,11 +115,12 @@ def mock_mlflow_central(temp_dir: Path, monkeypatch):
     tracking_uri = f"sqlite:///{temp_dir}/test_mlflow.db"
     artifact_root = str(temp_dir / "artifacts")
     
-    # Patch the class attributes
-    monkeypatch.setattr(MLflowCentral, "TRACKING_URI", tracking_uri)
-    monkeypatch.setattr(MLflowCentral, "ARTIFACT_ROOT", artifact_root)
+    # Return a simple mock object
+    class MockMLflowCentral:
+        TRACKING_URI = tracking_uri
+        ARTIFACT_ROOT = artifact_root
     
-    return MLflowCentral()
+    return MockMLflowCentral()
 
 
 @pytest.fixture

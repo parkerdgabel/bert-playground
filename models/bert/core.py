@@ -566,6 +566,29 @@ class ModernBertCore(BaseBertModel):
 
         return bert_output
 
+    def __call__(
+        self,
+        input_ids: mx.array,
+        attention_mask: mx.array | None = None,
+        token_type_ids: mx.array | None = None,
+        position_ids: mx.array | None = None,
+        output_attentions: bool = False,
+        output_hidden_states: bool = False,
+        compute_pooling: bool = True,
+        training: bool = True,
+    ) -> BertModelOutput:
+        """Make ModernBertCore callable by delegating to forward."""
+        return self.forward(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            compute_pooling=compute_pooling,
+            training=training,
+        )
+
     def get_attention_pattern(self) -> list[str]:
         """Get the attention pattern for all layers."""
         pattern = []
