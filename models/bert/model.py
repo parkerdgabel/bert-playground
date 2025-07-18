@@ -6,14 +6,17 @@ with task-specific heads for Kaggle competitions.
 
 import mlx.core as mx
 import mlx.nn as nn
-from typing import Dict, Optional, Union, Any, Type
+from typing import Dict, Optional, Union, Any, Type, Tuple
 from pathlib import Path
 import json
 from loguru import logger
 
 from .core import BertCore, BertOutput, ModernBertConfig
 from ..heads.base_head import BaseKaggleHead, HeadConfig, HeadType, PoolingType
-from ..heads.head_registry import HeadRegistry, CompetitionType
+from ..heads.head_registry import HeadRegistry, CompetitionType, get_head_registry
+
+# Import all head modules to trigger registration
+from ..heads import classification_heads, regression_heads  # This triggers the decorators
 
 
 class BertWithHead(nn.Module):
@@ -64,6 +67,31 @@ class BertWithHead(nn.Module):
                 f"BERT hidden size ({bert_hidden_size}) does not match "
                 f"head input size ({head_input_size})"
             )
+    
+    def __call__(
+        self,
+        input_ids: mx.array,
+        attention_mask: Optional[mx.array] = None,
+        token_type_ids: Optional[mx.array] = None,
+        position_ids: Optional[mx.array] = None,
+        labels: Optional[mx.array] = None,
+        output_attentions: bool = False,
+        output_hidden_states: bool = False,
+        return_dict: bool = True,
+        **kwargs
+    ) -> Union[Dict[str, mx.array], Tuple[mx.array, ...]]:
+        """Make BertWithHead callable."""
+        return self.forward(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            labels=labels,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+            **kwargs
+        )
     
     def forward(
         self,
@@ -204,8 +232,14 @@ class BertWithHead(nn.Module):
         
         # Save head config
         head_config = self.head.get_config()
+        # Convert enums to values for JSON serialization
+        config_dict = head_config.__dict__.copy()
+        config_dict["head_type"] = head_config.head_type.value
+        config_dict["pooling_type"] = head_config.pooling_type.value
+        config_dict["activation"] = head_config.activation.value
+        
         with open(head_path / "config.json", "w") as f:
-            json.dump(head_config.__dict__, f, indent=2, default=str)
+            json.dump(config_dict, f, indent=2)
         
         # Save head weights
         from mlx.utils import tree_flatten
@@ -214,10 +248,23 @@ class BertWithHead(nn.Module):
         mx.save_safetensors(str(head_path / "model.safetensors"), head_weights)
         
         # Save model metadata
+        # Find the registered name for this head class
+        registry = get_head_registry()
+        head_name = None
+        for name, spec in registry._heads.items():
+            if spec.head_class == self.head.__class__:
+                head_name = name
+                break
+        
+        if head_name is None:
+            # Fallback to class name
+            head_name = self.head.__class__.__name__
+        
         metadata = {
             "model_type": "BertWithHead",
             "bert_type": self.bert.__class__.__name__,
-            "head_type": self.head.__class__.__name__,
+            "head_type": head_name,
+            "head_class_name": self.head.__class__.__name__,
             "head_config_type": head_config.head_type.value,
         }
         
@@ -264,7 +311,7 @@ class BertWithHead(nn.Module):
         head_config = HeadConfig(**head_config_dict)
         
         # Get head class from registry
-        registry = HeadRegistry()
+        registry = get_head_registry()  # Use global registry
         head_class = registry.get_head_class(metadata["head_type"])
         
         # Create head
@@ -335,8 +382,20 @@ def create_bert_with_head(
         head_config = HeadConfig(**head_config)
     
     # Get head class from registry
-    registry = HeadRegistry()
-    head_class = registry.get_head_class_by_type(head_config.head_type)
+    registry = get_head_registry()  # Use global registry
+    
+    # We need to find a head that matches the head type
+    # First, get all heads for this type
+    head_names = []
+    for name, spec in registry._heads.items():
+        if spec.head_type == head_config.head_type:
+            head_names.append(name)
+    
+    if not head_names:
+        raise ValueError(f"No head found for type {head_config.head_type}")
+    
+    # Use the first one (highest priority)
+    head_class = registry.get_head_class(head_names[0])
     
     # Create head
     head = head_class(head_config)
@@ -382,20 +441,14 @@ def create_bert_for_competition(
         bert = BertCore(ModernBertConfig())
     
     # Get best head for competition
-    registry = HeadRegistry()
-    head_class = registry.get_best_head_for_competition(competition_type)
+    registry = get_head_registry()  # Use global registry
     
-    # Get optimized config for competition
-    from ..heads.base_head import get_default_config_for_head_type
-    head_info = registry.get_head_info(head_class.__name__.lower())
-    head_config = get_default_config_for_head_type(
-        head_info["head_type"],
+    # Create head using the registry's method
+    head = registry.create_head_from_competition(
+        competition_type=competition_type,
         input_size=bert.get_hidden_size(),
         output_size=num_labels
     )
-    
-    # Create head
-    head = head_class(head_config)
     
     # Create model
     return BertWithHead(bert=bert, head=head, **kwargs)

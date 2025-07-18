@@ -111,6 +111,29 @@ class BertCore(nn.Module):
         logger.info(f"Initialized BertCore with config: hidden_size={config.hidden_size}, "
                    f"num_layers={config.num_hidden_layers}, num_heads={config.num_attention_heads}")
     
+    def __call__(
+        self,
+        input_ids: mx.array,
+        attention_mask: Optional[mx.array] = None,
+        token_type_ids: Optional[mx.array] = None,
+        position_ids: Optional[mx.array] = None,
+        output_attentions: bool = False,
+        output_hidden_states: bool = False,
+        compute_pooling: bool = True,
+        training: bool = True,
+    ) -> BertOutput:
+        """Make BertCore callable."""
+        return self.forward(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            compute_pooling=compute_pooling,
+            training=training,
+        )
+    
     def forward(
         self,
         input_ids: mx.array,

@@ -224,6 +224,19 @@ class BaseKaggleHead(nn.Module, ABC):
             # Fallback to CLS token
             return hidden_states[:, 0, :]
     
+    def __call__(self, hidden_states: mx.array, attention_mask: Optional[mx.array] = None, **kwargs) -> Dict[str, mx.array]:
+        """Make the head callable.
+        
+        Args:
+            hidden_states: Input hidden states from BERT
+            attention_mask: Optional attention mask
+            **kwargs: Additional arguments
+            
+        Returns:
+            Dictionary containing predictions and additional outputs
+        """
+        return self.forward(hidden_states, attention_mask, **kwargs)
+    
     @abstractmethod
     def forward(self, hidden_states: mx.array, attention_mask: Optional[mx.array] = None, **kwargs) -> Dict[str, mx.array]:
         """Forward pass through the head.
