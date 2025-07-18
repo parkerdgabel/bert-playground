@@ -18,13 +18,19 @@ from enum import Enum
 from dataclasses import dataclass
 import numpy as np
 
-# Import only BERT config
+# Import BERT configs and classes
 from .bert import BertConfig
 
-# Import new modular BERT architecture
+# Import Classic BERT architecture
 from .bert import (
     BertCore, BertWithHead, BertOutput,
     create_bert_core, create_bert_with_head, create_bert_for_competition
+)
+
+# Import ModernBERT architecture
+from .bert import (
+    ModernBertConfig, ModernBertCore,
+    create_modernbert_core, create_modernbert_base, create_modernbert_large
 )
 from .heads.base_head import HeadType, HeadConfig
 from .heads.head_registry import HeadRegistry
@@ -47,7 +53,7 @@ except ImportError:
     logger.warning("Dataset analysis not available")
 
 
-ModelType = Literal["bert_core", "bert_with_head"]
+ModelType = Literal["bert_core", "bert_with_head", "modernbert_core", "modernbert_with_head"]
 
 
 class CompetitionType(Enum):
@@ -101,7 +107,7 @@ class CompetitionAnalysis:
 
 def create_model(
     model_type: ModelType = "bert_with_head",
-    config: Optional[Union[Dict[str, Any], BertConfig]] = None,
+    config: Optional[Union[Dict[str, Any], BertConfig, ModernBertConfig]] = None,
     pretrained_path: Optional[Union[str, Path]] = None,
     head_type: Optional[Union[HeadType, str]] = None,
     head_config: Optional[Union[HeadConfig, Dict]] = None,
@@ -111,29 +117,54 @@ def create_model(
     Create a model based on type and configuration.
 
     Args:
-        model_type: Type of model to create ("bert_core", "bert_with_head")
+        model_type: Type of model to create ("bert_core", "bert_with_head", "modernbert_core", "modernbert_with_head")
         config: Model configuration (dict or Config object)
         pretrained_path: Path to pretrained weights
-        head_type: Type of head to attach (for bert_with_head)
-        head_config: Head configuration (for bert_with_head)
+        head_type: Type of head to attach (for bert_with_head/modernbert_with_head)
+        head_config: Head configuration (for bert_with_head/modernbert_with_head)
         **kwargs: Additional arguments passed to model constructor
 
     Returns:
         Initialized model
     """
-    # Convert config dict to Config object if needed
-    if isinstance(config, dict):
-        config = BertConfig(**config)
-    elif config is None:
-        config = BertConfig()
+    # Determine config type and create appropriate config
+    if model_type in ["modernbert_core", "modernbert_with_head"]:
+        # ModernBERT models
+        if isinstance(config, dict):
+            # Create ModernBertConfig from dict, applying only valid config kwargs
+            config_dict = config.copy()
+            # Filter out non-config arguments
+            valid_config_keys = {f.name for f in ModernBertConfig.__dataclass_fields__.values()}
+            config_kwargs = {k: v for k, v in kwargs.items() if k in valid_config_keys}
+            config_dict.update(config_kwargs)
+            config = ModernBertConfig(**config_dict)
+        elif config is None:
+            model_size = kwargs.pop("model_size", "base")
+            # Filter out non-config arguments
+            valid_config_keys = {f.name for f in ModernBertConfig.__dataclass_fields__.values()}
+            config_kwargs = {k: v for k, v in kwargs.items() if k in valid_config_keys}
+            config = ModernBertConfig(model_size=model_size, **config_kwargs)
+        elif isinstance(config, BertConfig):
+            # Convert BertConfig to ModernBertConfig
+            config = ModernBertConfig.from_bert_config(config)
+    else:
+        # Classic BERT models
+        if isinstance(config, dict):
+            config = BertConfig(**config)
+        elif config is None:
+            config = BertConfig()
 
     # Create base model
     if model_type == "bert_core":
-        # Create new modular BERT core
+        # Create Classic BERT core
         model = create_bert_core(config=config, **kwargs)
-        logger.info("Created modular BertCore model")
+        logger.info("Created Classic BertCore model")
+    elif model_type == "modernbert_core":
+        # Create ModernBERT core
+        model = create_modernbert_core(config=config, **kwargs)
+        logger.info("Created ModernBertCore model")
     elif model_type == "bert_with_head":
-        # Create BERT with attached head
+        # Create Classic BERT with attached head
         num_labels = kwargs.pop("num_labels", 2)
         freeze_bert = kwargs.pop("freeze_bert", False)
         freeze_bert_layers = kwargs.pop("freeze_bert_layers", None)
@@ -148,6 +179,61 @@ def create_model(
             **kwargs
         )
         logger.info(f"Created BertWithHead model (head_type: {head_type})")
+    elif model_type == "modernbert_with_head":
+        # Create ModernBERT with attached head
+        num_labels = kwargs.pop("num_labels", 2)
+        freeze_bert = kwargs.pop("freeze_bert", False)
+        freeze_bert_layers = kwargs.pop("freeze_bert_layers", None)
+        
+        # Create ModernBERT core first
+        modernbert_core = create_modernbert_core(config=config, **kwargs)
+        
+        # Create head configuration
+        if head_config is None:
+            if head_type is None:
+                raise ValueError("Either head_config or head_type must be provided")
+            
+            # Convert string to enum if needed
+            if isinstance(head_type, str):
+                head_type = HeadType(head_type)
+            
+            # Get default config for head type
+            from .heads.base_head import get_default_config_for_head_type
+            head_config = get_default_config_for_head_type(
+                head_type,
+                input_size=modernbert_core.get_hidden_size(),
+                output_size=num_labels
+            )
+        
+        # Convert dict to HeadConfig if needed
+        if isinstance(head_config, dict):
+            head_config = HeadConfig(**head_config)
+        
+        # Get head class from registry
+        from .heads.head_registry import get_head_registry
+        registry = get_head_registry()
+        
+        # Find a head that matches the head type
+        head_names = []
+        for name, spec in registry._heads.items():
+            if spec.head_type == head_config.head_type:
+                head_names.append(name)
+        
+        if not head_names:
+            raise ValueError(f"No head found for type {head_config.head_type}")
+        
+        # Use the first one (highest priority)
+        head_class = registry.get_head_class(head_names[0])
+        head = head_class(head_config)
+        
+        # Create ModernBERT with head (reuse BertWithHead wrapper)
+        model = BertWithHead(
+            bert=modernbert_core,
+            head=head,
+            freeze_bert=freeze_bert,
+            freeze_bert_layers=freeze_bert_layers
+        )
+        logger.info(f"Created ModernBertWithHead model (head_type: {head_type})")
     else:
         raise ValueError(f"Unknown model type: {model_type}")
 
@@ -259,15 +345,25 @@ def get_model_config(
 
 # Model registry for easy access
 MODEL_REGISTRY = {
-    # Core BERT models
+    # Classic BERT models
     "bert-core": lambda **kwargs: create_model("bert_core", **kwargs),
     "bert-binary": lambda **kwargs: create_model("bert_with_head", head_type="binary_classification", **kwargs),
     "bert-multiclass": lambda **kwargs: create_model("bert_with_head", head_type="multiclass_classification", **kwargs),
     "bert-multilabel": lambda **kwargs: create_model("bert_with_head", head_type="multilabel_classification", **kwargs),
     "bert-regression": lambda **kwargs: create_model("bert_with_head", head_type="regression", **kwargs),
     
+    # ModernBERT models
+    "modernbert-core": lambda **kwargs: create_model("modernbert_core", **kwargs),
+    "modernbert-base": lambda **kwargs: create_model("modernbert_core", model_size="base", **kwargs),
+    "modernbert-large": lambda **kwargs: create_model("modernbert_core", model_size="large", **kwargs),
+    "modernbert-binary": lambda **kwargs: create_model("modernbert_with_head", head_type="binary_classification", **kwargs),
+    "modernbert-multiclass": lambda **kwargs: create_model("modernbert_with_head", head_type="multiclass_classification", **kwargs),
+    "modernbert-multilabel": lambda **kwargs: create_model("modernbert_with_head", head_type="multilabel_classification", **kwargs),
+    "modernbert-regression": lambda **kwargs: create_model("modernbert_with_head", head_type="regression", **kwargs),
+    
     # Competition-specific models
     "titanic-bert": lambda **kwargs: create_bert_for_task("binary_classification", num_labels=2, **kwargs),
+    "titanic-modernbert": lambda **kwargs: create_model("modernbert_with_head", head_type="binary_classification", num_labels=2, **kwargs),
 }
 
 
