@@ -1,19 +1,17 @@
 """Models package for BERT implementations with LoRA support."""
 
 from .bert import (
-    BertConfig,
-    ModernBertConfig,
-    BertCore,
-    ModernBertCore,
     BaseBertModel,
-    BertModel,
+    BertConfig,
+    BertCore,
     BertWithHead,
+    ModernBertConfig,
+    ModernBertCore,
 )
 from .factory import (
+    MODEL_REGISTRY,
     create_bert_core,
     create_bert_with_head,
-    MODEL_REGISTRY,
-    HEAD_REGISTRY,
 )
 from .heads import (
     BaseHead,
@@ -22,34 +20,33 @@ from .heads import (
     RegressionHead,
 )
 from .lora import (
-    LoRAConfig,
-    QLoRAConfig,
-    MultiLoRAConfig,
-    LoRATrainingConfig,
     KAGGLE_LORA_PRESETS,
-    get_lora_preset,
-    LoRALinear,
-    QLoRALinear,
-    MultiLoRALinear,
     LoRAAdapter,
+    LoRAConfig,
+    LoRALinear,
+    LoRATrainingConfig,
     MultiAdapterManager,
+    MultiLoRAConfig,
+    MultiLoRALinear,
+    QLoRAConfig,
+    QLoRALinear,
+    get_lora_preset,
 )
 
 __all__ = [
     # Configs
     "BertConfig",
     "ModernBertConfig",
+    # Base classes
+    "BaseBertModel",
     # Core models
     "BertCore",
     "ModernBertCore",
-    "BaseBertModel",
-    "BertModel",
     "BertWithHead",
     # Factory
     "create_bert_core",
     "create_bert_with_head",
     "MODEL_REGISTRY",
-    "HEAD_REGISTRY",
     # Heads
     "BaseHead",
     "BinaryClassificationHead",

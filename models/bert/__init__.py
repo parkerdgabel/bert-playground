@@ -17,6 +17,11 @@ from .config import (
     get_neobert_config,
     get_neobert_mini_config,
 )
+from .core_base import (
+    BaseBertModel,
+    BertModelOutput,
+    BertLayer,
+)
 from .core import (
     BertCore,
     BertOutput,
@@ -48,6 +53,10 @@ __all__ = [
     # Configuration
     "BertConfig",
     "ModernBertConfig",
+    # Base classes
+    "BaseBertModel",
+    "BertModelOutput",
+    "BertLayer",
     # Core classes
     "BertCore",
     "BertOutput",
