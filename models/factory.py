@@ -1,20 +1,50 @@
-"""Unified model factory for creating all model variants."""
+"""MASTER MODEL FACTORY - Single source for all model creation.
 
-from typing import Dict, Any, Optional, Union, Literal, List
+This is the SINGLE factory for the entire codebase. It merges:
+- Basic model creation (ModernBERT, CNN-hybrid)
+- Classification model creation (from models/classification/factory.py)
+- Kaggle competition automation (from factories/kaggle_competition_factory.py)
+- MLX embeddings support
+- Automatic dataset analysis and optimization
+
+Replace all other factory imports with this single factory.
+"""
+
+from typing import Dict, Any, Optional, Union, Literal, List, Tuple
 from pathlib import Path
 import json
 from loguru import logger
 import mlx.nn as nn
+import pandas as pd
+from enum import Enum
+from dataclasses import dataclass
+import numpy as np
 
 # Import unified modules
 from .modernbert import ModernBertModel, ModernBertConfig
 from .modernbert_cnn_hybrid import CNNEnhancedModernBERT, CNNHybridConfig
 from .classification import TitanicClassifier, create_classifier
 
+# Import all classification factories
+try:
+    from .classification.factory import (
+        create_classifier as create_advanced_classifier,
+        create_multilabel_classifier,
+        create_ordinal_classifier,
+        create_hierarchical_classifier,
+        create_ensemble_classifier,
+        create_titanic_classifier,
+    )
+    from .classification.generic_classifier import GenericClassifier
+    from .classification.kaggle_heads import KAGGLE_HEAD_REGISTRY, create_kaggle_head
+    ADVANCED_CLASSIFICATION_AVAILABLE = True
+except ImportError:
+    ADVANCED_CLASSIFICATION_AVAILABLE = False
+    logger.warning("Advanced classification modules not available")
+
 # Import new architecture modules
 try:
     from .embeddings import EmbeddingModel
-    from .classification import create_titanic_classifier
     NEW_ARCHITECTURE_AVAILABLE = True
 except ImportError:
     NEW_ARCHITECTURE_AVAILABLE = False
@@ -29,8 +59,66 @@ except ImportError:
     OLD_MLX_EMBEDDINGS_AVAILABLE = False
     logger.warning("Old MLX embeddings not available")
 
+# Import dataset analysis for automatic optimization
+try:
+    from data.dataset_spec import KaggleDatasetSpec
+    from data.universal_loader import UniversalKaggleLoader
+    DATASET_ANALYSIS_AVAILABLE = True
+except ImportError:
+    DATASET_ANALYSIS_AVAILABLE = False
+    logger.warning("Dataset analysis not available")
+
 
 ModelType = Literal["standard", "cnn_hybrid", "classifier", "mlx_embedding", "new_mlx_embedding"]
+
+
+class CompetitionType(Enum):
+    """Types of Kaggle competitions (absorbed from kaggle_competition_factory)."""
+    BINARY_CLASSIFICATION = "binary_classification"
+    MULTICLASS_CLASSIFICATION = "multiclass_classification"
+    MULTILABEL_CLASSIFICATION = "multilabel_classification"
+    REGRESSION = "regression"
+    ORDINAL_REGRESSION = "ordinal_regression"
+    TIME_SERIES = "time_series"
+    RANKING = "ranking"
+    STRUCTURED_PREDICTION = "structured_prediction"
+    GENERATIVE = "generative"
+    UNKNOWN = "unknown"
+
+
+@dataclass
+class CompetitionAnalysis:
+    """Analysis results for a Kaggle competition dataset (absorbed from kaggle_competition_factory)."""
+    
+    # Basic characteristics
+    competition_type: CompetitionType
+    num_samples: int
+    num_features: int
+    
+    # Target characteristics
+    target_column: Optional[str] = None
+    num_classes: Optional[int] = None
+    class_distribution: Optional[Dict[str, int]] = None
+    is_balanced: bool = True
+    
+    # Feature characteristics
+    categorical_columns: List[str] = None
+    numerical_columns: List[str] = None
+    text_columns: List[str] = None
+    
+    # Optimization recommendations
+    recommended_model_type: str = "generic"
+    recommended_head_type: str = "binary"
+    recommended_batch_size: int = 32
+    recommended_learning_rate: float = 2e-5
+    
+    def __post_init__(self):
+        if self.categorical_columns is None:
+            self.categorical_columns = []
+        if self.numerical_columns is None:
+            self.numerical_columns = []
+        if self.text_columns is None:
+            self.text_columns = []
 
 
 def create_model(
@@ -340,3 +428,272 @@ def create_from_registry(model_name: str, **kwargs) -> nn.Module:
         )
 
     return MODEL_REGISTRY[model_name](**kwargs)
+
+
+# === ADVANCED CLASSIFICATION FUNCTIONS (absorbed from classification/factory.py) ===
+
+def create_kaggle_classifier(
+    task_type: str,
+    model_name: str,
+    num_classes: Optional[int] = None,
+    dataset_spec: Optional["KaggleDatasetSpec"] = None,
+    **kwargs
+) -> nn.Module:
+    """
+    Create classifier optimized for Kaggle competitions.
+    
+    This is the main entry point for creating classifiers. It automatically
+    selects the best configuration based on the task type and dataset characteristics.
+    
+    Args:
+        task_type: Type of classification task ("binary", "multiclass", "regression", 
+                   "titanic", "multilabel", "ordinal", "hierarchical", "ensemble",
+                   "time_series", "ranking", "contrastive", "multi_task", "metric_learning")
+        model_name: Name of the embedding model to use
+        num_classes: Number of classes/labels
+        dataset_spec: Optional dataset specification for optimization
+        **kwargs: Additional arguments
+        
+    Returns:
+        Configured classifier instance
+    """
+    if not ADVANCED_CLASSIFICATION_AVAILABLE:
+        logger.warning("Advanced classification not available, falling back to basic classifier")
+        return create_model("classifier", **kwargs)
+    
+    # Use dataset spec to optimize configuration if available
+    if dataset_spec and hasattr(dataset_spec, 'optimization_profile'):
+        logger.info(f"Optimizing for dataset: {dataset_spec.name} (profile: {dataset_spec.optimization_profile})")
+        
+        # Auto-configure based on dataset characteristics
+        if dataset_spec.optimization_profile.value == "competition":
+            kwargs.setdefault("dropout_prob", 0.1)
+            kwargs.setdefault("use_layer_norm", True)
+            kwargs.setdefault("pooling_type", "attention")
+        elif dataset_spec.optimization_profile.value == "development":
+            kwargs.setdefault("dropout_prob", 0.2)
+            kwargs.setdefault("use_layer_norm", False)
+            kwargs.setdefault("pooling_type", "mean")
+    
+    return create_advanced_classifier(
+        task_type=task_type,
+        model_name=model_name,
+        num_classes=num_classes,
+        **kwargs
+    )
+
+
+def create_competition_classifier(
+    data_path: str,
+    target_column: str,
+    model_name: str = "answerdotai/ModernBERT-base",
+    auto_optimize: bool = True,
+    **kwargs
+) -> Tuple[nn.Module, CompetitionAnalysis]:
+    """
+    Automatically analyze dataset and create optimized classifier.
+    
+    This function combines dataset analysis with classifier creation to provide
+    a fully automated solution for Kaggle competitions.
+    
+    Args:
+        data_path: Path to the training data CSV
+        target_column: Name of the target column
+        model_name: Name of the embedding model to use
+        auto_optimize: Whether to automatically optimize configuration
+        **kwargs: Additional arguments
+        
+    Returns:
+        Tuple of (classifier, analysis_results)
+    """
+    if not DATASET_ANALYSIS_AVAILABLE:
+        logger.warning("Dataset analysis not available, using basic classifier")
+        return create_model("classifier", **kwargs), None
+    
+    # Analyze dataset
+    analysis = analyze_competition_dataset(data_path, target_column)
+    
+    # Create optimized classifier based on analysis
+    if auto_optimize:
+        # Override kwargs with optimized settings
+        kwargs.update({
+            "dropout_prob": 0.1 if analysis.num_samples > 10000 else 0.2,
+            "use_layer_norm": analysis.num_features > 50,
+            "pooling_type": "attention" if analysis.num_samples > 5000 else "mean",
+            "batch_size": analysis.recommended_batch_size,
+        })
+        
+        logger.info(f"Auto-optimized configuration: {kwargs}")
+    
+    # Determine task type from analysis
+    task_type_map = {
+        CompetitionType.BINARY_CLASSIFICATION: "binary",
+        CompetitionType.MULTICLASS_CLASSIFICATION: "multiclass",
+        CompetitionType.MULTILABEL_CLASSIFICATION: "multilabel",
+        CompetitionType.REGRESSION: "regression",
+        CompetitionType.ORDINAL_REGRESSION: "ordinal",
+        CompetitionType.TIME_SERIES: "time_series",
+        CompetitionType.RANKING: "ranking",
+    }
+    
+    task_type = task_type_map.get(analysis.competition_type, "multiclass")
+    
+    # Create classifier
+    classifier = create_kaggle_classifier(
+        task_type=task_type,
+        model_name=model_name,
+        num_classes=analysis.num_classes,
+        **kwargs
+    )
+    
+    logger.info(f"Created {task_type} classifier for {analysis.competition_type.value}")
+    return classifier, analysis
+
+
+def analyze_competition_dataset(data_path: str, target_column: str) -> CompetitionAnalysis:
+    """
+    Analyze a competition dataset and return optimization recommendations.
+    
+    Args:
+        data_path: Path to the training data CSV
+        target_column: Name of the target column
+        
+    Returns:
+        CompetitionAnalysis with recommendations
+    """
+    # Load and analyze data
+    df = pd.read_csv(data_path)
+    
+    # Basic characteristics
+    num_samples = len(df)
+    num_features = len(df.columns) - 1  # Exclude target
+    
+    # Analyze target column
+    target_series = df[target_column]
+    num_classes = target_series.nunique()
+    class_distribution = target_series.value_counts().to_dict()
+    
+    # Determine competition type
+    if target_series.dtype in ['object', 'category']:
+        if num_classes == 2:
+            competition_type = CompetitionType.BINARY_CLASSIFICATION
+        else:
+            competition_type = CompetitionType.MULTICLASS_CLASSIFICATION
+    else:
+        # Check if it's regression or classification with numeric labels
+        if num_classes <= 10 and target_series.dtype in ['int64', 'int32']:
+            competition_type = CompetitionType.MULTICLASS_CLASSIFICATION
+        else:
+            competition_type = CompetitionType.REGRESSION
+    
+    # Analyze features
+    categorical_columns = []
+    numerical_columns = []
+    text_columns = []
+    
+    for col in df.columns:
+        if col == target_column:
+            continue
+            
+        series = df[col]
+        
+        if series.dtype == 'object':
+            # If most values are unique, likely text
+            if series.nunique() / len(series) > 0.9:
+                text_columns.append(col)
+            else:
+                categorical_columns.append(col)
+        elif pd.api.types.is_numeric_dtype(series):
+            # If low cardinality, might be categorical
+            if series.nunique() <= 10 and series.dtype in ['int64', 'int32']:
+                categorical_columns.append(col)
+            else:
+                numerical_columns.append(col)
+        else:
+            categorical_columns.append(col)
+    
+    # Check class balance
+    if competition_type in [CompetitionType.BINARY_CLASSIFICATION, CompetitionType.MULTICLASS_CLASSIFICATION]:
+        min_class_count = min(class_distribution.values())
+        max_class_count = max(class_distribution.values())
+        is_balanced = (min_class_count / max_class_count) > 0.1
+    else:
+        is_balanced = True
+    
+    # Recommendations
+    recommended_batch_size = 32
+    if num_samples > 100000:
+        recommended_batch_size = 64
+    elif num_samples < 5000:
+        recommended_batch_size = 16
+    
+    recommended_learning_rate = 2e-5
+    if not is_balanced:
+        recommended_learning_rate = 1e-5  # Lower LR for imbalanced datasets
+    
+    return CompetitionAnalysis(
+        competition_type=competition_type,
+        num_samples=num_samples,
+        num_features=num_features,
+        target_column=target_column,
+        num_classes=num_classes,
+        class_distribution=class_distribution,
+        is_balanced=is_balanced,
+        categorical_columns=categorical_columns,
+        numerical_columns=numerical_columns,
+        text_columns=text_columns,
+        recommended_batch_size=recommended_batch_size,
+        recommended_learning_rate=recommended_learning_rate,
+        recommended_model_type="generic",
+        recommended_head_type="binary" if competition_type == CompetitionType.BINARY_CLASSIFICATION else "multiclass"
+    )
+
+
+# === CONVENIENCE FUNCTIONS (absorbed from classification/factory.py) ===
+
+def create_titanic_classifier_optimized(
+    model_name: str = "answerdotai/ModernBERT-base",
+    **kwargs
+) -> nn.Module:
+    """Create optimized Titanic classifier."""
+    if ADVANCED_CLASSIFICATION_AVAILABLE:
+        return create_titanic_classifier(model_name=model_name, **kwargs)
+    else:
+        return create_model("classifier", **kwargs)
+
+
+def create_multilabel_classifier_optimized(
+    model_name: str,
+    num_labels: int,
+    **kwargs
+) -> nn.Module:
+    """Create optimized multilabel classifier."""
+    if ADVANCED_CLASSIFICATION_AVAILABLE:
+        return create_multilabel_classifier(model_name=model_name, num_labels=num_labels, **kwargs)
+    else:
+        return create_kaggle_classifier("multilabel", model_name, num_labels, **kwargs)
+
+
+def create_ensemble_classifier_optimized(
+    model_name: str,
+    num_classes: int,
+    **kwargs
+) -> nn.Module:
+    """Create optimized ensemble classifier."""
+    if ADVANCED_CLASSIFICATION_AVAILABLE:
+        return create_ensemble_classifier(model_name=model_name, num_classes=num_classes, **kwargs)
+    else:
+        return create_kaggle_classifier("ensemble", model_name, num_classes, **kwargs)
+
+
+# === BACKWARD COMPATIBILITY ALIASES ===
+
+# For models/classification/factory.py compatibility
+create_classifier_advanced = create_kaggle_classifier
+
+# For factories/kaggle_competition_factory.py compatibility
+create_competition_model = create_competition_classifier
+analyze_dataset = analyze_competition_dataset
+
+# Legacy function names
+create_enhanced_classifier = create_kaggle_classifier

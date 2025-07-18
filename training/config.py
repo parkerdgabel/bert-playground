@@ -237,11 +237,30 @@ class AdvancedFeatures:
 
 
 @dataclass
+class DataLoaderConfig:
+    """Configuration for modular dataloader."""
+    use_modular_dataloader: bool = True
+    text_converter: str | None = None  # Auto-detected if None
+    text_converter_config: Dict[str, Any] = field(default_factory=dict)
+    enable_text_augmentation: bool = True
+    augmentation_probability: float = 0.5
+    enable_caching: bool = True
+    cache_dir: str | None = None
+    cache_tokenized: bool = True
+    cache_converted_text: bool = True
+    optimization_profile: str = "balanced"  # speed, memory, balanced, debug
+    prefetch_size: int = 4
+    num_workers: int = 4
+    buffer_size: int = 1000
+    tokenizer_backend: str = "huggingface"  # huggingface, mlx
+
+
+@dataclass
 class TrainingConfig:
     """Comprehensive training configuration for MLX trainer.
 
     This configuration class unifies all settings from previous trainer
-    implementations and adds new advanced capabilities.
+    implementations and adds new advanced capabilities including modular dataloader support.
     """
 
     # Basic training parameters
@@ -256,12 +275,17 @@ class TrainingConfig:
     model_type: str = "modernbert"  # "modernbert", "cnn_hybrid"
     max_length: int = 256
     num_labels: int | None = None  # Auto-detected from data
+    task_type: str = "classification"  # classification, regression, multilabel
+    head_type: str = "standard"  # standard, multilabel, ordinal, hierarchical
+    pooling_strategy: str = "cls"  # cls, mean, max, attention, weighted
 
     # Data configuration
     train_path: str | None = None
     val_path: str | None = None
     test_path: str | None = None
     target_column: str | None = None
+    competition_name: str | None = None  # For Kaggle competitions
+    competition_type: str = "classification"
 
     # Optimizer and scheduler
     optimizer: OptimizerType = OptimizerType.ADAMW
@@ -280,6 +304,7 @@ class TrainingConfig:
     checkpoint: CheckpointConfig = field(default_factory=CheckpointConfig)
     evaluation: EvaluationConfig = field(default_factory=EvaluationConfig)
     advanced: AdvancedFeatures = field(default_factory=AdvancedFeatures)
+    dataloader: DataLoaderConfig = field(default_factory=DataLoaderConfig)
 
     # Runtime settings
     seed: int = 42
@@ -478,6 +503,8 @@ class TrainingConfig:
             config_dict["evaluation"] = EvaluationConfig(**config_dict["evaluation"])
         if "advanced" in config_dict:
             config_dict["advanced"] = AdvancedFeatures(**config_dict["advanced"])
+        if "dataloader" in config_dict:
+            config_dict["dataloader"] = DataLoaderConfig(**config_dict["dataloader"])
 
         logger.info(f"Configuration loaded from: {config_path}")
         return cls(**config_dict)

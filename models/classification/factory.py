@@ -12,6 +12,7 @@ from models.embeddings.embedding_model import EmbeddingModel as BertEmbeddingMod
 from .heads import BinaryClassificationHead, MultiClassificationHead, RegressionHead
 from .titanic_classifier import TitanicClassifier
 from .generic_classifier import GenericClassifier, ClassificationTask
+from .kaggle_heads import KAGGLE_HEAD_REGISTRY, create_kaggle_head
 
 
 def create_classifier(
@@ -34,7 +35,8 @@ def create_classifier(
     
     Args:
         task_type: Type of classification task ("binary", "multiclass", "regression", 
-                   "titanic", "multilabel", "ordinal", "hierarchical", "ensemble")
+                   "titanic", "multilabel", "ordinal", "hierarchical", "ensemble",
+                   "time_series", "ranking", "contrastive", "multi_task", "metric_learning")
         model_name: Name of the embedding model to use
         num_classes: Number of classes/labels
         hidden_dim: Hidden dimension(s) for classification head
@@ -109,6 +111,62 @@ def create_classifier(
                 "temperature": 1.0,
             },
         },
+        "time_series": {
+            "dropout_prob": 0.2,
+            "use_layer_norm": True,
+            "activation": "gelu",
+            "pooling_type": "learned",
+            "head_config": {
+                "hidden_dim": 256,
+                "num_lstm_layers": 2,
+                "use_attention": True,
+                "bidirectional": True,
+            },
+        },
+        "ranking": {
+            "dropout_prob": 0.1,
+            "use_layer_norm": True,
+            "activation": "relu",
+            "pooling_type": "attention",
+            "head_config": {
+                "hidden_dim": 256,
+                "num_hidden_layers": 2,
+                "ranking_loss": "listnet",
+                "temperature": 1.0,
+            },
+        },
+        "contrastive": {
+            "dropout_prob": 0.1,
+            "use_layer_norm": False,
+            "activation": "relu",
+            "pooling_type": "mean",
+            "head_config": {
+                "embedding_dim": 128,
+                "temperature": 0.07,
+                "normalize_embeddings": True,
+            },
+        },
+        "multi_task": {
+            "dropout_prob": 0.1,
+            "use_layer_norm": True,
+            "activation": "relu",
+            "pooling_type": "mean",
+            "head_config": {
+                "shared_hidden_dim": 256,
+            },
+        },
+        "metric_learning": {
+            "dropout_prob": 0.1,
+            "use_layer_norm": False,
+            "activation": "relu",
+            "pooling_type": "mean",
+            "head_config": {
+                "embedding_dim": 128,
+                "margin": 0.5,
+                "distance_metric": "cosine",
+                "normalize_embeddings": True,
+            },
+        },
     }
     
     # Get default config for task type
@@ -151,7 +209,8 @@ def create_classifier(
             freeze_embeddings=freeze_embeddings,
         )
     elif task_type in ["binary", "multiclass", "regression", "multilabel", 
-                       "ordinal", "hierarchical", "ensemble"]:
+                       "ordinal", "hierarchical", "ensemble", "time_series", 
+                       "ranking", "contrastive", "multi_task", "metric_learning"]:
         # Use GenericClassifier for all modern task types
         if task_type == "regression":
             # For regression, num_classes represents output dimensions

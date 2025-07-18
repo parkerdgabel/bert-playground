@@ -1,8 +1,9 @@
 """Data loading and processing modules for MLX-based Kaggle competitions."""
 
-# Core MLX DataLoader
-from .mlx_dataloader import (
-    KaggleDataLoader,
+# Core MLX DataLoader (unified implementation)
+from .universal_loader import (
+    UniversalKaggleLoader,
+    KaggleDataLoader,  # Backward compatibility alias
     create_kaggle_dataloader,
     create_titanic_dataloader,
 )

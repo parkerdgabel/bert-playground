@@ -229,6 +229,117 @@ class KaggleDatasetSpec:
             has_missing_values=df.isnull().any().any(),
         )
     
+    @classmethod
+    def from_dataframe_analysis(cls, df: pd.DataFrame, target_column: str, name: Optional[str] = None) -> "KaggleDatasetSpec":
+        """Create dataset specification from DataFrame analysis.
+        
+        Args:
+            df: DataFrame to analyze
+            target_column: Name of the target column
+            name: Optional name for the dataset
+            
+        Returns:
+            KaggleDatasetSpec instance
+        """
+        if name is None:
+            name = f"dataset_{len(df)}_samples"
+        
+        if target_column not in df.columns:
+            raise ValueError(f"Target column '{target_column}' not found in DataFrame")
+        
+        # Use the same analysis logic as from_csv_analysis
+        logger.info(f"Analyzing DataFrame with {len(df)} samples and {len(df.columns)} columns")
+        
+        # Analyze target column to determine problem type
+        target_series = df[target_column]
+        unique_values = target_series.nunique()
+        
+        if target_series.dtype in ['object', 'category']:
+            if unique_values == 2:
+                problem_type = ProblemType.BINARY_CLASSIFICATION
+            else:
+                problem_type = ProblemType.MULTICLASS_CLASSIFICATION
+        else:
+            # Check if it's regression or classification with numeric labels
+            if unique_values <= 10 and target_series.dtype in ['int64', 'int32']:
+                problem_type = ProblemType.MULTICLASS_CLASSIFICATION
+            else:
+                problem_type = ProblemType.REGRESSION
+        
+        # Categorize columns by type
+        categorical_columns = []
+        numerical_columns = []
+        text_columns = []
+        datetime_columns = []
+        id_columns = []
+        
+        for col in df.columns:
+            if col == target_column:
+                continue
+                
+            series = df[col]
+            
+            # Check for datetime
+            if pd.api.types.is_datetime64_any_dtype(series):
+                datetime_columns.append(col)
+            # Check for text (object type with high cardinality)
+            elif series.dtype == 'object':
+                # If most values are unique, likely text or ID
+                if series.nunique() / len(series) > 0.9:
+                    if 'id' in col.lower() or col.lower().endswith('id'):
+                        id_columns.append(col)
+                    else:
+                        text_columns.append(col)
+                else:
+                    categorical_columns.append(col)
+            # Check for numerical
+            elif pd.api.types.is_numeric_dtype(series):
+                # If low cardinality, might be categorical
+                if series.nunique() <= 10 and series.dtype in ['int64', 'int32']:
+                    categorical_columns.append(col)
+                else:
+                    numerical_columns.append(col)
+            else:
+                # Default to categorical
+                categorical_columns.append(col)
+        
+        logger.info(f"  Problem type: {problem_type}")
+        logger.info(f"  Categorical: {categorical_columns}")
+        logger.info(f"  Numerical: {numerical_columns}")
+        logger.info(f"  Text: {text_columns}")
+        logger.info(f"  Datetime: {datetime_columns}")
+        logger.info(f"  ID: {id_columns}")
+        
+        # Determine primary text features for template generation
+        primary_text_features = text_columns[:3]  # Use up to 3 main text features
+        if not primary_text_features:
+            # If no text columns, use top categorical and numerical
+            primary_text_features = (categorical_columns[:2] + numerical_columns[:2])[:3]
+            
+        # Determine optimization profile based on dataset size
+        dataset_size = len(df)
+        if dataset_size < 5000:
+            optimization_profile = OptimizationProfile.DEVELOPMENT
+        elif dataset_size < 50000:
+            optimization_profile = OptimizationProfile.PRODUCTION
+        else:
+            optimization_profile = OptimizationProfile.COMPETITION
+            
+        return cls(
+            name=name,
+            problem_type=problem_type,
+            target_column=target_column,
+            categorical_columns=categorical_columns,
+            numerical_columns=numerical_columns,
+            text_columns=text_columns,
+            datetime_columns=datetime_columns,
+            id_columns=id_columns,
+            primary_text_features=primary_text_features,
+            optimization_profile=optimization_profile,
+            expected_size=dataset_size,
+            has_missing_values=df.isnull().any().any(),
+        )
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
