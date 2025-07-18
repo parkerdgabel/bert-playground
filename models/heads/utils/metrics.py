@@ -4,7 +4,6 @@ This module provides various evaluation metrics commonly used in
 machine learning competitions.
 """
 
-
 import mlx.core as mx
 import numpy as np
 
@@ -37,9 +36,7 @@ def accuracy(
     return float(np.mean(pred_np == targets_np))
 
 
-def auc(
-    probabilities: mx.array | np.ndarray, targets: mx.array | np.ndarray
-) -> float:
+def auc(probabilities: mx.array | np.ndarray, targets: mx.array | np.ndarray) -> float:
     """Compute Area Under the ROC Curve.
 
     Args:
@@ -247,9 +244,7 @@ def recall(
 # Regression metrics
 
 
-def mae(
-    predictions: mx.array | np.ndarray, targets: mx.array | np.ndarray
-) -> float:
+def mae(predictions: mx.array | np.ndarray, targets: mx.array | np.ndarray) -> float:
     """Compute Mean Absolute Error.
 
     Args:
@@ -265,9 +260,7 @@ def mae(
     return float(np.mean(np.abs(pred_np - targets_np)))
 
 
-def mse(
-    predictions: mx.array | np.ndarray, targets: mx.array | np.ndarray
-) -> float:
+def mse(predictions: mx.array | np.ndarray, targets: mx.array | np.ndarray) -> float:
     """Compute Mean Squared Error.
 
     Args:
@@ -283,9 +276,7 @@ def mse(
     return float(np.mean((pred_np - targets_np) ** 2))
 
 
-def rmse(
-    predictions: mx.array | np.ndarray, targets: mx.array | np.ndarray
-) -> float:
+def rmse(predictions: mx.array | np.ndarray, targets: mx.array | np.ndarray) -> float:
     """Compute Root Mean Squared Error.
 
     Args:
@@ -322,9 +313,7 @@ def r2_score(
     return 1 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
 
 
-def mape(
-    predictions: mx.array | np.ndarray, targets: mx.array | np.ndarray
-) -> float:
+def mape(predictions: mx.array | np.ndarray, targets: mx.array | np.ndarray) -> float:
     """Compute Mean Absolute Percentage Error.
 
     Args:

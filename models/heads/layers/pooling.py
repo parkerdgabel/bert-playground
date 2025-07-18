@@ -5,7 +5,6 @@ representations into fixed-size vectors suitable for classification and
 regression tasks.
 """
 
-
 import mlx.core as mx
 import mlx.nn as nn
 

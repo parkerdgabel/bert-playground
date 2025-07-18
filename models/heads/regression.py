@@ -4,7 +4,6 @@ This module provides various regression heads following the clean
 architecture patterns from the BERT module.
 """
 
-
 import mlx.core as mx
 import mlx.nn as nn
 

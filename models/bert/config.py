@@ -166,16 +166,16 @@ class BertConfig:
 
     def save_pretrained(self, save_path):
         """Save config to directory.
-        
+
         Args:
             save_path: Directory to save config
         """
         import json
         from pathlib import Path
-        
+
         save_path = Path(save_path)
         save_path.mkdir(parents=True, exist_ok=True)
-        
+
         with open(save_path / "config.json", "w") as f:
             json.dump(self.to_dict(), f, indent=2)
 

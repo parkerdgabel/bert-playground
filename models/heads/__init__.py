@@ -120,8 +120,10 @@ def create_head(
         if output_size is None:
             raise ValueError("output_size (num_classes) required for multiclass head")
         # Remove num_classes from kwargs if it exists to avoid duplicate arguments
-        filtered_kwargs = {k: v for k, v in kwargs.items() if k != 'num_classes'}
-        return create_multiclass_classification_head(input_size, output_size, **filtered_kwargs)
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k != "num_classes"}
+        return create_multiclass_classification_head(
+            input_size, output_size, **filtered_kwargs
+        )
 
     elif head_type in ["multilabel", "multilabel_classification"]:
         if output_size is None:

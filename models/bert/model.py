@@ -161,21 +161,32 @@ class BertWithHead(nn.Module):
 
         # Filter out parameters that HeadConfig doesn't accept
         valid_params = {
-            'input_size', 'output_size', 'head_type', 'hidden_sizes', 
-            'dropout_prob', 'activation', 'use_bias', 'pooling_type', 
-            'use_layer_norm', 'layer_norm_eps'
+            "input_size",
+            "output_size",
+            "head_type",
+            "hidden_sizes",
+            "dropout_prob",
+            "activation",
+            "use_bias",
+            "pooling_type",
+            "use_layer_norm",
+            "layer_norm_eps",
         }
-        filtered_config = {k: v for k, v in head_config_dict.items() if k in valid_params}
-        
+        filtered_config = {
+            k: v for k, v in head_config_dict.items() if k in valid_params
+        }
+
         # No need to convert enums since we're using strings
-        head_config = HeadConfig(**filtered_config)
+        # head_config = HeadConfig(**filtered_config)  # Not needed, we use create_head directly
 
         # Create head based on type
         from ..heads import create_head
 
         # Remove head_type from config since we pass it explicitly
-        create_head_config = {k: v for k, v in filtered_config.items() if k != 'head_type'}
-        
+        create_head_config = {
+            k: v for k, v in filtered_config.items() if k != "head_type"
+        }
+
         head = create_head(
             head_type=metadata["head_type"],
             **create_head_config,
@@ -314,15 +325,21 @@ def create_bert_with_head(
 
     # Extract config dict and remove duplicates
     head_config_dict = head_config.__dict__.copy()
-    head_config_dict.pop('head_type', None)  # Already passed explicitly
-    
+    head_config_dict.pop("head_type", None)  # Already passed explicitly
+
     # Filter out any conflicting kwargs that might already be in head_config
-    conflicting_params = {'num_labels', 'num_classes', 'input_size', 'output_size', 'head_type'}
+    conflicting_params = {
+        "num_labels",
+        "num_classes",
+        "input_size",
+        "output_size",
+        "head_type",
+    }
     filtered_kwargs = {k: v for k, v in kwargs.items() if k not in conflicting_params}
-    
+
     # Merge filtered kwargs with head config
     final_config = {**head_config_dict, **filtered_kwargs}
-    
+
     head = create_head(
         head_type=head_config.head_type,
         **final_config,

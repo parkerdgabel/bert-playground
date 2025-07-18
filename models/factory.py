@@ -229,21 +229,17 @@ def create_model(
         if isinstance(head_config, dict):
             head_config = HeadConfig(**head_config)
 
-        # Get head class from registry
-        # Direct head creation without registry
+        # Create head using the factory function
+        from .heads import create_head
 
-        # Find a head that matches the head type
-        head_names = []
-        for name, spec in registry._heads.items():
-            if spec.head_type == head_config.head_type:
-                head_names.append(name)
+        # Extract config dict and remove duplicates
+        head_config_dict = head_config.__dict__.copy()
+        head_type_str = head_config_dict.pop("head_type", None)
 
-        if not head_names:
-            raise ValueError(f"No head found for type {head_config.head_type}")
-
-        # Use the first one (highest priority)
-        head_class = registry.get_head_class(head_names[0])
-        head = head_class(head_config)
+        head = create_head(
+            head_type=head_type_str,
+            **head_config_dict,
+        )
 
         # Create ModernBERT with head (reuse BertWithHead wrapper)
         model = BertWithHead(
@@ -1007,9 +1003,7 @@ def create_multilabel_classifier_optimized(num_labels: int, **kwargs) -> nn.Modu
 
 def create_ensemble_classifier_optimized(num_classes: int, **kwargs) -> nn.Module:
     """Create optimized ensemble classifier using BertWithHead."""
-    return create_bert_with_head(
-        head_type="ensemble", num_labels=num_classes, **kwargs
-    )
+    return create_bert_with_head(head_type="ensemble", num_labels=num_classes, **kwargs)
 
 
 # === BACKWARD COMPATIBILITY ALIASES ===
@@ -1106,9 +1100,7 @@ def create_bert_for_task(
                 CompetitionType.TIME_SERIES: "time_series",
                 CompetitionType.RANKING: "ranking",
             }
-            head_type = comp_to_head_map.get(
-                comp_type, "binary_classification"
-            )
+            head_type = comp_to_head_map.get(comp_type, "binary_classification")
         except ValueError:
             # Task is already a string head type
             head_type = task

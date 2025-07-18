@@ -4,7 +4,7 @@ This module provides various loss functions commonly used in Kaggle competitions
 and machine learning tasks.
 """
 
-from typing import Callable
+from collections.abc import Callable
 
 import mlx.core as mx
 import mlx.nn as nn

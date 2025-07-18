@@ -17,11 +17,6 @@ from .config import (
     get_neobert_config,
     get_neobert_mini_config,
 )
-from .core_base import (
-    BaseBertModel,
-    BertModelOutput,
-    BertLayer,
-)
 from .core import (
     BertCore,
     BertOutput,
@@ -34,6 +29,11 @@ from .core import (
     create_neobert,
     create_neobert_core,
     create_neobert_mini,
+)
+from .core_base import (
+    BaseBertModel,
+    BertLayer,
+    BertModelOutput,
 )
 from .model import (
     BertWithHead,
