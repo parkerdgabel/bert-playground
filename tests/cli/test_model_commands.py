@@ -12,7 +12,7 @@ from pathlib import Path as SysPath
 # Add project root to path
 sys.path.insert(0, str(SysPath(__file__).parent.parent.parent))
 
-from cli.main import app
+from cli.app import app
 
 
 class TestModelInspectCommand:

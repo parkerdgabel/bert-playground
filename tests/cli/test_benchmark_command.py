@@ -14,7 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from cli.commands.core.benchmark import benchmark_command
-from cli.main import app
+from cli.app import app
 
 
 class TestBenchmarkCommand:
