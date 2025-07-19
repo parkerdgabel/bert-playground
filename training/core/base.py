@@ -1,0 +1,542 @@
+"""
+Base trainer implementation with MLX optimizations for Apple Silicon.
+"""
+
+import time
+from pathlib import Path
+from typing import Dict, Any, Optional, List, Tuple, Callable
+from dataclasses import dataclass, field
+
+import mlx.core as mx
+import mlx.nn as nn
+from loguru import logger
+from tqdm import tqdm
+
+from .protocols import (
+    Model, DataLoader, Trainer, TrainerConfig,
+    TrainingState, TrainingResult, TrainingHook
+)
+from .config import BaseTrainerConfig
+from .optimization import (
+    create_optimizer, create_lr_scheduler, GradientAccumulator,
+    clip_gradients, compute_gradient_stats
+)
+from .state import TrainingStateManager, CheckpointManager
+
+
+class BaseTrainer:
+    """
+    Base trainer implementation with MLX optimizations.
+    
+    This trainer provides:
+    - Efficient MLX-based training loop
+    - Gradient accumulation
+    - Mixed precision training (automatic in MLX)
+    - Checkpoint management
+    - Hook/callback system
+    - Comprehensive logging
+    """
+    
+    def __init__(
+        self,
+        model: Model,
+        config: BaseTrainerConfig,
+        callbacks: Optional[List[TrainingHook]] = None,
+    ):
+        """
+        Initialize the trainer.
+        
+        Args:
+            model: Model to train
+            config: Training configuration
+            callbacks: Optional list of training callbacks
+        """
+        self.model = model
+        self.config = config
+        self.callbacks = callbacks or []
+        
+        # Create output directory
+        self.config.environment.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save configuration
+        config_path = self.config.environment.output_dir / "trainer_config.yaml"
+        self.config.save(config_path)
+        
+        # Initialize components
+        self.optimizer = create_optimizer(self.model, self.config.optimizer)
+        self.lr_scheduler = create_lr_scheduler(self.optimizer, self.config.scheduler)
+        self.gradient_accumulator = GradientAccumulator(self.config.training.gradient_accumulation_steps)
+        
+        # Initialize state management
+        self.state = TrainingState()
+        self.state_manager = TrainingStateManager(self.config.environment.output_dir)
+        self.checkpoint_manager = CheckpointManager(
+            checkpoint_dir=self.config.environment.output_dir / "checkpoints",
+            save_total_limit=self.config.training.save_total_limit,
+        )
+        
+        # Training function
+        self._train_step = self._create_train_step()
+        self._eval_step = self._create_eval_step()
+        
+        # Initialize best metric tracking
+        self._best_metric_value = float('inf') if self.config.training.best_metric_mode == "min" else float('-inf')
+        self._is_better = self._create_metric_comparator()
+        
+        logger.info(f"Initialized BaseTrainer with config: {self.config.training}")
+    
+    def _create_metric_comparator(self) -> Callable[[float, float], bool]:
+        """Create function to compare metrics based on mode."""
+        if self.config.training.best_metric_mode == "min":
+            return lambda new, best: new < best
+        else:
+            return lambda new, best: new > best
+    
+    def _create_train_step(self) -> Callable:
+        """Create the training step function."""
+        def loss_fn(model, batch):
+            # Forward pass
+            outputs = model(batch)
+            
+            # Extract loss (assuming model returns dict with 'loss' key)
+            loss = outputs.get("loss")
+            if loss is None:
+                raise ValueError("Model must return a dictionary with 'loss' key")
+            
+            # Apply label smoothing if configured
+            if self.config.training.label_smoothing > 0:
+                # This is a simplified version - actual implementation depends on task
+                loss = loss * (1 - self.config.training.label_smoothing)
+            
+            return loss, outputs
+        
+        # Create value and grad function
+        value_and_grad_fn = nn.value_and_grad(loss_fn)
+        
+        def train_step(batch: Dict[str, mx.array]) -> Tuple[float, Dict[str, mx.array]]:
+            """Single training step."""
+            (loss, outputs), grads = value_and_grad_fn(self.model, batch)
+            
+            # Gradient clipping
+            if self.config.optimizer.max_grad_norm > 0:
+                grads, grad_norm = clip_gradients(grads, self.config.optimizer.max_grad_norm)
+            else:
+                grad_norm = compute_gradient_stats(grads)["grad_norm"]
+            
+            # Accumulate gradients
+            should_update = self.gradient_accumulator.accumulate(grads)
+            
+            if should_update:
+                # Get accumulated gradients
+                accumulated_grads = self.gradient_accumulator.get_gradients()
+                
+                # Update model
+                self.optimizer.update(self.model, accumulated_grads)
+                
+                # Update learning rate
+                if self.lr_scheduler is not None:
+                    current_lr = self.lr_scheduler.step()
+                else:
+                    current_lr = self.optimizer.learning_rate
+            else:
+                current_lr = self.optimizer.learning_rate
+            
+            # Ensure computation is executed
+            mx.eval(loss, self.model.parameters())
+            
+            return loss.item(), {
+                "grad_norm": grad_norm,
+                "learning_rate": current_lr,
+                **{k: v.item() if hasattr(v, 'item') else v for k, v in outputs.items() if k != "loss"}
+            }
+        
+        return train_step
+    
+    def _create_eval_step(self) -> Callable:
+        """Create the evaluation step function."""
+        def eval_step(batch: Dict[str, mx.array]) -> Tuple[float, Dict[str, mx.array]]:
+            """Single evaluation step."""
+            # Forward pass (no gradients)
+            outputs = self.model(batch)
+            
+            # Extract loss
+            loss = outputs.get("loss")
+            if loss is None:
+                raise ValueError("Model must return a dictionary with 'loss' key")
+            
+            # Ensure computation is executed
+            mx.eval(loss)
+            
+            return loss.item(), {
+                k: v.item() if hasattr(v, 'item') else v 
+                for k, v in outputs.items() if k != "loss"
+            }
+        
+        return eval_step
+    
+    def train(
+        self,
+        train_dataloader: DataLoader,
+        val_dataloader: Optional[DataLoader] = None,
+        resume_from: Optional[Path] = None,
+    ) -> TrainingResult:
+        """
+        Run the training loop.
+        
+        Args:
+            train_dataloader: Training data loader
+            val_dataloader: Optional validation data loader
+            resume_from: Optional checkpoint path to resume from
+            
+        Returns:
+            TrainingResult with final metrics and paths
+        """
+        # Resume from checkpoint if specified
+        if resume_from:
+            self._load_checkpoint(resume_from)
+            logger.info(f"Resumed from checkpoint: {resume_from}")
+        
+        # Calculate total steps
+        steps_per_epoch = len(train_dataloader)
+        total_steps = steps_per_epoch * self.config.training.num_epochs
+        
+        # Update scheduler config if needed
+        if self.config.scheduler.num_training_steps is None:
+            self.config.scheduler.num_training_steps = total_steps
+            if self.lr_scheduler:
+                self.lr_scheduler.config.num_training_steps = total_steps
+        
+        # Initialize training
+        self.state.training_start_time = time.time()
+        self._call_hooks("on_train_begin", self.state)
+        
+        logger.info(f"Starting training for {self.config.training.num_epochs} epochs")
+        logger.info(f"Total steps: {total_steps}, Steps per epoch: {steps_per_epoch}")
+        
+        # Training loop
+        for epoch in range(self.state.epoch, self.config.training.num_epochs):
+            self.state.epoch = epoch
+            self.state.epoch_start_time = time.time()
+            
+            # Train epoch
+            train_metrics = self._train_epoch(train_dataloader, epoch)
+            self.state.train_loss = train_metrics["loss"]
+            self.state.train_history.append(train_metrics)
+            
+            # Evaluate if needed
+            should_evaluate = (
+                val_dataloader is not None and
+                (self.config.training.eval_strategy == "epoch" or
+                 (epoch + 1) == self.config.training.num_epochs)
+            )
+            
+            if should_evaluate:
+                val_metrics = self.evaluate(val_dataloader)
+                self.state.val_loss = val_metrics["loss"]
+                self.state.val_history.append(val_metrics)
+                self.state.metrics.update(val_metrics)
+                
+                # Check for best model
+                metric_name = self.config.training.best_metric
+                if metric_name in val_metrics:
+                    metric_value = val_metrics[metric_name]
+                    if self._is_better(metric_value, self._best_metric_value):
+                        self._best_metric_value = metric_value
+                        self.state.best_val_metric = metric_value
+                        self.state.improvement_streak += 1
+                        self.state.no_improvement_count = 0
+                        
+                        # Save best model
+                        if self.config.training.save_strategy in ["best", "all"]:
+                            best_path = self._save_checkpoint(is_best=True)
+                            logger.info(f"New best model saved: {best_path}")
+                    else:
+                        self.state.improvement_streak = 0
+                        self.state.no_improvement_count += 1
+                
+                # Check early stopping
+                if self.config.training.early_stopping:
+                    if self.state.no_improvement_count >= self.config.training.early_stopping_patience:
+                        self.state.should_stop = True
+                        logger.info(f"Early stopping triggered after {self.state.no_improvement_count} epochs without improvement")
+            
+            # Save checkpoint if needed
+            should_save = (
+                self.config.training.save_strategy == "epoch" or
+                (self.config.training.save_strategy == "all")
+            )
+            if should_save and not self.config.training.save_best_only:
+                self._save_checkpoint(is_best=False)
+            
+            # Call epoch end hooks
+            self._call_hooks("on_epoch_end", self.state)
+            
+            # Check if should stop
+            if self.state.should_stop:
+                break
+        
+        # Training complete
+        training_time = time.time() - self.state.training_start_time
+        
+        # Save final model
+        final_path = self._save_checkpoint(is_best=False, is_final=True)
+        
+        # Create result
+        result = TrainingResult(
+            final_train_loss=self.state.train_loss,
+            final_val_loss=self.state.val_loss,
+            best_val_loss=self.state.best_val_loss,
+            best_val_metric=self.state.best_val_metric,
+            final_metrics=self.state.metrics,
+            train_history=self.state.train_history,
+            val_history=self.state.val_history,
+            final_model_path=final_path,
+            best_model_path=self.checkpoint_manager.get_best_checkpoint(),
+            total_epochs=self.state.epoch + 1,
+            total_steps=self.state.global_step,
+            total_time=training_time,
+            early_stopped=self.state.should_stop and self.config.training.early_stopping,
+            stop_reason="early_stopping" if self.state.should_stop else "completed",
+        )
+        
+        # Call training end hooks
+        self._call_hooks("on_train_end", self.state, result)
+        
+        # Save final result
+        result_path = self.config.environment.output_dir / "training_result.json"
+        import json
+        with open(result_path, "w") as f:
+            json.dump(result.to_dict(), f, indent=2)
+        
+        logger.info(f"Training completed in {training_time:.2f} seconds")
+        logger.info(f"Final model saved to: {final_path}")
+        
+        return result
+    
+    def _train_epoch(self, dataloader: DataLoader, epoch: int) -> Dict[str, float]:
+        """Train for one epoch."""
+        self._call_hooks("on_epoch_begin", self.state)
+        
+        # Initialize metrics
+        epoch_loss = 0.0
+        epoch_metrics = {}
+        num_batches = 0
+        
+        # Create progress bar
+        pbar = tqdm(
+            dataloader,
+            desc=f"Epoch {epoch}/{self.config.training.num_epochs}",
+            leave=True,
+            dynamic_ncols=True,
+        )
+        
+        for batch_idx, batch in enumerate(pbar):
+            self.state.global_step += 1
+            self.state.samples_seen += self.config.data.batch_size
+            
+            # Call batch begin hooks
+            self._call_hooks("on_batch_begin", self.state, batch)
+            
+            # Training step
+            loss, metrics = self._train_step(batch)
+            
+            # Update metrics
+            epoch_loss += loss
+            for k, v in metrics.items():
+                if k not in epoch_metrics:
+                    epoch_metrics[k] = 0.0
+                epoch_metrics[k] += v
+            num_batches += 1
+            
+            # Call batch end hooks
+            self._call_hooks("on_batch_end", self.state, loss)
+            
+            # Update progress bar
+            pbar.set_postfix({
+                "loss": f"{loss:.4f}",
+                "lr": f"{metrics.get('learning_rate', 0):.2e}",
+                "grad_norm": f"{metrics.get('grad_norm', 0):.2f}",
+            })
+            
+            # Evaluate during training if needed
+            if (self.config.training.eval_strategy == "steps" and 
+                self.state.global_step % self.config.training.eval_steps == 0):
+                if hasattr(self, '_val_dataloader') and self._val_dataloader is not None:
+                    val_metrics = self.evaluate(self._val_dataloader)
+                    self.state.val_loss = val_metrics["loss"]
+                    self.state.metrics.update(val_metrics)
+            
+            # Save checkpoint if needed
+            if (self.config.training.save_strategy == "steps" and
+                self.state.global_step % self.config.training.save_steps == 0):
+                self._save_checkpoint(is_best=False)
+        
+        # Average metrics
+        avg_metrics = {
+            "loss": epoch_loss / num_batches,
+            **{k: v / num_batches for k, v in epoch_metrics.items()}
+        }
+        
+        return avg_metrics
+    
+    def evaluate(self, dataloader: DataLoader) -> Dict[str, float]:
+        """
+        Evaluate the model on a dataset.
+        
+        Args:
+            dataloader: Data loader for evaluation
+            
+        Returns:
+            Dictionary of metrics
+        """
+        self._call_hooks("on_evaluate_begin", self.state)
+        
+        # Initialize metrics
+        total_loss = 0.0
+        total_metrics = {}
+        num_batches = 0
+        
+        # Evaluation loop
+        pbar = tqdm(dataloader, desc="Evaluating", leave=False, dynamic_ncols=True)
+        
+        for batch in pbar:
+            # Evaluation step
+            loss, metrics = self._eval_step(batch)
+            
+            # Update metrics
+            total_loss += loss
+            for k, v in metrics.items():
+                if k not in total_metrics:
+                    total_metrics[k] = 0.0
+                total_metrics[k] += v
+            num_batches += 1
+            
+            # Update progress bar
+            pbar.set_postfix({"loss": f"{loss:.4f}"})
+        
+        # Average metrics
+        avg_metrics = {
+            "loss": total_loss / num_batches,
+            **{k: v / num_batches for k, v in total_metrics.items()}
+        }
+        
+        # Prefix with eval_
+        eval_metrics = {f"eval_{k}": v for k, v in avg_metrics.items()}
+        
+        self._call_hooks("on_evaluate_end", self.state, eval_metrics)
+        
+        return eval_metrics
+    
+    def predict(self, dataloader: DataLoader) -> mx.array:
+        """
+        Generate predictions for a dataset.
+        
+        Args:
+            dataloader: Data loader for prediction
+            
+        Returns:
+            Predictions as MLX array
+        """
+        predictions = []
+        
+        pbar = tqdm(dataloader, desc="Predicting", leave=False, dynamic_ncols=True)
+        
+        for batch in pbar:
+            # Forward pass
+            outputs = self.model(batch)
+            
+            # Extract predictions (assuming 'logits' key)
+            if "logits" in outputs:
+                preds = outputs["logits"]
+            elif "predictions" in outputs:
+                preds = outputs["predictions"]
+            else:
+                raise ValueError("Model must return 'logits' or 'predictions' in output dict")
+            
+            predictions.append(preds)
+        
+        # Concatenate all predictions
+        return mx.concatenate(predictions, axis=0)
+    
+    def _save_checkpoint(self, is_best: bool = False, is_final: bool = False) -> Path:
+        """Save training checkpoint."""
+        # Determine checkpoint name
+        if is_final:
+            name = "final"
+        elif is_best:
+            name = "best"
+        else:
+            name = f"checkpoint-{self.state.global_step}"
+        
+        # Save checkpoint
+        checkpoint_path = self.checkpoint_manager.save_checkpoint(
+            model=self.model,
+            optimizer=self.optimizer,
+            state=self.state,
+            metrics=self.state.metrics,
+            is_best=is_best,
+            name=name,
+        )
+        
+        logger.info(f"Saved checkpoint: {checkpoint_path}")
+        return checkpoint_path
+    
+    def _load_checkpoint(self, path: Path) -> None:
+        """Load training checkpoint."""
+        self.state = self.checkpoint_manager.load_checkpoint(
+            path=path,
+            model=self.model,
+            optimizer=self.optimizer,
+        )
+        
+        # Update scheduler state if exists
+        if self.lr_scheduler is not None and hasattr(self.state, "scheduler_state"):
+            self.lr_scheduler.load_state_dict(self.state.scheduler_state)
+    
+    def _call_hooks(self, method: str, *args, **kwargs) -> None:
+        """Call all registered hooks."""
+        for callback in self.callbacks:
+            if hasattr(callback, method):
+                getattr(callback, method)(self, *args, **kwargs)
+    
+    def save_checkpoint(self, path: Path) -> None:
+        """Public method to save checkpoint."""
+        self._save_checkpoint(is_best=False, is_final=False)
+    
+    def load_checkpoint(self, path: Path) -> None:
+        """Public method to load checkpoint."""
+        self._load_checkpoint(path)
+    
+    @property
+    def model(self) -> Model:
+        """Get the model being trained."""
+        return self._model
+    
+    @model.setter
+    def model(self, value: Model):
+        """Set the model."""
+        self._model = value
+    
+    @property
+    def config(self) -> BaseTrainerConfig:
+        """Get trainer configuration."""
+        return self._config
+    
+    @config.setter
+    def config(self, value: BaseTrainerConfig):
+        """Set trainer configuration."""
+        # Validate configuration
+        errors = value.validate()
+        if errors:
+            raise ValueError(f"Invalid configuration: {errors}")
+        self._config = value
+    
+    @property
+    def state(self) -> TrainingState:
+        """Get current training state."""
+        return self._state
+    
+    @state.setter
+    def state(self, value: TrainingState):
+        """Set training state."""
+        self._state = value
