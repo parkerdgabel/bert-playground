@@ -316,11 +316,18 @@ def create_mlx_loader_config(
     batch_size: int = 32,
     shuffle: bool = True,
     drop_last: bool = False,
-    num_workers: int = 0,
-    prefetch_size: int = 2,
-    pin_memory: bool = False,
-    persistent_workers: bool = False,
-    seed: int = 42,
+    num_workers: int = 4,
+    prefetch_size: int = 4,
+    pin_memory: bool = True,
+    persistent_workers: bool = True,
+    use_unified_memory: bool = True,
+    async_device_transfer: bool = True,
+    lazy_evaluation: bool = True,
+    enable_caching: bool = True,
+    cache_size_mb: int = 512,
+    max_length: int = 512,
+    padding: str = "max_length",
+    truncation: bool = True,
     **kwargs
 ) -> MLXLoaderConfig:
     """Create MLX data loader configuration."""
@@ -332,8 +339,14 @@ def create_mlx_loader_config(
         prefetch_size=prefetch_size,
         pin_memory=pin_memory,
         persistent_workers=persistent_workers,
-        seed=seed,
-        **kwargs
+        use_unified_memory=use_unified_memory,
+        async_device_transfer=async_device_transfer,
+        lazy_evaluation=lazy_evaluation,
+        enable_caching=enable_caching,
+        cache_size_mb=cache_size_mb,
+        max_length=max_length,
+        padding=padding,
+        truncation=truncation,
     )
 
 

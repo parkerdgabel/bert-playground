@@ -18,29 +18,33 @@ def create_sample_dataframe(
     num_text: int = 1,
     add_target: bool = True,
     task_type: str = "classification",
+    size: Optional[int] = None,
 ) -> pd.DataFrame:
     """Create a sample DataFrame for testing."""
+    # Use size parameter if provided, otherwise use num_rows
+    actual_rows = size if size is not None else num_rows
+    
     np.random.seed(42)
     data = {}
     
     # Add numeric features
     for i in range(num_numeric):
-        data[f"numeric_{i}"] = np.random.randn(num_rows)
+        data[f"numeric_{i}"] = np.random.randn(actual_rows)
         
     # Add categorical features
     for i in range(num_categorical):
-        data[f"categorical_{i}"] = np.random.choice(['A', 'B', 'C', 'D'], size=num_rows)
+        data[f"categorical_{i}"] = np.random.choice(['A', 'B', 'C', 'D'], size=actual_rows)
         
     # Add text features
     for i in range(num_text):
-        data[f"text_{i}"] = [f"Sample text {j}" for j in range(num_rows)]
+        data[f"text_{i}"] = [f"Sample text {j}" for j in range(actual_rows)]
         
     # Add target
     if add_target:
         if task_type == "classification":
-            data["target"] = np.random.randint(0, 2, size=num_rows)
+            data["target"] = np.random.randint(0, 2, size=actual_rows)
         else:  # regression
-            data["target"] = np.random.randn(num_rows)
+            data["target"] = np.random.randn(actual_rows)
             
     return pd.DataFrame(data)
 

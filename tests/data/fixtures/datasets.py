@@ -363,13 +363,28 @@ class StreamingDataset:
     
     def __init__(
         self,
+        spec_or_num_samples = None,
         num_samples: int = 10000,
         chunk_size: int = 100,
         delay: float = 0.01,  # Simulate network delay
         num_features: int = 10,
         seed: int = 42,
+        size: Optional[int] = None,
+        **kwargs,
     ):
-        self.num_samples = num_samples
+        # Handle different calling patterns
+        if size is not None:
+            self.num_samples = size
+        elif spec_or_num_samples is not None:
+            if isinstance(spec_or_num_samples, int):
+                self.num_samples = spec_or_num_samples
+            elif hasattr(spec_or_num_samples, 'num_samples'):
+                self.num_samples = spec_or_num_samples.num_samples
+            else:
+                self.num_samples = num_samples
+        else:
+            self.num_samples = num_samples
+            
         self.chunk_size = chunk_size
         self.delay = delay
         self.num_features = num_features

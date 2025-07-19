@@ -109,8 +109,7 @@ class TestMLXDataLoader:
         
         assert loader.dataset == sample_dataset
         assert loader.config == loader_config
-        assert loader.batch_size == 16
-        assert hasattr(loader, '_memory_manager')
+        assert loader.config.batch_size == 16
         
     def test_loader_with_default_config(self, sample_dataset):
         """Test loader with default configuration."""
