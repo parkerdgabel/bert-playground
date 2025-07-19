@@ -102,6 +102,10 @@ class LearningRateScheduler:
         """Compute learning rate for given step (after warmup)."""
         return self.base_lr
     
+    def get_last_lr(self) -> float:
+        """Get the last computed learning rate."""
+        return self.current_lr
+    
     @property
     def state_dict(self) -> Dict[str, Any]:
         """Get scheduler state."""
@@ -245,20 +249,30 @@ def create_lr_scheduler(
     Returns:
         Learning rate scheduler or None
     """
-    if config.type == SchedulerType.NONE:
+    # Handle string types that weren't converted to enum
+    scheduler_type = config.type
+    if isinstance(scheduler_type, str):
+        try:
+            scheduler_type = SchedulerType(scheduler_type)
+        except ValueError:
+            raise ValueError(f"Unknown scheduler type: {scheduler_type}")
+    
+    if scheduler_type == SchedulerType.NONE:
         return None
-    elif config.type == SchedulerType.LINEAR:
+    elif scheduler_type == SchedulerType.CONSTANT:
+        return LearningRateScheduler(optimizer, config)  # Base class is constant
+    elif scheduler_type == SchedulerType.LINEAR:
         return LinearScheduler(optimizer, config)
-    elif config.type == SchedulerType.COSINE:
+    elif scheduler_type == SchedulerType.COSINE:
         return CosineScheduler(optimizer, config)
-    elif config.type == SchedulerType.COSINE_WITH_RESTARTS:
+    elif scheduler_type == SchedulerType.COSINE_WITH_RESTARTS:
         return CosineWithRestartsScheduler(optimizer, config)
-    elif config.type == SchedulerType.EXPONENTIAL:
+    elif scheduler_type == SchedulerType.EXPONENTIAL:
         return ExponentialScheduler(optimizer, config)
-    elif config.type == SchedulerType.REDUCE_ON_PLATEAU:
+    elif scheduler_type == SchedulerType.REDUCE_ON_PLATEAU:
         return ReduceOnPlateauScheduler(optimizer, config)
     else:
-        raise ValueError(f"Unknown scheduler type: {config.type}")
+        raise ValueError(f"Unknown scheduler type: {scheduler_type}")
 
 
 class GradientAccumulator:
@@ -302,7 +316,7 @@ class GradientAccumulator:
                     acc_grads[k] = v
             return acc_grads
         
-        scale = 1.0 / self.accumulation_steps
+        scale = 1.0  # Don't scale during accumulation
         self.accumulated_grads = accumulate_recursive(self.accumulated_grads, gradients, scale)
         
         # Check if we should update
@@ -310,9 +324,17 @@ class GradientAccumulator:
         
         return should_update
     
-    def get_gradients(self) -> Dict[str, Any]:
+    def get_gradients(self, average: bool = False) -> Dict[str, Any]:
         """Get accumulated gradients and reset."""
         grads = self.accumulated_grads
+        if average and grads is not None:
+            # Average the gradients by the number of accumulation steps
+            def average_grads(g):
+                if isinstance(g, dict):
+                    return {k: average_grads(v) for k, v in g.items()}
+                else:
+                    return g / self.accumulation_steps
+            grads = average_grads(grads)
         self.accumulated_grads = None
         return grads
     
@@ -406,10 +428,12 @@ def compute_gradient_stats(gradients: Dict[str, Any]) -> Dict[str, float]:
         "grad_max": 0.0,
         "grad_min": float('inf'),
         "grad_mean": 0.0,
+        "grad_std": 0.0,
     }
     
     total_elements = 0
     total_sum = 0.0
+    all_values = []
     
     for grad in flat_grads:
         if grad is not None:
@@ -419,8 +443,24 @@ def compute_gradient_stats(gradients: Dict[str, Any]) -> Dict[str, float]:
             
             total_sum += mx.sum(mx.abs(grad)).item()
             total_elements += grad.size
+            
+            # Collect values for std calculation
+            all_values.append(mx.abs(grad).flatten())
     
     stats["grad_norm"] = stats["grad_norm"] ** 0.5
-    stats["grad_mean"] = total_sum / max(total_elements, 1)
+    
+    if total_elements > 0:
+        stats["grad_mean"] = total_sum / total_elements
+    else:
+        # No gradients processed, keep defaults
+        stats["grad_min"] = float('inf')
+        stats["grad_mean"] = 0.0
+    
+    # Calculate standard deviation
+    if all_values:
+        all_values = mx.concatenate(all_values)
+        stats["grad_std"] = mx.std(all_values).item()
+    else:
+        stats["grad_std"] = 0.0
     
     return stats

@@ -77,7 +77,7 @@ class MLXDataLoader:
         
         # MLX device and stream management
         self.device = mx.default_device()
-        self.stream = mx.default_stream()
+        self.stream = mx.default_stream(self.device)
         
         # Internal state
         self._current_epoch = 0
@@ -204,8 +204,11 @@ class MLXDataLoader:
             
         batch = {}
         
+        # Check if we have pre-tokenized data
+        has_tokenized_data = ('input_ids' in samples[0] and samples[0]['input_ids'] is not None)
+        
         # Handle text data
-        if 'text' in samples[0]:
+        if 'text' in samples[0] and not has_tokenized_data:
             texts = [sample['text'] for sample in samples]
             
             if self.tokenizer:
@@ -213,19 +216,19 @@ class MLXDataLoader:
                 tokenized = self._tokenize_batch(texts)
                 batch.update(tokenized)
             else:
-                # Keep as text for later processing
-                batch['text'] = texts
-                
+                # Tokenizer is required for text data when no pre-tokenized data exists
+                raise ValueError("Tokenizer is required when loading text data without pre-tokenized input_ids. Please provide a tokenizer in the config.")
+        
         # Handle pre-tokenized data
-        if 'input_ids' in samples[0]:
+        if has_tokenized_data:
             input_ids = self._pad_sequences([sample['input_ids'] for sample in samples])
             batch['input_ids'] = mx.array(input_ids, dtype=mx.int32)
             
-        if 'attention_mask' in samples[0]:
+        if 'attention_mask' in samples[0] and samples[0]['attention_mask'] is not None:
             attention_masks = self._pad_sequences([sample['attention_mask'] for sample in samples])
             batch['attention_mask'] = mx.array(attention_masks, dtype=mx.int32)
             
-        if 'token_type_ids' in samples[0]:
+        if 'token_type_ids' in samples[0] and samples[0]['token_type_ids'] is not None:
             token_type_ids = self._pad_sequences([sample['token_type_ids'] for sample in samples])
             batch['token_type_ids'] = mx.array(token_type_ids, dtype=mx.int32)
             
@@ -297,6 +300,12 @@ class MLXDataLoader:
         # Pad sequences
         padded = []
         for seq in sequences:
+            # Convert to list if it's a numpy array
+            if hasattr(seq, 'tolist'):
+                seq = seq.tolist()
+            elif not isinstance(seq, list):
+                seq = list(seq)
+                
             if len(seq) > max_len:
                 # Truncate
                 padded_seq = seq[:max_len]
@@ -418,4 +427,5 @@ class MLXDataLoader:
     
     def __del__(self):
         """Cleanup when loader is destroyed."""
-        self._stop_prefetching_workers()
+        if hasattr(self, '_worker_pool') and self._worker_pool is not None:
+            self._stop_prefetching_workers()

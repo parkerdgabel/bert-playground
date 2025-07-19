@@ -132,6 +132,9 @@ def create_head(
 
     # Regression heads
     elif head_type in ["regression", "standard_regression"]:
+        # Pass output_size if provided
+        if output_size is not None:
+            kwargs['output_size'] = output_size
         return create_standard_regression_head(input_size, **kwargs)
 
     elif head_type in ["ordinal", "ordinal_regression"]:

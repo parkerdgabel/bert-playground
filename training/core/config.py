@@ -24,6 +24,7 @@ class OptimizerType(Enum):
 class SchedulerType(Enum):
     """Supported learning rate scheduler types."""
     NONE = "none"
+    CONSTANT = "constant"
     LINEAR = "linear"
     COSINE = "cosine"
     COSINE_WITH_RESTARTS = "cosine_with_restarts"
@@ -97,7 +98,7 @@ class OptimizerConfig:
 class SchedulerConfig:
     """Configuration for learning rate scheduler."""
     
-    type: SchedulerType = SchedulerType.COSINE
+    type: Union[SchedulerType, str] = SchedulerType.COSINE
     warmup_steps: int = 0
     warmup_ratio: float = 0.0
     
@@ -116,10 +117,21 @@ class SchedulerConfig:
     # Exponential
     gamma: float = 0.95
     
+    def __post_init__(self):
+        """Convert string type to enum if needed."""
+        if isinstance(self.type, str):
+            try:
+                self.type = SchedulerType(self.type)
+            except ValueError:
+                # Leave as string to be caught later in create_lr_scheduler
+                pass
+    
     # Reduce on plateau
     patience: int = 5
     factor: float = 0.5
     min_lr: float = 1e-7
+    mode: str = "min"  # "min" or "max"
+    threshold: float = 0.01
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""

@@ -1,5 +1,0 @@
-cli
-data
-models
-training
-utils

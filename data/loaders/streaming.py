@@ -26,11 +26,15 @@ class StreamingConfig:
     buffer_size: int = 1000
     batch_size: int = 32
     max_queue_size: int = 100
+    chunk_size: int = 256  # Add chunk_size for compatibility
     
     # Performance optimization
     num_producer_threads: int = 2
     num_consumer_threads: int = 1
+    num_workers: int = 4  # Add num_workers for compatibility
     prefetch_batches: int = 5
+    target_throughput: int = 1000  # Target samples per second
+    adaptive_batching: bool = False  # Enable adaptive batch sizing
     
     # Memory management
     max_memory_mb: int = 1024
@@ -40,6 +44,15 @@ class StreamingConfig:
     # Processing options
     enable_async_processing: bool = True
     stream_timeout_seconds: float = 30.0
+    
+    def __post_init__(self):
+        """Validate configuration after initialization."""
+        if self.buffer_size <= 0:
+            raise ValueError("buffer_size must be positive")
+        if self.chunk_size <= 0:
+            raise ValueError("chunk_size must be positive")
+        if self.num_workers <= 0:
+            raise ValueError("num_workers must be positive")
 
 
 class StreamingPipeline:

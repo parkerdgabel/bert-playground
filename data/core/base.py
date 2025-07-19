@@ -138,7 +138,7 @@ class KaggleDataset(ABC):
         
         # MLX optimization settings
         self._device = mx.default_device()
-        self._stream = mx.default_stream()
+        self._stream = mx.default_stream(self._device)
         
         # Load and validate data
         self._load_data()

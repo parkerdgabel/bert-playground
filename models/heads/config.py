@@ -80,8 +80,6 @@ class HeadConfig:
         # Auto-configure output size for specific head types
         if self.head_type == "binary_classification" and self.output_size != 2:
             self.output_size = 2
-        elif self.head_type == "regression" and self.output_size != 1:
-            self.output_size = 1
 
 
 @dataclass
@@ -118,7 +116,10 @@ class RegressionConfig(HeadConfig):
     def __post_init__(self):
         """Set regression-specific defaults."""
         self.head_type = "regression"
-        self.output_size = 1  # Regression typically has single output
+        
+        # Only set default output_size if not provided
+        if self.output_size is None:
+            self.output_size = 1  # Regression typically has single output
 
         # Regression often benefits from different pooling
         if not hasattr(self, "_pooling_set"):

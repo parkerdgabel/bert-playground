@@ -98,6 +98,17 @@ venv.bak/
 .dmypy.json
 dmypy.json
 
+# Coverage files
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
 # VS Code
 .vscode/
 
