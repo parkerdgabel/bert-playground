@@ -1,4 +1,4 @@
-name: CLI Contract Tests
+name: Tests
 
 on:
   push:
@@ -16,7 +16,7 @@ on:
       - 'tests/cli/**'
 
 jobs:
-  contract-tests:
+  tests:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -37,35 +37,18 @@ jobs:
     
     - name: Install dependencies
       run: |
-        uv venv
-        uv pip sync requirements.txt
+        uv sync --all-extras
         uv pip install pytest pytest-cov pytest-mock
     
-    - name: Run contract tests
+    - name: Run tests
       run: |
-        uv run pytest tests/cli/test_api_contracts.py -v --tb=short
-    
-    - name: Check contract coverage
-      run: |
-        uv run python run_contract_tests.py
+        uv run pytest tests/ -v --tb=short
     
     - name: Upload test results
       if: always()
       uses: actions/upload-artifact@v3
       with:
-        name: contract-test-results-${{ matrix.python-version }}
+        name: test-results-${{ matrix.python-version }}
         path: |
           .pytest_cache/
           htmlcov/
-    
-    - name: Comment PR
-      if: failure() && github.event_name == 'pull_request'
-      uses: actions/github-script@v6
-      with:
-        script: |
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: '❌ CLI Contract Tests Failed!\n\nThe API contracts between CLI and utilities have been broken. Please review the test failures and update either the code or the contracts in `docs/CLI_API_CONTRACTS.md`.'
-          })
