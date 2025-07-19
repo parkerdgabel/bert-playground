@@ -7,8 +7,120 @@ import numpy as np
 from pathlib import Path
 import json
 
-from data.core.interfaces import Dataset
-from data.core.metadata import DatasetMetadata, FeatureType
+from data.core.base import DatasetSpec, CompetitionType, KaggleDataset
+from data.core.metadata import CompetitionMetadata
+
+
+class MockKaggleDataset(KaggleDataset):
+    """Mock KaggleDataset for testing."""
+    
+    def __init__(
+        self,
+        spec: DatasetSpec,
+        size: Optional[int] = None,
+        cache_dir: Optional[Path] = None,
+        split: str = "train",
+        **kwargs
+    ):
+        """Initialize mock dataset with synthetic data."""
+        # Set attributes before calling parent init
+        # Use size from spec if not provided
+        self.size = size if size is not None else spec.num_samples
+        self._generated = False
+        
+        # Call parent init which will call _load_data and _validate_data
+        super().__init__(spec, split=split, cache_dir=cache_dir, **kwargs)
+        
+    def _generate_data(self):
+        """Generate synthetic data based on competition type."""
+        if self._generated:
+            return
+            
+        np.random.seed(42)
+        
+        # Generate features
+        num_features = self.spec.num_features or 10
+        data = {
+            f"feature_{i}": np.random.randn(self.size) 
+            for i in range(num_features)
+        }
+        
+        # Add categorical features
+        if self.spec.categorical_columns:
+            for col in self.spec.categorical_columns:
+                data[col] = np.random.choice(['A', 'B', 'C'], size=self.size)
+                
+        # Add text features  
+        if self.spec.text_columns:
+            for col in self.spec.text_columns:
+                data[col] = [f"Text sample {i}" for i in range(self.size)]
+                
+        # Generate target based on competition type
+        if self.spec.competition_type == CompetitionType.BINARY_CLASSIFICATION:
+            data[self.spec.target_column or 'target'] = np.random.randint(0, 2, size=self.size)
+        elif self.spec.competition_type == CompetitionType.MULTICLASS_CLASSIFICATION:
+            num_classes = self.spec.num_classes or 3
+            data[self.spec.target_column or 'target'] = np.random.randint(0, num_classes, size=self.size)
+        elif self.spec.competition_type == CompetitionType.REGRESSION:
+            data[self.spec.target_column or 'target'] = np.random.randn(self.size)
+            
+        self._data = pd.DataFrame(data)
+        self._generated = True
+        
+    def __len__(self) -> int:
+        """Return dataset size."""
+        return self.size
+        
+    def __getitem__(self, idx: int) -> Dict[str, Any]:
+        """Get item by index."""
+        if not self._generated:
+            self._generate_data()
+            
+        if idx >= self.size:
+            raise IndexError(f"Index {idx} out of range for dataset of size {self.size}")
+            
+        row = self._data.iloc[idx]
+        row_dict = row.to_dict()
+        
+        # Create text representation
+        text_parts = []
+        for col, val in row_dict.items():
+            if col != self.spec.target_column:
+                text_parts.append(f"{col}: {val}")
+        text = " ".join(text_parts)
+        
+        # Extract label
+        label = row_dict.get(self.spec.target_column, 0)
+        
+        # Return expected structure
+        return {
+            "text": text,
+            "input_ids": None,  # Not tokenized yet
+            "attention_mask": None,
+            "labels": label,
+            "metadata": {
+                "index": idx,
+                "raw_data": row_dict,
+            }
+        }
+        
+    def get_dataframe(self) -> pd.DataFrame:
+        """Get full dataset as DataFrame."""
+        if not self._generated:
+            self._generate_data()
+        return self._data.copy()
+    
+    def _load_data(self) -> None:
+        """Load data - for mock, just generate it."""
+        if not self._generated:
+            self._generate_data()
+        # Store in parent class's _data attribute
+        self._data = self._data
+    
+    def _validate_data(self) -> None:
+        """Validate data - for mock, just check it's not empty."""
+        if self._data is None or len(self._data) == 0:
+            raise ValueError("Mock data is empty")
 
 
 class SyntheticTabularDataset:
@@ -69,7 +181,7 @@ class SyntheticTabularDataset:
         
         return pd.DataFrame(data)
     
-    def _create_metadata(self) -> DatasetMetadata:
+    def _create_metadata(self) -> dict:
         """Create dataset metadata."""
         feature_types = {}
         
@@ -77,21 +189,21 @@ class SyntheticTabularDataset:
             if col == "target":
                 continue
             elif col.startswith("numeric_"):
-                feature_types[col] = FeatureType.NUMERIC
+                feature_types[col] = "numeric"
             elif col.startswith("categorical_"):
-                feature_types[col] = FeatureType.CATEGORICAL
+                feature_types[col] = "categorical"
             elif col.startswith("text_"):
-                feature_types[col] = FeatureType.TEXT
+                feature_types[col] = "text"
         
-        return DatasetMetadata(
-            name="synthetic_tabular",
-            task_type=self.task_type,
-            num_samples=self.num_samples,
-            feature_names=list(feature_types.keys()),
-            feature_types=feature_types,
-            target_name="target",
-            num_classes=self.num_classes if self.task_type == "classification" else None,
-        )
+        return {
+            "name": "synthetic_tabular",
+            "task_type": self.task_type,
+            "num_samples": self.num_samples,
+            "feature_names": list(feature_types.keys()),
+            "feature_types": feature_types,
+            "target_name": "target",
+            "num_classes": self.num_classes if self.task_type == "classification" else None,
+        }
     
     def to_dataframe(self) -> pd.DataFrame:
         """Get data as pandas DataFrame."""
@@ -101,7 +213,7 @@ class SyntheticTabularDataset:
         """Save dataset to file."""
         self.data.to_csv(path / "data.csv", index=False)
         with open(path / "metadata.json", "w") as f:
-            json.dump(self.metadata.to_dict(), f, indent=2)
+            json.dump(self.metadata, f, indent=2)
 
 
 class SyntheticTextDataset:
@@ -154,20 +266,20 @@ class SyntheticTextDataset:
             "labels": label,
         }
     
-    def create_metadata(self) -> DatasetMetadata:
+    def create_metadata(self) -> dict:
         """Create dataset metadata."""
-        return DatasetMetadata(
-            name="synthetic_text",
-            task_type=self.task_type,
-            num_samples=self.num_samples,
-            feature_names=["input_ids", "attention_mask"],
-            feature_types={
-                "input_ids": FeatureType.TEXT,
-                "attention_mask": FeatureType.NUMERIC,
+        return {
+            "name": "synthetic_text",
+            "task_type": self.task_type,
+            "num_samples": self.num_samples,
+            "feature_names": ["input_ids", "attention_mask"],
+            "feature_types": {
+                "input_ids": "text",
+                "attention_mask": "numeric",
             },
-            target_name="labels",
-            num_classes=self.num_classes if self.task_type == "classification" else None,
-        )
+            "target_name": "labels",
+            "num_classes": self.num_classes if self.task_type == "classification" else None,
+        }
 
 
 class ImbalancedDataset:
@@ -393,6 +505,37 @@ class CorruptDataset:
         }
 
 
+class FaultyDataset:
+    """Dataset that randomly fails for testing error handling."""
+    
+    def __init__(
+        self,
+        spec: DatasetSpec,
+        error_rate: float = 0.1,
+        **kwargs
+    ):
+        """Initialize faulty dataset."""
+        self.spec = spec
+        self.error_rate = error_rate
+        self.num_samples = spec.num_samples
+        
+    def __len__(self) -> int:
+        """Return dataset size."""
+        return self.num_samples
+        
+    def __getitem__(self, idx: int) -> Optional[Dict[str, mx.array]]:
+        """Get item with random failures."""
+        if np.random.random() < self.error_rate:
+            raise RuntimeError(f"Simulated error at index {idx}")
+            
+        # Return normal data
+        return {
+            "input_ids": mx.random.randint(0, 1000, (128,)),
+            "attention_mask": mx.ones((128,)),
+            "labels": mx.array(idx % 2),
+        }
+
+
 class LargeDataset:
     """Large dataset for memory and performance testing."""
     
@@ -436,6 +579,48 @@ class LargeDataset:
 
 
 # Factory functions
+def create_kaggle_like_dataset(
+    competition_name: str = "titanic",
+    num_samples: int = 1000,
+    num_features: int = 10,
+    task_type: str = "binary_classification",
+    **kwargs
+) -> MockKaggleDataset:
+    """Create a Kaggle-like dataset for testing."""
+    # Map task type to CompetitionType enum
+    from data.core.base import CompetitionType
+    
+    competition_type_map = {
+        "binary_classification": CompetitionType.BINARY_CLASSIFICATION,
+        "multiclass_classification": CompetitionType.MULTICLASS_CLASSIFICATION,
+        "regression": CompetitionType.REGRESSION,
+        "time_series": CompetitionType.TIME_SERIES,
+    }
+    
+    competition_type = competition_type_map.get(task_type, CompetitionType.BINARY_CLASSIFICATION)
+    
+    # Create dataset spec
+    spec = DatasetSpec(
+        competition_name=competition_name,
+        dataset_path=kwargs.get("dataset_path", Path("/tmp/test_data")),
+        competition_type=competition_type,
+        num_samples=num_samples,
+        num_features=num_features,
+        target_column=kwargs.get("target_column", "target"),
+        text_columns=kwargs.get("text_columns", []),
+        categorical_columns=kwargs.get("categorical_columns", ["cat_1", "cat_2"]),
+        numerical_columns=[f"num_{i}" for i in range(num_features - 2)],  # Minus categorical columns
+        num_classes=kwargs.get("num_classes", 2 if "classification" in task_type else None),
+    )
+    
+    return MockKaggleDataset(
+        spec=spec,
+        size=num_samples,
+        cache_dir=kwargs.get("cache_dir"),
+        **kwargs
+    )
+
+
 def create_classification_dataset(
     num_samples: int = 1000,
     num_classes: int = 2,

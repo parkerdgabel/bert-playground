@@ -6,7 +6,7 @@ import mlx.nn as nn
 
 from models.bert.config import BertConfig
 from models.bert.modernbert_config import ModernBertConfig
-from models.heads.config import ClassificationHeadConfig, RegressionHeadConfig
+from models.heads.config import ClassificationConfig, RegressionConfig
 from tests.models.fixtures.configs import (
     create_small_bert_config,
     create_tiny_bert_config,

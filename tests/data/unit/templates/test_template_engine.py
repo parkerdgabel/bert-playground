@@ -7,8 +7,7 @@ import pandas as pd
 import numpy as np
 
 from data.core.base import CompetitionType
-from data.templates.engine import TextTemplateEngine, CompetitionTextTemplate
-from data.templates.base_template import BaseTextTemplate
+from data.templates.engine import TextTemplateEngine
 from tests.data.fixtures.utils import create_sample_dataframe
 from tests.data.fixtures.configs import create_dataset_spec
 

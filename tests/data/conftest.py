@@ -15,10 +15,10 @@ import json
 import sys
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from data.core.interfaces import Dataset, DataLoader, DatasetSpec
-from data.core.metadata import DatasetMetadata, FeatureType
+from data.core.base import DatasetSpec
+from data.core.metadata import CompetitionMetadata
 from data.loaders.mlx_loader import MLXDataLoader, MLXLoaderConfig
-from data.templates.engine import TemplateEngine
+from data.templates.engine import TextTemplateEngine
 
 
 # Test configuration
@@ -265,27 +265,31 @@ def memory_config():
 @pytest.fixture
 def classification_spec():
     """Create classification dataset spec."""
+    from data.core.base import CompetitionType
     return DatasetSpec(
-        name="test_classification",
-        task_type="binary_classification",
+        competition_name="test_classification",
+        dataset_path="./test_data",
+        competition_type=CompetitionType.BINARY_CLASSIFICATION,
         num_samples=1000,
         num_features=10,
         num_classes=2,
-        feature_names=[f"feature_{i}" for i in range(10)],
-        target_name="label",
+        target_column="label",
+        numerical_columns=[f"feature_{i}" for i in range(10)],
     )
 
 
 @pytest.fixture
 def regression_spec():
     """Create regression dataset spec."""
+    from data.core.base import CompetitionType
     return DatasetSpec(
-        name="test_regression",
-        task_type="regression",
+        competition_name="test_regression",
+        dataset_path="./test_data",
+        competition_type=CompetitionType.REGRESSION,
         num_samples=1000,
         num_features=5,
-        feature_names=[f"feature_{i}" for i in range(5)],
-        target_name="target",
+        target_column="target",
+        numerical_columns=[f"feature_{i}" for i in range(5)],
     )
 
 
@@ -293,7 +297,7 @@ def regression_spec():
 @pytest.fixture
 def template_engine():
     """Create template engine."""
-    return TemplateEngine()
+    return TextTemplateEngine()
 
 
 @pytest.fixture

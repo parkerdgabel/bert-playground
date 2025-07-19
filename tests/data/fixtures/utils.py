@@ -11,6 +11,62 @@ import tempfile
 from contextlib import contextmanager
 
 
+def create_sample_dataframe(
+    num_rows: int = 100,
+    num_numeric: int = 5,
+    num_categorical: int = 3,
+    num_text: int = 1,
+    add_target: bool = True,
+    task_type: str = "classification",
+) -> pd.DataFrame:
+    """Create a sample DataFrame for testing."""
+    np.random.seed(42)
+    data = {}
+    
+    # Add numeric features
+    for i in range(num_numeric):
+        data[f"numeric_{i}"] = np.random.randn(num_rows)
+        
+    # Add categorical features
+    for i in range(num_categorical):
+        data[f"categorical_{i}"] = np.random.choice(['A', 'B', 'C', 'D'], size=num_rows)
+        
+    # Add text features
+    for i in range(num_text):
+        data[f"text_{i}"] = [f"Sample text {j}" for j in range(num_rows)]
+        
+    # Add target
+    if add_target:
+        if task_type == "classification":
+            data["target"] = np.random.randint(0, 2, size=num_rows)
+        else:  # regression
+            data["target"] = np.random.randn(num_rows)
+            
+    return pd.DataFrame(data)
+
+
+def check_dataset_consistency(dataset: Any) -> bool:
+    """Check if dataset is consistent."""
+    try:
+        # Check basic properties
+        assert hasattr(dataset, "__len__")
+        assert hasattr(dataset, "__getitem__")
+        
+        # Check length
+        length = len(dataset)
+        assert length >= 0
+        
+        # Check if we can get first item
+        if length > 0:
+            item = dataset[0]
+            assert isinstance(item, dict)
+            
+        return True
+    except Exception as e:
+        print(f"Dataset consistency check failed: {e}")
+        return False
+
+
 def compare_batches(
     batch1: Dict[str, mx.array],
     batch2: Dict[str, mx.array],
@@ -410,6 +466,231 @@ def create_data_corruption_test_cases() -> Dict[str, Any]:
             "labels": mx.array([0]),
         },
     }
+
+
+def create_test_row(
+    num_numeric: int = 5,
+    num_categorical: int = 3, 
+    num_text: int = 1,
+    add_label: bool = True,
+    seed: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Create a single test row of data."""
+    if seed is not None:
+        np.random.seed(seed)
+    
+    row = {}
+    
+    # Add numeric features
+    for i in range(num_numeric):
+        row[f"numeric_{i}"] = np.random.randn()
+    
+    # Add categorical features
+    for i in range(num_categorical):
+        row[f"categorical_{i}"] = np.random.choice(['A', 'B', 'C', 'D'])
+    
+    # Add text features
+    text_samples = [
+        "This is a positive example",
+        "Negative sentiment detected",
+        "Neutral text content",
+        "Another sample text",
+    ]
+    for i in range(num_text):
+        row[f"text_{i}"] = np.random.choice(text_samples)
+    
+    # Add label
+    if add_label:
+        row["label"] = np.random.randint(0, 2)
+    
+    return row
+
+
+def check_memory_usage(
+    func: Any,
+    *args,
+    **kwargs
+) -> Dict[str, float]:
+    """Check memory usage of a function."""
+    import psutil
+    import os
+    import gc
+    
+    # Force garbage collection
+    gc.collect()
+    
+    process = psutil.Process(os.getpid())
+    
+    # Get initial memory
+    initial_memory = process.memory_info().rss / 1024 / 1024  # MB
+    
+    # Run function
+    start_time = time.time()
+    result = func(*args, **kwargs)
+    end_time = time.time()
+    
+    # Get final memory
+    final_memory = process.memory_info().rss / 1024 / 1024  # MB
+    
+    # Force garbage collection again
+    gc.collect()
+    
+    # Get memory after cleanup
+    cleaned_memory = process.memory_info().rss / 1024 / 1024  # MB
+    
+    return {
+        "initial_memory_mb": initial_memory,
+        "peak_memory_mb": final_memory,
+        "final_memory_mb": cleaned_memory,
+        "memory_used_mb": final_memory - initial_memory,
+        "memory_leaked_mb": cleaned_memory - initial_memory,
+        "execution_time": end_time - start_time,
+        "result": result,
+    }
+
+
+def measure_throughput(
+    dataloader: Any,
+    num_batches: int = 100,
+    warmup_batches: int = 10,
+) -> Dict[str, float]:
+    """Measure throughput of a dataloader."""
+    # Warmup
+    for i, batch in enumerate(dataloader):
+        if i >= warmup_batches:
+            break
+    
+    # Measure
+    batch_times = []
+    samples_processed = 0
+    bytes_processed = 0
+    
+    start_time = time.time()
+    
+    for i, batch in enumerate(dataloader):
+        if i >= num_batches:
+            break
+        
+        batch_start = time.time()
+        
+        # Count samples
+        if isinstance(batch, dict):
+            if "features" in batch:
+                batch_size = batch["features"].shape[0]
+            elif "input_ids" in batch:
+                batch_size = batch["input_ids"].shape[0]
+            else:
+                batch_size = 1
+        else:
+            batch_size = 1
+        
+        samples_processed += batch_size
+        
+        # Estimate bytes (rough estimate)
+        if isinstance(batch, dict):
+            for key, value in batch.items():
+                if hasattr(value, "nbytes"):
+                    bytes_processed += value.nbytes
+                elif hasattr(value, "shape"):
+                    # Estimate for MLX arrays
+                    bytes_processed += np.prod(value.shape) * 4  # Assume float32
+        
+        batch_times.append(time.time() - batch_start)
+    
+    total_time = time.time() - start_time
+    
+    return {
+        "total_time": total_time,
+        "num_batches": len(batch_times),
+        "samples_processed": samples_processed,
+        "bytes_processed": bytes_processed,
+        "mean_batch_time": np.mean(batch_times),
+        "std_batch_time": np.std(batch_times),
+        "samples_per_second": samples_processed / total_time,
+        "mb_per_second": (bytes_processed / 1024 / 1024) / total_time,
+        "batches_per_second": len(batch_times) / total_time,
+    }
+
+
+def create_large_tensor(
+    shape: Tuple[int, ...],
+    dtype: mx.Dtype = mx.float32,
+    fill_value: Optional[float] = None,
+) -> mx.array:
+    """Create a large tensor for memory testing."""
+    if fill_value is not None:
+        return mx.full(shape, fill_value, dtype=dtype)
+    else:
+        return mx.random.normal(shape, dtype=dtype)
+
+
+def measure_memory_allocation_time(
+    allocation_fn: Any,
+    num_iterations: int = 10,
+    warmup_iterations: int = 2,
+) -> Dict[str, float]:
+    """Measure time taken for memory allocations."""
+    import gc
+    
+    # Warmup
+    for _ in range(warmup_iterations):
+        result = allocation_fn()
+        del result
+        gc.collect()
+    
+    # Measure
+    times = []
+    for _ in range(num_iterations):
+        gc.collect()
+        start = time.time()
+        result = allocation_fn()
+        allocation_time = time.time() - start
+        times.append(allocation_time)
+        del result
+    
+    return {
+        "mean_time": np.mean(times),
+        "std_time": np.std(times),
+        "min_time": np.min(times),
+        "max_time": np.max(times),
+        "total_time": sum(times),
+    }
+
+
+def simulate_slow_consumer(delay: float = 0.01):
+    """Simulate a slow data consumer."""
+    def consume(item):
+        time.sleep(delay)
+        return item
+    return consume
+
+
+def assert_batch_structure(
+    batch: Dict[str, mx.array],
+    expected_keys: List[str],
+    batch_size: Optional[int] = None,
+) -> None:
+    """Assert that a batch has the expected structure."""
+    # Check keys
+    assert set(batch.keys()) == set(expected_keys), \
+        f"Batch keys {set(batch.keys())} don't match expected {set(expected_keys)}"
+    
+    # Check batch size if provided
+    if batch_size is not None:
+        for key, value in batch.items():
+            if hasattr(value, "shape") and len(value.shape) > 0:
+                assert value.shape[0] == batch_size, \
+                    f"Batch size mismatch for {key}: expected {batch_size}, got {value.shape[0]}"
+    
+    # Check that all arrays have the same batch dimension
+    batch_sizes = []
+    for key, value in batch.items():
+        if hasattr(value, "shape") and len(value.shape) > 0:
+            batch_sizes.append(value.shape[0])
+    
+    if batch_sizes:
+        assert all(bs == batch_sizes[0] for bs in batch_sizes), \
+            f"Inconsistent batch sizes: {batch_sizes}"
 
 
 def benchmark_data_pipeline(

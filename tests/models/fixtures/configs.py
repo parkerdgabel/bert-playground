@@ -6,7 +6,7 @@ import json
 
 from models.bert.config import BertConfig
 from models.bert.modernbert_config import ModernBertConfig
-from models.heads.config import ClassificationHeadConfig, RegressionHeadConfig
+from models.heads.config import ClassificationConfig, RegressionConfig
 from models.lora.config import LoRAConfig
 
 
@@ -117,19 +117,19 @@ def create_classification_config(
     dropout_prob: float = 0.1,
     pooling_type: str = "cls",
     **kwargs
-) -> ClassificationHeadConfig:
+) -> ClassificationConfig:
     """Create classification head configuration."""
     config_dict = {
-        "hidden_size": hidden_size,
-        "num_labels": num_labels,
+        "input_size": hidden_size,
+        "output_size": num_labels,
+        "num_classes": num_labels,
         "dropout_prob": dropout_prob,
         "pooling_type": pooling_type,
-        "hidden_act": kwargs.get("hidden_act", "tanh"),
-        "use_pooler": kwargs.get("use_pooler", True),
-        "classifier_dropout": kwargs.get("classifier_dropout", None),
+        "activation": kwargs.get("hidden_act", "tanh"),
+        "head_type": "classification",
     }
     
-    return ClassificationHeadConfig(**config_dict)
+    return ClassificationConfig(**config_dict)
 
 
 def create_regression_config(
@@ -137,18 +137,18 @@ def create_regression_config(
     dropout_prob: float = 0.1,
     pooling_type: str = "mean",
     **kwargs
-) -> RegressionHeadConfig:
+) -> RegressionConfig:
     """Create regression head configuration."""
     config_dict = {
-        "hidden_size": hidden_size,
+        "input_size": hidden_size,
+        "output_size": kwargs.get("output_dim", 1),
         "dropout_prob": dropout_prob,
         "pooling_type": pooling_type,
-        "hidden_act": kwargs.get("hidden_act", "tanh"),
-        "use_pooler": kwargs.get("use_pooler", True),
-        "output_dim": kwargs.get("output_dim", 1),
+        "activation": kwargs.get("hidden_act", "tanh"),
+        "head_type": "regression",
     }
     
-    return RegressionHeadConfig(**config_dict)
+    return RegressionConfig(**config_dict)
 
 
 def create_lora_config(

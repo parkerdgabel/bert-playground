@@ -24,7 +24,8 @@ class RegressionHead(BaseHead):
             config: Head configuration
         """
         # Ensure regression settings
-        config.output_size = 1
+        if not hasattr(config, 'output_size') or config.output_size is None:
+            config.output_size = 1
         config.head_type = "regression"
 
         # Set loss type

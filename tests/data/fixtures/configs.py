@@ -5,7 +5,8 @@ from typing import Dict, Any, Optional, List
 import json
 
 from data.loaders.mlx_loader import MLXLoaderConfig
-from data.core.metadata import DatasetSpec, FeatureType
+from data.core.metadata import CompetitionMetadata
+from data.core.base import DatasetSpec, CompetitionType
 from data.templates.engine import TemplateConfig
 
 
@@ -76,6 +77,23 @@ def create_memory_config(
     }
 
 
+def create_small_dataset_spec(**kwargs) -> DatasetSpec:
+    """Create small dataset spec for quick testing."""
+    defaults = {
+        "competition_name": "test_small",
+        "dataset_path": "./test_data",
+        "competition_type": CompetitionType.BINARY_CLASSIFICATION,
+        "num_samples": 100,
+        "num_features": 5,
+        "num_classes": 2,
+        "target_column": "target",
+        "recommended_batch_size": 8,
+        "num_workers": 0,  # No multiprocessing for tests
+    }
+    defaults.update(kwargs)
+    return DatasetSpec(**defaults)
+
+
 def create_dataset_spec(
     name: str = "test_dataset",
     task_type: str = "classification",
@@ -84,26 +102,46 @@ def create_dataset_spec(
     **kwargs
 ) -> DatasetSpec:
     """Create dataset specification."""
-    feature_names = kwargs.get(
-        "feature_names",
-        [f"feature_{i}" for i in range(num_features)]
-    )
+    # Map task type string to CompetitionType enum
+    competition_type_map = {
+        "classification": CompetitionType.BINARY_CLASSIFICATION,
+        "binary_classification": CompetitionType.BINARY_CLASSIFICATION,
+        "multiclass_classification": CompetitionType.MULTICLASS_CLASSIFICATION,
+        "regression": CompetitionType.REGRESSION,
+        "time_series": CompetitionType.TIME_SERIES,
+    }
+    competition_type = competition_type_map.get(task_type, CompetitionType.UNKNOWN)
     
-    feature_types = kwargs.get("feature_types", {})
-    if not feature_types:
-        # Default all features to numeric
-        feature_types = {name: FeatureType.NUMERIC for name in feature_names}
+    # Create feature columns - use provided ones or generate defaults
+    if "numerical_columns" in kwargs:
+        numerical_columns = kwargs["numerical_columns"]
+    else:
+        num_numeric = kwargs.get("num_numeric_features", num_features)
+        numerical_columns = [f"numeric_{i}" for i in range(num_numeric)]
+    
+    if "categorical_columns" in kwargs:
+        categorical_columns = kwargs["categorical_columns"]
+    else:
+        num_categorical = kwargs.get("num_categorical_features", 0)
+        categorical_columns = [f"categorical_{i}" for i in range(num_categorical)]
+    
+    if "text_columns" in kwargs:
+        text_columns = kwargs["text_columns"]
+    else:
+        num_text = kwargs.get("num_text_features", 0)
+        text_columns = [f"text_{i}" for i in range(num_text)]
     
     spec = DatasetSpec(
-        name=name,
-        task_type=task_type,
+        competition_name=name,
+        dataset_path=kwargs.get("dataset_path", Path("/tmp/test_data")),
+        competition_type=competition_type,
         num_samples=num_samples,
         num_features=num_features,
-        feature_names=feature_names,
-        feature_types=feature_types,
-        target_name=kwargs.get("target_name", "target"),
-        num_classes=kwargs.get("num_classes", 2 if task_type == "classification" else None),
-        description=kwargs.get("description", f"Test dataset for {task_type}"),
+        target_column=kwargs.get("target_column", "target"),
+        text_columns=text_columns,
+        categorical_columns=categorical_columns,
+        numerical_columns=numerical_columns,
+        num_classes=kwargs.get("num_classes", 2 if "classification" in task_type else None),
     )
     
     return spec
@@ -272,6 +310,31 @@ def save_config_to_file(config: Any, file_path: Path, format: str = "json"):
             json.dump(config_dict, f, indent=2)
     else:
         raise ValueError(f"Unknown format: {format}")
+
+
+def create_mlx_loader_config(
+    batch_size: int = 32,
+    shuffle: bool = True,
+    drop_last: bool = False,
+    num_workers: int = 0,
+    prefetch_size: int = 2,
+    pin_memory: bool = False,
+    persistent_workers: bool = False,
+    seed: int = 42,
+    **kwargs
+) -> MLXLoaderConfig:
+    """Create MLX data loader configuration."""
+    return MLXLoaderConfig(
+        batch_size=batch_size,
+        shuffle=shuffle,
+        drop_last=drop_last,
+        num_workers=num_workers,
+        prefetch_size=prefetch_size,
+        pin_memory=pin_memory,
+        persistent_workers=persistent_workers,
+        seed=seed,
+        **kwargs
+    )
 
 
 def load_config_from_file(file_path: Path, config_class: Optional[type] = None) -> Any:

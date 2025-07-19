@@ -16,7 +16,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from models.bert.config import BertConfig
 from models.bert.modernbert_config import ModernBertConfig
-from models.heads.config import ClassificationHeadConfig, RegressionHeadConfig
+from models.heads.config import ClassificationConfig, RegressionConfig
 from models.lora.config import LoRAConfig
 
 
@@ -113,23 +113,25 @@ def modernbert_config():
 @pytest.fixture
 def classification_config():
     """Create classification head configuration."""
-    return ClassificationHeadConfig(
-        hidden_size=768,
-        num_labels=2,
+    return ClassificationConfig(
+        input_size=768,
+        output_size=2,
+        num_classes=2,
         dropout_prob=0.1,
         pooling_type="cls",
-        hidden_act="tanh",
+        activation="tanh",
     )
 
 
 @pytest.fixture
 def regression_config():
     """Create regression head configuration."""
-    return RegressionHeadConfig(
-        hidden_size=768,
+    return RegressionConfig(
+        input_size=768,
+        output_size=1,
         dropout_prob=0.1,
         pooling_type="mean",
-        hidden_act="tanh",
+        activation="tanh",
     )
 
 
@@ -185,12 +187,12 @@ class MockBertModel(nn.Module):
 class MockClassificationHead(nn.Module):
     """Mock classification head for testing."""
     
-    def __init__(self, config: ClassificationHeadConfig):
+    def __init__(self, config: ClassificationConfig):
         super().__init__()
         self.config = config
-        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        self.dense = nn.Linear(config.input_size, config.input_size)
         self.dropout = nn.Dropout(config.dropout_prob)
-        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+        self.classifier = nn.Linear(config.input_size, config.num_classes)
     
     def __call__(self, hidden_states: mx.array) -> mx.array:
         """Forward pass."""
@@ -209,7 +211,24 @@ class MockClassificationHead(nn.Module):
         return logits
 
 
+# Import data generation functions
+from tests.models.fixtures.data import (
+    create_embeddings as _create_embeddings,
+    create_attention_mask as _create_attention_mask,
+    create_position_ids as _create_position_ids,
+)
+
 # Data generation fixtures
+@pytest.fixture
+def create_embeddings():
+    """Create embeddings for testing."""
+    return _create_embeddings
+
+@pytest.fixture  
+def create_position_ids():
+    """Create position IDs for testing."""
+    return _create_position_ids
+
 @pytest.fixture
 def create_test_batch():
     """Create test batch for model testing."""
@@ -254,20 +273,7 @@ def create_random_inputs():
 @pytest.fixture
 def create_attention_mask():
     """Create attention mask for testing."""
-    def _create(
-        batch_size: int = 4,
-        seq_length: int = 128,
-        padding_length: Optional[int] = None,
-    ) -> mx.array:
-        """Generate attention mask with optional padding."""
-        if padding_length is None:
-            return mx.ones((batch_size, seq_length))
-        
-        mask = mx.ones((batch_size, seq_length))
-        if padding_length > 0:
-            mask[:, -padding_length:] = 0
-        return mask
-    return _create
+    return _create_attention_mask
 
 
 # Model comparison utilities
@@ -448,9 +454,10 @@ def mock_bert_model():
 @pytest.fixture
 def mock_classification_head():
     """Create mock classification head."""
-    config = ClassificationHeadConfig(
-        hidden_size=128,
-        num_labels=2,
+    config = ClassificationConfig(
+        input_size=128,
+        output_size=2,
+        num_classes=2,
         dropout_prob=0.1,
     )
     return MockClassificationHead(config)

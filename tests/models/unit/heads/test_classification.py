@@ -9,7 +9,7 @@ from models.heads import (
     MulticlassClassificationHead,
     create_head,
 )
-from models.heads.config import ClassificationHeadConfig
+from models.heads.config import ClassificationConfig
 from tests.models.fixtures.configs import create_classification_config
 from tests.models.fixtures.data import create_embeddings, create_classification_targets
 from tests.models.fixtures.utils import check_gradient_flow, save_and_load_model
@@ -27,8 +27,8 @@ class TestBinaryClassificationHead:
         )
         head = BinaryClassificationHead(config)
         
-        assert head.config.hidden_size == 768
-        assert head.config.num_labels == 2
+        assert head.config.input_size == 768
+        assert head.config.num_classes == 2
         assert head.config.dropout_prob == 0.1
     
     def test_forward_pass(self, create_embeddings):
@@ -164,8 +164,8 @@ class TestMulticlassClassificationHead:
         )
         head = MulticlassClassificationHead(config)
         
-        assert head.config.hidden_size == 768
-        assert head.config.num_labels == 10
+        assert head.config.input_size == 768
+        assert head.config.num_classes == 10
     
     def test_forward_pass(self, create_embeddings):
         """Test forward pass through multiclass classification head."""
@@ -291,12 +291,16 @@ class TestHeadFactory:
         
         head = create_head(
             head_type="multiclass_classification",
-            config=config
+            input_size=config.input_size,
+            output_size=config.output_size,
+            dropout_prob=config.dropout_prob,
+            pooling_type=config.pooling_type,
+            activation=config.activation
         )
         
         assert isinstance(head, MulticlassClassificationHead)
-        assert head.config.hidden_size == 256
-        assert head.config.num_labels == 5
+        assert head.config.input_size == 256
+        assert head.config.num_classes == 5
         assert head.config.dropout_prob == 0.2
 
 

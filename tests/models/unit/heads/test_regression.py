@@ -5,7 +5,7 @@ import mlx.core as mx
 import mlx.nn as nn
 
 from models.heads import RegressionHead, create_head
-from models.heads.config import RegressionHeadConfig
+from models.heads.config import RegressionConfig
 from tests.models.fixtures.configs import create_regression_config
 from tests.models.fixtures.data import create_embeddings, create_regression_targets
 from tests.models.fixtures.utils import check_gradient_flow
@@ -22,9 +22,9 @@ class TestRegressionHead:
         )
         head = RegressionHead(config)
         
-        assert head.config.hidden_size == 768
+        assert head.config.input_size == 768
         assert head.config.dropout_prob == 0.1
-        assert hasattr(head.config, 'output_dim')
+        assert hasattr(head.config, 'output_size')
     
     def test_forward_pass(self, create_embeddings):
         """Test forward pass through regression head."""
@@ -212,12 +212,16 @@ class TestRegressionHeadFactory:
         
         head = create_head(
             head_type="regression",
-            config=config
+            input_size=config.input_size,
+            output_size=config.output_size,
+            dropout_prob=config.dropout_prob,
+            pooling_type=config.pooling_type,
+            activation=config.activation
         )
         
         assert isinstance(head, RegressionHead)
-        assert head.config.hidden_size == 256
-        assert head.config.output_dim == 3
+        assert head.config.input_size == 256
+        assert head.config.output_size == 3
 
 
 @pytest.mark.integration
