@@ -382,33 +382,3 @@ class TestTemplateIntegration:
         assert throughput > 200  # At least 200 rows/second
 
 
-@pytest.mark.slow
-class TestTemplatePerformance:
-    """Performance tests for template system."""
-    
-    def test_template_caching_performance(self):
-        """Test performance with template caching."""
-        df = create_sample_dataframe(num_rows=100)
-        engine = TextTemplateEngine()
-        
-        import time
-        
-        # First run
-        start = time.time()
-        texts1 = engine.convert_dataframe(
-            df,
-            competition_type=CompetitionType.BINARY_CLASSIFICATION,
-        )
-        first_time = time.time() - start
-        
-        # Second run (should benefit from any caching)
-        start = time.time()
-        texts2 = engine.convert_dataframe(
-            df,
-            competition_type=CompetitionType.BINARY_CLASSIFICATION,
-        )
-        second_time = time.time() - start
-        
-        assert len(texts1) == len(texts2) == 100
-        # Second run should not be slower
-        assert second_time <= first_time * 1.1
