@@ -77,7 +77,7 @@ class MLXDataLoader:
         
         # MLX device and stream management
         self.device = mx.default_device()
-        self.stream = mx.default_stream()
+        self.stream = mx.default_stream(self.device)
         
         # Internal state
         self._current_epoch = 0
@@ -217,15 +217,15 @@ class MLXDataLoader:
                 batch['text'] = texts
                 
         # Handle pre-tokenized data
-        if 'input_ids' in samples[0]:
+        if 'input_ids' in samples[0] and samples[0]['input_ids'] is not None:
             input_ids = self._pad_sequences([sample['input_ids'] for sample in samples])
             batch['input_ids'] = mx.array(input_ids, dtype=mx.int32)
             
-        if 'attention_mask' in samples[0]:
+        if 'attention_mask' in samples[0] and samples[0]['attention_mask'] is not None:
             attention_masks = self._pad_sequences([sample['attention_mask'] for sample in samples])
             batch['attention_mask'] = mx.array(attention_masks, dtype=mx.int32)
             
-        if 'token_type_ids' in samples[0]:
+        if 'token_type_ids' in samples[0] and samples[0]['token_type_ids'] is not None:
             token_type_ids = self._pad_sequences([sample['token_type_ids'] for sample in samples])
             batch['token_type_ids'] = mx.array(token_type_ids, dtype=mx.int32)
             
@@ -418,4 +418,5 @@ class MLXDataLoader:
     
     def __del__(self):
         """Cleanup when loader is destroyed."""
-        self._stop_prefetching_workers()
+        if hasattr(self, '_worker_pool') and self._worker_pool is not None:
+            self._stop_prefetching_workers()

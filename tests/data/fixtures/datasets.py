@@ -20,6 +20,7 @@ class MockKaggleDataset(KaggleDataset):
         size: Optional[int] = None,
         cache_dir: Optional[Path] = None,
         split: str = "train",
+        transform=None,
         **kwargs
     ):
         """Initialize mock dataset with synthetic data."""
@@ -27,6 +28,7 @@ class MockKaggleDataset(KaggleDataset):
         # Use size from spec if not provided
         self.size = size if size is not None else spec.num_samples
         self._generated = False
+        self.transform = transform
         
         # Call parent init which will call _load_data and _validate_data
         super().__init__(spec, split=split, cache_dir=cache_dir, **kwargs)
@@ -93,7 +95,7 @@ class MockKaggleDataset(KaggleDataset):
         label = row_dict.get(self.spec.target_column, 0)
         
         # Return expected structure
-        return {
+        sample = {
             "text": text,
             "input_ids": None,  # Not tokenized yet
             "attention_mask": None,
@@ -103,6 +105,12 @@ class MockKaggleDataset(KaggleDataset):
                 "raw_data": row_dict,
             }
         }
+        
+        # Apply transform if provided
+        if self.transform:
+            sample = self.transform(sample)
+            
+        return sample
         
     def get_dataframe(self) -> pd.DataFrame:
         """Get full dataset as DataFrame."""
@@ -613,11 +621,14 @@ def create_kaggle_like_dataset(
         num_classes=kwargs.get("num_classes", 2 if "classification" in task_type else None),
     )
     
+    # Remove size from kwargs if it exists to avoid duplicate
+    kwargs_filtered = {k: v for k, v in kwargs.items() if k not in ['size', 'cache_dir']}
+    
     return MockKaggleDataset(
         spec=spec,
         size=num_samples,
         cache_dir=kwargs.get("cache_dir"),
-        **kwargs
+        **kwargs_filtered
     )
 
 
