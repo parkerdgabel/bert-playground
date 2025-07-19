@@ -88,7 +88,7 @@ def create_modernbert_config(
         "type_vocab_size": kwargs.get("type_vocab_size", 2),
         "initializer_range": kwargs.get("initializer_range", 0.02),
         "layer_norm_eps": kwargs.get("layer_norm_eps", 1e-5),
-        "rope_theta": kwargs.get("rope_theta", 10000.0),
+        "rope_base": kwargs.get("rope_base", 10000.0),
         "attention_bias": kwargs.get("attention_bias", False),
         "deterministic_flash_attn": kwargs.get("deterministic_flash_attn", True),
         "sliding_window": kwargs.get("sliding_window", None),

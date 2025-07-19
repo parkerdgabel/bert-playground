@@ -111,26 +111,37 @@ class TestOptimizers:
         
         # Get initial parameters
         from mlx.utils import tree_map
-        initial_params = tree_map(lambda x: x.copy(), model.parameters())
+        initial_params = tree_map(lambda x: mx.array(x), model.parameters())
         
         # Create dummy loss and compute gradients
-        x = mx.random.normal((4, 10))
-        y = mx.random.randint(0, 2, (4,))
+        batch = {
+            "input": mx.random.normal((4, 10)),
+            "labels": mx.random.randint(0, 2, (4,))
+        }
         
         def loss_fn(model):
-            logits = model(x)
-            return nn.losses.cross_entropy(logits, y, reduction="mean")
+            outputs = model(batch)
+            return outputs["loss"]
         
         # Compute gradients
-        loss, grads = nn.value_and_grad(loss_fn)(model)
+        loss_and_grad_fn = nn.value_and_grad(model, loss_fn)
+        loss, grads = loss_and_grad_fn(model)
         
         # Update parameters
         optimizer.update(model, grads)
         
         # Check parameters changed
         final_params = model.parameters()
-        for key in initial_params:
-            assert not mx.allclose(initial_params[key], final_params[key])
+        
+        def check_params_changed(initial, final):
+            """Recursively check if parameters changed."""
+            for key in initial:
+                if isinstance(initial[key], dict):
+                    check_params_changed(initial[key], final[key])
+                else:
+                    assert not mx.allclose(initial[key], final[key], atol=1e-6)
+        
+        check_params_changed(initial_params, final_params)
 
 
 class TestSchedulers:
@@ -231,7 +242,7 @@ class TestSchedulers:
         config = SchedulerConfig(type="invalid_scheduler")
         
         with pytest.raises(ValueError, match="Unknown scheduler type"):
-            create_lr_scheduler(optimizer, config, num_training_steps=1000)
+            create_lr_scheduler(optimizer, config)
     
     def test_scheduler_step_updates(self):
         """Test that scheduler updates learning rate."""
@@ -246,7 +257,8 @@ class TestSchedulers:
             warmup_ratio=0.1,
         )
         
-        scheduler = create_lr_scheduler(optimizer, config, num_training_steps=100)
+        config.num_training_steps = 100
+        scheduler = create_lr_scheduler(optimizer, config)
         
         if scheduler is not None:
             initial_lr = optimizer.learning_rate
@@ -267,7 +279,7 @@ class TestGradientAccumulator:
         accumulator = GradientAccumulator()
         
         assert accumulator.accumulated_grads is None
-        assert accumulator.accumulation_count == 0
+        assert accumulator.step_count == 0
     
     def test_gradient_accumulation(self):
         """Test accumulating gradients."""
@@ -288,7 +300,7 @@ class TestGradientAccumulator:
         accumulator.accumulate(grads1)
         accumulator.accumulate(grads2)
         
-        assert accumulator.accumulation_count == 2
+        assert accumulator.step_count == 2
         
         # Get accumulated gradients
         accumulated = accumulator.get_gradients()
@@ -305,17 +317,17 @@ class TestGradientAccumulator:
         grads = {"weight": mx.ones((10, 10))}
         accumulator.accumulate(grads)
         
-        assert accumulator.accumulation_count == 1
+        assert accumulator.step_count == 1
         
         # Reset
         accumulator.reset()
         
         assert accumulator.accumulated_grads is None
-        assert accumulator.accumulation_count == 0
+        assert accumulator.step_count == 0
     
     def test_averaged_gradients(self):
         """Test getting averaged gradients."""
-        accumulator = GradientAccumulator()
+        accumulator = GradientAccumulator(accumulation_steps=4)
         
         # Accumulate gradients
         for i in range(4):
@@ -420,7 +432,7 @@ class TestGradientStats:
         
         assert stats["grad_norm"] == 0.0
         assert stats["grad_mean"] == 0.0
-        assert stats["grad_min"] == float('inf')  # min is initialized to inf
+        assert stats["grad_min"] == 0.0  # min of abs(zeros) is 0
         assert stats["grad_max"] == 0.0
     
     def test_compute_gradient_stats_empty(self):

@@ -95,10 +95,12 @@ class MockKaggleDataset(KaggleDataset):
         label = row_dict.get(self.spec.target_column, 0)
         
         # Return expected structure
+        # For testing, return pre-tokenized dummy data
+        max_length = 128
         sample = {
             "text": text,
-            "input_ids": None,  # Not tokenized yet
-            "attention_mask": None,
+            "input_ids": np.random.randint(1, 1000, size=max_length),  # Dummy token IDs
+            "attention_mask": np.ones(max_length, dtype=np.int32),  # All tokens are valid
             "labels": label,
             "metadata": {
                 "index": idx,

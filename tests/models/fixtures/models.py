@@ -370,7 +370,8 @@ def assert_model_output_shapes(
 def count_parameters(model: nn.Module) -> int:
     """Count total number of parameters in model."""
     total = 0
-    for _, param in mx.tree_flatten(model.parameters()):
+    params = model.parameters() if isinstance(model.parameters(), dict) else dict(model.parameters())
+    for param in params.values():
         total += param.size
     return total
 
@@ -386,10 +387,11 @@ def check_gradient_flow(
     
     # Check each parameter
     results = {}
-    flat_params = mx.tree_flatten(model.parameters())
-    flat_grads = mx.tree_flatten(grads)
+    params = model.parameters() if isinstance(model.parameters(), dict) else dict(model.parameters())
+    grads_dict = grads if isinstance(grads, dict) else dict(grads)
     
-    for (param_name, param), (grad_name, grad) in zip(flat_params, flat_grads):
+    for param_name in params:
+        grad = grads_dict.get(param_name)
         has_gradient = grad is not None and mx.any(grad != 0)
         results[param_name] = has_gradient
     

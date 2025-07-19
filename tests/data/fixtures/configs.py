@@ -44,18 +44,31 @@ def create_streaming_config(
     prefetch: int = 4,
     shuffle: bool = True,
     **kwargs
-) -> Dict[str, Any]:
+):
     """Create streaming data configuration."""
-    return {
+    from data.loaders.streaming import StreamingConfig
+    
+    # Map common parameters
+    config_kwargs = {
         "batch_size": batch_size,
         "buffer_size": buffer_size,
-        "prefetch": prefetch,
-        "shuffle": shuffle,
-        "seed": kwargs.get("seed", 42),
-        "drop_incomplete": kwargs.get("drop_incomplete", False),
-        "num_parallel_calls": kwargs.get("num_parallel_calls", 4),
-        "deterministic": kwargs.get("deterministic", True),
+        "prefetch_batches": prefetch,
     }
+    
+    # Add any additional kwargs that StreamingConfig accepts
+    valid_params = {
+        "chunk_size", "max_queue_size", "num_producer_threads", 
+        "num_consumer_threads", "num_workers", "max_memory_mb", 
+        "enable_memory_monitoring", "memory_cleanup_threshold",
+        "enable_async_processing", "stream_timeout_seconds",
+        "target_throughput", "adaptive_batching"
+    }
+    
+    for key, value in kwargs.items():
+        if key in valid_params:
+            config_kwargs[key] = value
+    
+    return StreamingConfig(**config_kwargs)
 
 
 def create_memory_config(

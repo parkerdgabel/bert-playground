@@ -178,7 +178,7 @@ class TestModernBertCore:
         assert bert.config.hidden_size == 768
         assert bert.config.num_hidden_layers == 12
         assert bert.config.max_position_embeddings == 8192  # Longer context
-        assert hasattr(bert.config, 'rope_theta')  # RoPE specific
+        assert hasattr(bert.config, 'rope_base')  # RoPE specific
     
     def test_forward_pass(self, create_test_batch):
         """Test ModernBertCore forward pass."""
@@ -216,12 +216,12 @@ class TestModernBertCore:
     
     def test_rope_embeddings(self):
         """Test that RoPE embeddings are properly configured."""
-        config = create_modernbert_config(rope_theta=10000.0)
+        config = create_modernbert_config(rope_base=10000.0)
         bert = ModernBertCore(config)
         
         # RoPE should be integrated in attention layers
-        assert hasattr(bert.config, 'rope_theta')
-        assert bert.config.rope_theta == 10000.0
+        assert hasattr(bert.config, 'rope_base')
+        assert bert.config.rope_base == 10000.0
     
     def test_no_bias_attention(self):
         """Test ModernBERT with no attention bias."""

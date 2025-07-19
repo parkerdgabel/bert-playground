@@ -65,12 +65,19 @@ class RegressionHead(BaseHead):
             Dictionary containing predictions and optional uncertainty
         """
         # Get predictions
-        predictions = self.regressor(features)  # [batch_size, 1]
+        predictions = self.regressor(features)  # [batch_size, output_size]
 
-        result = {
-            "predictions": predictions.squeeze(-1),  # [batch_size]
-            "logits": predictions,  # Keep original shape for compatibility
-        }
+        # Only squeeze if output_size is 1
+        if self.config.output_size == 1:
+            result = {
+                "predictions": predictions.squeeze(-1),  # [batch_size]
+                "logits": predictions,  # Keep original shape for compatibility
+            }
+        else:
+            result = {
+                "predictions": predictions,  # [batch_size, output_size]
+                "logits": predictions,  # Keep original shape for compatibility
+            }
 
         # Add uncertainty if enabled
         if self.use_uncertainty:
@@ -78,13 +85,22 @@ class RegressionHead(BaseHead):
             variance = mx.exp(log_variance)
             uncertainty = mx.sqrt(variance)
 
-            result.update(
-                {
-                    "uncertainty": uncertainty.squeeze(-1),
-                    "log_variance": log_variance.squeeze(-1),
-                    "variance": variance.squeeze(-1),
-                }
-            )
+            if self.config.output_size == 1:
+                result.update(
+                    {
+                        "uncertainty": uncertainty.squeeze(-1),
+                        "log_variance": log_variance.squeeze(-1),
+                        "variance": variance.squeeze(-1),
+                    }
+                )
+            else:
+                result.update(
+                    {
+                        "uncertainty": uncertainty,
+                        "log_variance": log_variance,
+                        "variance": variance,
+                    }
+                )
 
         return result
 
@@ -95,13 +111,19 @@ class RegressionHead(BaseHead):
 
         Args:
             predictions: Output from forward pass
-            targets: Ground truth values [batch_size]
+            targets: Ground truth values [batch_size] or [batch_size, output_size]
             **kwargs: Additional arguments
 
         Returns:
             Loss value
         """
         pred_values = predictions["predictions"]
+        
+        # Ensure targets have same shape as predictions
+        if len(pred_values.shape) > len(targets.shape):
+            targets = mx.expand_dims(targets, axis=-1)
+        elif len(pred_values.shape) < len(targets.shape) and targets.shape[-1] == 1:
+            targets = targets.squeeze(-1)
 
         # Compute base regression loss
         if self.loss_type == "mse":

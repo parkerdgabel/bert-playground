@@ -42,9 +42,9 @@ def compare_model_parameters(
     params1 = model1.parameters()
     params2 = model2.parameters()
     
-    # Flatten parameters
-    flat1 = dict(mx.tree_flatten(params1))
-    flat2 = dict(mx.tree_flatten(params2))
+    # Flatten parameters if needed
+    flat1 = params1 if isinstance(params1, dict) else dict(params1)
+    flat2 = params2 if isinstance(params2, dict) else dict(params2)
     
     if set(flat1.keys()) != set(flat2.keys()):
         return False, {"error": "Different parameter names"}
@@ -119,8 +119,8 @@ def check_gradient_flow(
     }
     
     # Check each parameter
-    flat_params = dict(mx.tree_flatten(model.parameters()))
-    flat_grads = dict(mx.tree_flatten(grads))
+    flat_params = model.parameters() if isinstance(model.parameters(), dict) else dict(model.parameters())
+    flat_grads = grads if isinstance(grads, dict) else dict(grads)
     
     for name in flat_params:
         param = flat_params[name]
@@ -275,7 +275,8 @@ def profile_model_memory(
         })
     
     # Count parameters
-    param_count = sum(p.size for _, p in mx.tree_flatten(model.parameters()))
+    params = model.parameters() if isinstance(model.parameters(), dict) else dict(model.parameters())
+    param_count = sum(p.size for p in params.values())
     param_memory = param_count * 4  # Assuming float32
     
     results.update({
@@ -387,8 +388,8 @@ def create_model_comparison_report(
     }
     
     # Compare architectures
-    params1 = dict(mx.tree_flatten(model1.parameters()))
-    params2 = dict(mx.tree_flatten(model2.parameters()))
+    params1 = model1.parameters() if isinstance(model1.parameters(), dict) else dict(model1.parameters())
+    params2 = model2.parameters() if isinstance(model2.parameters(), dict) else dict(model2.parameters())
     
     report["architecture"] = {
         "same_param_names": set(params1.keys()) == set(params2.keys()),

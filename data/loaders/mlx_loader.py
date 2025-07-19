@@ -204,8 +204,11 @@ class MLXDataLoader:
             
         batch = {}
         
+        # Check if we have pre-tokenized data
+        has_tokenized_data = ('input_ids' in samples[0] and samples[0]['input_ids'] is not None)
+        
         # Handle text data
-        if 'text' in samples[0]:
+        if 'text' in samples[0] and not has_tokenized_data:
             texts = [sample['text'] for sample in samples]
             
             if self.tokenizer:
@@ -213,11 +216,11 @@ class MLXDataLoader:
                 tokenized = self._tokenize_batch(texts)
                 batch.update(tokenized)
             else:
-                # Keep as text for later processing
-                batch['text'] = texts
-                
+                # Tokenizer is required for text data when no pre-tokenized data exists
+                raise ValueError("Tokenizer is required when loading text data without pre-tokenized input_ids. Please provide a tokenizer in the config.")
+        
         # Handle pre-tokenized data
-        if 'input_ids' in samples[0] and samples[0]['input_ids'] is not None:
+        if has_tokenized_data:
             input_ids = self._pad_sequences([sample['input_ids'] for sample in samples])
             batch['input_ids'] = mx.array(input_ids, dtype=mx.int32)
             
@@ -297,6 +300,12 @@ class MLXDataLoader:
         # Pad sequences
         padded = []
         for seq in sequences:
+            # Convert to list if it's a numpy array
+            if hasattr(seq, 'tolist'):
+                seq = seq.tolist()
+            elif not isinstance(seq, list):
+                seq = list(seq)
+                
             if len(seq) > max_len:
                 # Truncate
                 padded_seq = seq[:max_len]

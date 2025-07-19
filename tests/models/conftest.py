@@ -105,7 +105,7 @@ def modernbert_config():
         type_vocab_size=2,
         initializer_range=0.02,
         layer_norm_eps=1e-5,
-        rope_theta=10000.0,  # RoPE specific
+        rope_base=10000.0,  # RoPE specific
         attention_bias=False,
     )
 
@@ -232,24 +232,8 @@ def create_position_ids():
 @pytest.fixture
 def create_test_batch():
     """Create test batch for model testing."""
-    def _create(
-        config: BertConfig,
-        batch_size: int = 4,
-        seq_length: int = 128,
-    ) -> Dict[str, mx.array]:
-        """Generate test batch."""
-        input_ids = mx.random.randint(
-            0, config.vocab_size, (batch_size, seq_length)
-        )
-        attention_mask = mx.ones((batch_size, seq_length))
-        token_type_ids = mx.zeros((batch_size, seq_length), dtype=mx.int32)
-        
-        return {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-            "token_type_ids": token_type_ids,
-        }
-    return _create
+    from tests.models.fixtures.data import create_test_batch as _create_test_batch
+    return _create_test_batch
 
 
 @pytest.fixture
@@ -286,8 +270,8 @@ def assert_models_equal():
         params2 = model2.parameters()
         
         # Flatten parameters
-        flat1 = mx.tree_flatten(params1)
-        flat2 = mx.tree_flatten(params2)
+        flat1 = list(params1.items()) if isinstance(params1, dict) else list(params1)
+        flat2 = list(params2.items()) if isinstance(params2, dict) else list(params2)
         
         assert len(flat1) == len(flat2), "Models have different number of parameters"
         
@@ -329,7 +313,7 @@ def check_gradients():
         assert mx.isfinite(loss), "Loss is not finite"
         
         # Check gradients exist and are finite
-        flat_grads = mx.tree_flatten(grads)
+        flat_grads = list(grads.items()) if isinstance(grads, dict) else list(grads)
         assert len(flat_grads) > 0, "No gradients computed"
         
         for name, grad in flat_grads:
