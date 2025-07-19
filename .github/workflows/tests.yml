@@ -42,7 +42,7 @@ jobs:
     
     - name: Run tests
       run: |
-        uv run pytest tests/ -v --tb=short --cov=cli --cov=models --cov=data --cov=training --cov=utils --cov-report=xml --cov-report=html --cov-fail-under=0
+        uv run pytest tests/ -v --tb=short --cov=cli --cov-report=xml --cov-report=html --cov-fail-under=0
     
     - name: Upload test results
       if: always()

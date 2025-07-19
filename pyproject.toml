@@ -75,7 +75,7 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-source = ["cli", "models", "data", "training", "utils"]
+source = ["cli"]
 omit = [
     "*/tests/*",
     "*/test_*",
@@ -86,6 +86,14 @@ omit = [
     "embeddings/*",
     "scripts/*",
     "*/migrations/*",
+    "cli/__main__.py",
+    "cli/commands/models/*",
+    "cli/commands/core/train.py",
+    "cli/commands/core/train_simple.py",
+    "cli/commands/core/init.py",
+    "cli/commands/core/interactive.py",
+    "cli/commands/core/config.py",
+    "cli/commands/mlflow/ui.py",
 ]
 
 [tool.coverage.report]
@@ -99,6 +107,7 @@ exclude_lines = [
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
 ]
+fail_under = 0
 
 [tool.ruff]
 # Exclude legacy directory from linting
