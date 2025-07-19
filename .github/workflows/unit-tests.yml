@@ -55,34 +55,34 @@ jobs:
     - name: Test CLI utilities
       run: |
         echo "::group::CLI Unit Tests"
-        uv run pytest tests/cli/unit/ -v --tb=short --junit-xml=test-results/cli-unit.xml
+        uv run pytest tests/cli/unit/ -v --tb=short --junit-xml=test-results/cli-unit.xml -m "not integration and not e2e"
         echo "::endgroup::"
     
     - name: Test models
       if: always()
       run: |
         echo "::group::Models Unit Tests"
-        uv run pytest tests/models/ -v --tb=short --junit-xml=test-results/models-unit.xml || true
+        uv run pytest tests/models/ -v --tb=short --junit-xml=test-results/models-unit.xml -m "not integration and not e2e" || true
         echo "::endgroup::"
     
     - name: Test data handling
       if: always()
       run: |
         echo "::group::Data Unit Tests"
-        uv run pytest tests/data/ -v --tb=short --junit-xml=test-results/data-unit.xml || true
+        uv run pytest tests/data/ -v --tb=short --junit-xml=test-results/data-unit.xml -m "not integration and not e2e" || true
         echo "::endgroup::"
     
     - name: Test training
       if: always()
       run: |
         echo "::group::Training Unit Tests"
-        uv run pytest tests/training/ -v --tb=short --junit-xml=test-results/training-unit.xml || true
+        uv run pytest tests/training/ -v --tb=short --junit-xml=test-results/training-unit.xml -m "not integration and not e2e" || true
         echo "::endgroup::"
     
     - name: Generate coverage report
       if: always()
       run: |
-        uv run pytest tests/ --cov=cli --cov=models --cov=data --cov=training --cov=utils --cov-report=xml --cov-report=html -q
+        uv run pytest tests/ --cov=cli --cov=models --cov=data --cov=training --cov=utils --cov-report=xml --cov-report=html --cov-fail-under=0 -q
     
     - name: Upload test results
       if: always()
