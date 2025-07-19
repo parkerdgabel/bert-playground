@@ -26,13 +26,13 @@ def binary_cross_entropy_loss(
         Loss value
     """
     # Ensure predictions are in probability space
-    if predictions.shape[-1] == 2:
+    if len(predictions.shape) > 1 and predictions.shape[-1] == 2:
         # Two-class output, use softmax
         probs = mx.softmax(predictions, axis=-1)
         probs = probs[:, 1]  # Probability of positive class
     else:
-        # Single output, use sigmoid
-        probs = mx.sigmoid(predictions.squeeze(-1))
+        # Single output, use sigmoid (already 1D, no need to squeeze)
+        probs = mx.sigmoid(predictions)
 
     # Clip for numerical stability
     probs = mx.clip(probs, 1e-7, 1 - 1e-7)

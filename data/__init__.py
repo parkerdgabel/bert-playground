@@ -41,6 +41,13 @@ from .templates import (
 
 __version__ = "0.1.0"
 
+# Factory functions
+from .factory import (
+    create_dataset,
+    create_dataloader,
+    create_data_pipeline,
+)
+
 __all__ = [
     # Core abstractions
     "KaggleDataset",
@@ -66,4 +73,9 @@ __all__ = [
     "TabularTextConverter",
     "BERTTextConverter",
     "CompetitionTextTemplate",
+    
+    # Factory functions
+    "create_dataset",
+    "create_dataloader", 
+    "create_data_pipeline",
 ]

@@ -74,15 +74,15 @@ class BinaryClassificationHead(BaseHead):
         # Get probabilities
         probs = mx.sigmoid(logits)
 
-        # Binary predictions
-        predictions = (probs > 0.5).astype(mx.int32).squeeze(-1)
+        # Binary predictions - reshape instead of squeeze to handle batch size
+        predictions = (probs > 0.5).astype(mx.int32).reshape(-1)
 
         # Create 2-class probabilities for compatibility
         probs_2class = mx.concatenate([1 - probs, probs], axis=-1)
 
         return {
-            "logits": logits.squeeze(-1),  # [batch_size]
-            "probabilities": probs.squeeze(-1),  # [batch_size]
+            "logits": logits.reshape(-1),  # [batch_size]
+            "probabilities": probs.reshape(-1),  # [batch_size]
             "probabilities_2class": probs_2class,  # [batch_size, 2]
             "predictions": predictions,  # [batch_size]
         }
