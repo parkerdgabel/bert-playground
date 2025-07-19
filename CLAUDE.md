@@ -18,7 +18,11 @@ This project implements ModernBERT using Apple's MLX framework for efficient tra
 
 ## Quick Start Commands
 
-### Using the Unified CLI
+### Core CLI Commands
+
+The CLI is now organized into logical command groups. You can access commands directly or through their groups:
+
+#### Direct Commands (shortcuts for common operations)
 
 ```bash
 # Install dependencies
@@ -58,7 +62,66 @@ uv run python mlx_bert_cli.py benchmark \
     --steps 20
 
 # System info
-uv run python mlx_bert_cli.py info
+uv run python -m cli info
+```
+
+#### Command Groups
+
+##### Kaggle Commands (`bert kaggle`)
+```bash
+# List competitions
+uv run python -m cli kaggle competitions --category tabular
+
+# Download competition data
+uv run python -m cli kaggle download titanic --output data/titanic
+
+# Submit predictions
+uv run python -m cli kaggle submit titanic submission.csv
+
+# Auto-generate and submit
+uv run python -m cli kaggle auto-submit titanic output/best_model data/test.csv
+
+# View leaderboard
+uv run python -m cli kaggle leaderboard titanic --top 20
+
+# Check submission history
+uv run python -m cli kaggle history titanic --limit 10
+```
+
+##### MLflow Commands (`bert mlflow`)
+```bash
+# Start MLflow server
+uv run python -m cli mlflow server --port 5000
+
+# View experiments
+uv run python -m cli mlflow experiments list
+
+# Compare runs
+uv run python -m cli mlflow runs compare exp_001 exp_002
+
+# Launch UI
+uv run python -m cli mlflow ui
+
+# Health check
+uv run python -m cli mlflow health
+```
+
+##### Model Commands (`bert model`)
+```bash
+# Serve model via REST API
+uv run python -m cli model serve output/best_model --port 8080
+
+# Export to ONNX
+uv run python -m cli model export output/best_model --format onnx
+
+# Evaluate on test set
+uv run python -m cli model evaluate output/best_model data/test.csv
+
+# Inspect architecture
+uv run python -m cli model inspect output/best_model
+
+# List available models
+uv run python -m cli model list --registry mlflow
 ```
 
 ### Production Commands
@@ -95,58 +158,72 @@ uv run python run_production.py --config thorough --enable-mlflow --predict
 
 ```
 bert-playground/
-├── mlx_bert_cli.py          # Unified CLI for all operations
-├── models/
-│   ├── modernbert_mlx.py    # Original MLX ModernBERT
-│   ├── modernbert_optimized.py  # Optimized version with MLX best practices
-│   └── classification_head.py   # Classification layers
-├── embeddings/              # MLX embeddings integration
-│   ├── mlx_adapter.py       # MLX embeddings adapter
-│   ├── tokenizer_wrapper.py # Unified tokenizer interface
-│   ├── model_wrapper.py     # MLX embedding model wrapper
-│   └── migration.py         # Checkpoint migration utilities
-├── data/
-│   ├── titanic_loader.py    # Original data loader
-│   ├── optimized_loader.py  # Optimized MLX-Data pipeline
-│   └── text_templates.py    # Convert tabular data to text
-├── training/
-│   ├── trainer.py           # Basic trainer
-│   └── trainer_v2.py        # Enhanced trainer with MLflow/logging
-├── utils/
-│   ├── logging_config.py    # Loguru configuration
-│   ├── mlflow_utils.py      # MLflow tracking utilities
-│   └── visualization.py     # Training visualization
-├── configs/
-│   └── production.json      # Production configurations
-└── scripts/
-    ├── train_production.sh  # Production training script
-    └── download_titanic.py  # Download/create Titanic data
+├── cli/                     # Modern CLI interface using Typer
+│   ├── app.py              # Main CLI application
+│   ├── commands/           # Command implementations
+│   │   ├── core/          # Core commands (train, predict, benchmark)
+│   │   ├── kaggle/        # Kaggle integration commands
+│   │   ├── mlflow/        # MLflow management commands
+│   │   └── model/         # Model management commands
+│   └── utils/             # CLI utilities and helpers
+├── models/                  # Model implementations
+│   ├── bert/              # BERT architectures
+│   │   ├── core.py        # Classic BERT implementation
+│   │   ├── modernbert_config.py  # ModernBERT configuration
+│   │   └── layers/        # Attention, embeddings, feedforward
+│   ├── heads/             # Task-specific heads
+│   │   ├── classification.py  # Binary/multiclass/multilabel heads
+│   │   └── regression.py      # Regression/ordinal heads
+│   ├── lora/              # LoRA adapter implementation
+│   └── factory.py         # Model creation factory
+├── data/                    # Data handling and loading
+│   ├── core/              # Base abstractions and protocols
+│   ├── loaders/           # MLX, streaming, memory loaders
+│   ├── templates/         # Tabular-to-text conversion
+│   └── kaggle/            # Competition-specific datasets
+├── training/               # Training infrastructure
+│   ├── core/              # Base trainer and protocols
+│   ├── callbacks/         # Training callbacks
+│   ├── metrics/           # Evaluation metrics
+│   ├── kaggle/            # Competition-specific training
+│   └── integrations/      # MLflow integration
+├── configs/                # Configuration files
+│   ├── production.json    # Production settings
+│   ├── quick.yaml         # Quick test settings
+│   └── best_model_only.yaml  # Storage-optimized settings
+└── scripts/               # Utility scripts
+    └── download_titanic.py  # Data download utilities
 ```
 
 ## Key Components
 
-### 1. Optimized ModernBERT (`models/modernbert_optimized.py`)
-- Fused QKV projections for efficiency
-- Memory-efficient attention
-- Optimized embeddings with position ID caching
-- MLX-native save/load using safetensors
+### 1. Model Architecture (`models/`)
+- **Classic BERT**: Full implementation with multi-head attention
+- **ModernBERT**: Answer.AI's 2024 architecture with RoPE, GeGLU, and alternating attention
+- **Task Heads**: 6 specialized heads for classification and regression tasks
+- **LoRA Adapters**: Efficient fine-tuning with low-rank adaptation
+- **Factory Pattern**: Unified model creation with presets
 
-### 2. Optimized Data Pipeline (`data/optimized_loader.py`)
-- Pre-tokenization for efficiency
-- MLX-Data streaming with prefetching
-- Multi-threaded data loading
-- Efficient batching and caching
+### 2. Data Pipeline (`data/`)
+- **Protocol-Based Design**: Flexible interfaces for datasets and loaders
+- **MLX-Optimized Loader**: Zero-copy operations with unified memory
+- **Streaming Pipeline**: 1000+ samples/second for large datasets
+- **Text Templates**: Convert tabular data to natural language
+- **Dataset Registry**: Centralized management of competitions
 
-### 3. Unified CLI (`mlx_bert_cli.py`)
-- Single entry point for all operations
-- Rich console output with progress tracking
-- Configuration file support
-- Benchmarking utilities
+### 3. Training Infrastructure (`training/`)
+- **Declarative Configuration**: YAML/JSON-based training setup
+- **Callback System**: Extensible hooks for training events
+- **MLflow Integration**: Automatic experiment tracking
+- **Kaggle Features**: Cross-validation, ensembling, auto-submission
+- **State Management**: Comprehensive checkpointing and resume
 
-### 4. Text-Based Approach (`data/text_templates.py`)
-- Converts tabular data to natural language
-- Multiple template variations for augmentation
-- Handles missing values gracefully
+### 4. CLI Interface (`cli/`)
+- **Hierarchical Commands**: Organized command structure with Typer
+- **Rich Output**: Beautiful console formatting with progress bars
+- **Comprehensive Help**: Detailed documentation for all commands
+- **Error Handling**: User-friendly error messages and suggestions
+- **Validation**: Input validation with helpful callbacks
 
 ## MLX Optimization Tips
 
@@ -274,59 +351,49 @@ uv run python train_titanic_v2.py --launch_mlflow
    uv run python mlx_bert_cli.py train --config configs/production.json
    ```
 
-## Kaggle Integration
+## Model Variants
 
-The project now includes comprehensive Kaggle competition integration with dedicated CLI commands:
+### Available Architectures
 
-### Competition Management
+1. **Classic BERT** (`bert`)
+   - Standard BERT architecture
+   - 12 layers, 768 hidden size, 12 attention heads
+   - Supports all downstream tasks
 
-```bash
-# List active competitions
-uv run python mlx_bert_cli.py kaggle-competitions --limit 10
+2. **ModernBERT** (`modernbert`)
+   - Answer.AI's 2024 improvements
+   - RoPE embeddings, GeGLU activation
+   - 8192 sequence length support
+   - Alternating local/global attention
 
-# Filter by category or search
-uv run python mlx_bert_cli.py kaggle-competitions --category "tabular" --search "classification"
+3. **neoBERT** (`neobert`)
+   - 250M parameter efficient variant
+   - 28 layers, SwiGLU activation
+   - 4096 context length
 
-# Download competition data
-uv run python mlx_bert_cli.py kaggle-download titanic --output data/titanic
-```
+### Task-Specific Heads
 
-### Submission Commands
+- **Binary Classification**: Sigmoid activation, focal loss support
+- **Multiclass Classification**: Softmax, label smoothing
+- **Multilabel Classification**: Per-label sigmoid, adaptive thresholds
+- **Regression**: MSE/MAE/Huber loss options
+- **Ordinal Regression**: Cumulative logits approach
+- **Time Series Regression**: Multi-step predictions
 
-```bash
-# Submit predictions to Kaggle
-uv run python mlx_bert_cli.py kaggle-submit titanic submission.csv \
-    --message "MLX-BERT with attention heads" \
-    --checkpoint output/run_001/best_model
-
-# Auto-submit from checkpoint
-uv run python mlx_bert_cli.py kaggle-auto-submit titanic \
-    output/run_001/best_model \
-    data/titanic/test.csv
-```
-
-### Leaderboard & History
+### LoRA Configuration
 
 ```bash
-# View competition leaderboard
-uv run python mlx_bert_cli.py kaggle-leaderboard titanic --top 50
+# Train with LoRA adapter
+uv run python -m cli train \
+    --lora-preset balanced \
+    --lora-target "query,value" \
+    --lora-rank 8
 
-# View your submission history
-uv run python mlx_bert_cli.py kaggle-history titanic --limit 20
-
-# Generate detailed submission report
-uv run python mlx_bert_cli.py kaggle-history titanic \
-    --report reports/titanic_submissions.json
-```
-
-### Dataset Management
-
-```bash
-# Search Kaggle datasets
-uv run python mlx_bert_cli.py kaggle-datasets --search "nlp classification"
-
-# Download specific dataset
-uv run python mlx_bert_cli.py kaggle-download-dataset username/dataset-name
+# Available presets:
+# - efficient (r=4): Minimal parameters
+# - balanced (r=8): Good trade-off
+# - expressive (r=16): Maximum flexibility
+# - qlora_memory (r=4, 4-bit): Extreme memory savings
 ```
 
 ### MLflow Integration
@@ -335,12 +402,79 @@ All Kaggle submissions are automatically tracked in MLflow when active:
 - Submission files saved as artifacts
 - Competition metadata tracked as parameters
 
-## Adding New Kaggle Datasets
+## Advanced Training Features
 
-1. Create data converter in `data/` following `text_templates.py` pattern
-2. Update `optimized_loader.py` to handle new dataset
-3. Add new config in `configs/` directory
-4. Test with small batch first
+### Cross-Validation
+```bash
+# K-fold cross-validation
+uv run python -m cli train \
+    --cv-folds 5 \
+    --cv-strategy stratified \
+    --save-oof-predictions
+```
+
+### Ensemble Training
+```bash
+# Train ensemble of models
+uv run python -m cli train \
+    --ensemble-size 3 \
+    --ensemble-method voting \
+    --ensemble-weights "0.5,0.3,0.2"
+```
+
+### Test-Time Augmentation
+```bash
+# Generate predictions with TTA
+uv run python -m cli predict \
+    --tta-rounds 5 \
+    --tta-aggregate mean
+```
+
+### Pseudo-Labeling
+```bash
+# Semi-supervised learning
+uv run python -m cli train \
+    --pseudo-label-data data/unlabeled.csv \
+    --pseudo-label-threshold 0.95
+```
+
+## Configuration Management
+
+### Configuration Hierarchy
+1. **Default values**: Built-in sensible defaults
+2. **Config files**: YAML/JSON configuration
+3. **Environment variables**: Override specific settings
+4. **CLI arguments**: Highest priority
+
+### Available Presets
+- `quick`: Fast testing (1 epoch, small batch)
+- `development`: Balanced for development
+- `production`: Optimized production settings
+- `kaggle`: Competition-optimized
+- `memory_efficient`: Minimal memory usage
+
+### Custom Configuration
+```yaml
+# custom_config.yaml
+training:
+  epochs: 10
+  batch_size: 32
+  gradient_accumulation_steps: 2
+  
+optimizer:
+  type: adamw
+  learning_rate: 2e-5
+  weight_decay: 0.01
+  
+scheduler:
+  type: cosine
+  warmup_steps: 500
+  
+data:
+  max_length: 256
+  num_workers: 8
+  prefetch_size: 4
+```
 
 ## Performance Metrics
 
