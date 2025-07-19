@@ -127,7 +127,6 @@ def validate_config(config: Dict[str, Any], schema: Optional[Dict[str, Any]] = N
     """Validate configuration against schema."""
     if schema is None:
         # Use default schema
-        from .schemas import get_default_schema
         schema = get_default_schema()
     
     # TODO: Implement schema validation using jsonschema or similar
@@ -139,6 +138,33 @@ def validate_config(config: Dict[str, Any], schema: Optional[Dict[str, Any]] = N
             return False
     
     return True
+
+def get_default_schema() -> Dict[str, Any]:
+    """Get the default configuration schema."""
+    return {
+        "required": ["model", "training"],
+        "properties": {
+            "model": {
+                "type": "object",
+                "required": ["type"],
+                "properties": {
+                    "type": {"type": "string", "enum": ["bert", "modernbert", "neobert"]},
+                    "hidden_size": {"type": "integer", "minimum": 64},
+                    "num_layers": {"type": "integer", "minimum": 1},
+                    "num_heads": {"type": "integer", "minimum": 1}
+                }
+            },
+            "training": {
+                "type": "object",
+                "required": ["epochs", "batch_size"],
+                "properties": {
+                    "epochs": {"type": "integer", "minimum": 1},
+                    "batch_size": {"type": "integer", "minimum": 1},
+                    "learning_rate": {"type": "number", "minimum": 0.0}
+                }
+            }
+        }
+    }
 
 def save_config(config: Dict[str, Any], path: Path):
     """Save configuration to file."""
