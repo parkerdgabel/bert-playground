@@ -19,10 +19,18 @@ def create_sample_dataframe(
     add_target: bool = True,
     task_type: str = "classification",
     size: Optional[int] = None,
+    include_all_types: bool = False,
+    include_text_columns: bool = False,
 ) -> pd.DataFrame:
     """Create a sample DataFrame for testing."""
     # Use size parameter if provided, otherwise use num_rows
     actual_rows = size if size is not None else num_rows
+    
+    # Handle include_all_types and include_text_columns
+    if include_all_types:
+        num_text = max(num_text, 2)  # Ensure at least 2 text columns
+    if include_text_columns:
+        num_text = max(num_text, 1)  # Ensure at least 1 text column
     
     np.random.seed(42)
     data = {}

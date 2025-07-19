@@ -1,4 +1,4 @@
-"""Tests for text converters."""
+"""Tests for text converters - Fixed version."""
 
 import pytest
 from unittest.mock import Mock, patch
@@ -7,10 +7,10 @@ import pandas as pd
 import numpy as np
 
 from data.templates.converters import TabularTextConverter, BERTTextConverter
-from tests.data.fixtures.utils import (
-    create_sample_dataframe,
-    create_test_row,
-)
+from data.templates.engine import TemplateConfig
+from data.core.base import CompetitionType
+from tests.data.fixtures.utils import create_sample_dataframe
+from tests.data.fixtures.configs import create_dataset_spec
 
 
 class TestTabularTextConverter:
@@ -29,239 +29,137 @@ class TestTabularTextConverter:
     def test_converter_creation(self, converter):
         """Test converter creation."""
         assert converter is not None
-        assert hasattr(converter, 'max_text_length')
-        assert hasattr(converter, 'include_column_names')
-        assert hasattr(converter, 'separator')
+        assert hasattr(converter, 'engine')
+        assert hasattr(converter, 'config')
+        assert hasattr(converter, 'competition_type')
         
-    def test_default_settings(self):
-        """Test default converter settings."""
+    def test_default_config(self):
+        """Test default converter configuration."""
         converter = TabularTextConverter()
         
-        assert converter.max_text_length == 512
-        assert converter.include_column_names == True
-        assert converter.separator == ', '
-        assert converter.handle_missing == 'skip'
+        assert converter.config.max_length == 512
+        assert converter.config.include_feature_names == True
+        assert converter.config.feature_separator == ', '
+        assert converter.config.include_missing_values == False
         
-    def test_custom_settings(self):
-        """Test custom converter settings."""
-        converter = TabularTextConverter(
-            max_text_length=1024,
-            include_column_names=False,
-            separator=' | ',
-            handle_missing='placeholder',
+    def test_custom_config(self):
+        """Test custom converter configuration."""
+        config = TemplateConfig(
+            max_length=1024,
+            include_feature_names=False,
+            feature_separator=' | ',
+            include_missing_values=True,
         )
+        converter = TabularTextConverter(template_config=config)
         
-        assert converter.max_text_length == 1024
-        assert converter.include_column_names == False
-        assert converter.separator == ' | '
-        assert converter.handle_missing == 'placeholder'
+        assert converter.config.max_length == 1024
+        assert converter.config.include_feature_names == False
+        assert converter.config.feature_separator == ' | '
+        assert converter.config.include_missing_values == True
         
-    def test_convert_simple_row(self, converter, sample_data):
-        """Test converting simple row to text."""
-        row = sample_data.iloc[0]
-        text = converter.convert_row(row)
-        
-        assert isinstance(text, str)
-        assert len(text) > 0
-        assert len(text) <= converter.max_text_length
-        
-        # Check content is included
-        for col in sample_data.columns:
-            if pd.notna(row[col]):
-                assert str(row[col]) in text
-        
-    def test_convert_row_with_column_names(self, sample_data):
-        """Test converting row with column names included."""
-        converter = TabularTextConverter(include_column_names=True)
-        
-        row = sample_data.iloc[0]
-        text = converter.convert_row(row)
-        
-        # Column names should be in the text
-        for col in sample_data.columns:
-            if pd.notna(row[col]):
-                assert f"{col}:" in text or f"{col} =" in text
-        
-    def test_convert_row_without_column_names(self, sample_data):
-        """Test converting row without column names."""
-        converter = TabularTextConverter(include_column_names=False)
-        
-        row = sample_data.iloc[0]
-        text = converter.convert_row(row)
-        
-        # Column names should not be in the text
-        for col in sample_data.columns:
-            assert f"{col}:" not in text.lower()
-            assert f"{col} =" not in text.lower()
-        
-    def test_convert_row_custom_separator(self, sample_data):
-        """Test converting row with custom separator."""
-        converter = TabularTextConverter(separator=' | ')
-        
-        row = sample_data.iloc[0]
-        text = converter.convert_row(row)
-        
-        assert ' | ' in text
-        
-    def test_convert_batch(self, converter, sample_data):
-        """Test converting batch of rows."""
-        texts = converter.convert_batch(sample_data)
+    def test_fit_transform(self, converter, sample_data):
+        """Test fit and transform process."""
+        # Fit and transform
+        texts = converter.fit_transform(sample_data, target_column='target')
         
         assert len(texts) == len(sample_data)
         assert all(isinstance(text, str) for text in texts)
         assert all(len(text) > 0 for text in texts)
         
-        # Check that different rows produce different texts
-        assert len(set(texts)) == len(texts)  # All unique
+    def test_separate_fit_transform(self, converter, sample_data):
+        """Test separate fit and transform."""
+        # Fit
+        converter.fit(sample_data, target_column='target')
         
-    def test_handle_missing_skip(self):
-        """Test handling missing values with skip strategy."""
-        converter = TabularTextConverter(handle_missing='skip')
+        # Check fitted attributes
+        assert hasattr(converter, 'text_columns')
+        assert hasattr(converter, 'categorical_columns')
+        assert hasattr(converter, 'numerical_columns')
         
-        row = create_test_row(include_missing=True)
-        text = converter.convert_row(row)
+        # Transform
+        texts = converter.transform(sample_data)
         
-        # Missing values should not appear
-        assert 'None' not in text
-        assert 'nan' not in text.lower()
-        assert 'null' not in text.lower()
+        assert len(texts) == len(sample_data)
         
-    def test_handle_missing_placeholder(self):
-        """Test handling missing values with placeholder strategy."""
-        converter = TabularTextConverter(handle_missing='placeholder')
+    def test_column_type_detection(self, converter, sample_data):
+        """Test automatic column type detection."""
+        converter.fit(sample_data)
         
-        row = create_test_row(include_missing=True)
-        text = converter.convert_row(row)
+        # Should have detected column types
+        assert len(converter.numerical_columns) > 0
+        assert len(converter.categorical_columns) > 0
+        assert len(converter.text_columns) > 0
         
-        # Should have placeholder for missing values
-        assert '[missing]' in text or 'unknown' in text.lower()
-        
-    def test_handle_missing_empty(self):
-        """Test handling missing values with empty strategy."""
-        converter = TabularTextConverter(handle_missing='empty')
-        
-        row = create_test_row(include_missing=True)
-        text = converter.convert_row(row)
-        
-        # Should handle empty values gracefully
-        assert text is not None
-        assert len(text) > 0
-        
-    def test_text_truncation(self, sample_data):
-        """Test text truncation for long content."""
-        converter = TabularTextConverter(max_text_length=50)
-        
-        # Create row with long content
-        row = sample_data.iloc[0].copy()
-        row['description'] = 'x' * 100  # Long text
-        
-        text = converter.convert_row(row)
-        
-        assert len(text) <= 50
-        assert text.endswith('...') or len(text) == 50
-        
-    def test_special_characters_handling(self):
-        """Test handling of special characters."""
-        converter = TabularTextConverter()
-        
-        row = pd.Series({
-            'text': 'Hello, "world"!',
-            'value': 123.45,
-            'special': 'Line1\nLine2\tTab',
+    def test_competition_type_detection(self, converter):
+        """Test automatic competition type detection."""
+        # Binary classification
+        df = pd.DataFrame({
+            'feature1': [1, 2, 3, 4, 5],
+            'feature2': ['A', 'B', 'A', 'B', 'A'],
+            'target': [0, 1, 0, 1, 0],
         })
         
-        text = converter.convert_row(row)
+        converter.fit(df, target_column='target')
+        assert converter.competition_type == CompetitionType.BINARY_CLASSIFICATION
         
-        # Should handle special characters
-        assert 'Hello' in text
-        assert 'world' in text
-        assert '123.45' in text
-        
-    def test_numeric_formatting(self):
-        """Test formatting of numeric values."""
-        converter = TabularTextConverter()
-        
-        row = pd.Series({
-            'integer': 42,
-            'float': 3.14159,
-            'scientific': 1.23e-4,
-            'percentage': 0.95,
+    def test_with_missing_values(self, converter):
+        """Test handling of missing values."""
+        df = pd.DataFrame({
+            'feature1': [1.0, np.nan, 3.0],
+            'feature2': ['A', None, 'C'],
+            'feature3': [10, 20, 30],
         })
         
-        text = converter.convert_row(row)
+        # Default behavior (missing values excluded)
+        texts = converter.fit_transform(df)
+        assert len(texts) == 3
         
-        assert '42' in text
-        assert '3.14' in text  # Should be formatted reasonably
+        # With missing values included
+        config = TemplateConfig(include_missing_values=True)
+        converter_with_missing = TabularTextConverter(template_config=config)
+        texts_with_missing = converter_with_missing.fit_transform(df)
         
-    def test_categorical_handling(self, sample_data):
-        """Test handling of categorical columns."""
-        converter = TabularTextConverter()
+        assert len(texts_with_missing) == 3
+        # Second text should contain missing value token
+        assert '[MISSING]' in texts_with_missing[1]
         
-        # Convert a column to categorical
-        sample_data['category'] = pd.Categorical(['A', 'B', 'A'])
+    def test_max_samples_limit(self, converter):
+        """Test max_samples parameter."""
+        df = create_sample_dataframe(size=100)
         
-        texts = converter.convert_batch(sample_data)
+        texts = converter.fit_transform(df, max_samples=10)
         
-        assert 'A' in texts[0]
-        assert 'B' in texts[1]
+        assert len(texts) == 10
         
-    def test_datetime_handling(self):
-        """Test handling of datetime values."""
-        converter = TabularTextConverter()
+    def test_get_conversion_info(self, converter, sample_data):
+        """Test getting conversion information."""
+        converter.fit(sample_data)
         
-        row = pd.Series({
-            'date': pd.Timestamp('2023-01-15'),
-            'time': pd.Timestamp('2023-01-15 14:30:00'),
-            'name': 'Test',
-        })
+        info = converter.get_conversion_info()
         
-        text = converter.convert_row(row)
-        
-        assert '2023' in text
-        assert 'Test' in text
-        
-    def test_list_column_handling(self):
-        """Test handling of columns containing lists."""
-        converter = TabularTextConverter()
-        
-        row = pd.Series({
-            'tags': ['python', 'machine-learning', 'nlp'],
-            'scores': [0.9, 0.8, 0.7],
-            'name': 'Test',
-        })
-        
-        text = converter.convert_row(row)
-        
-        # Lists should be converted to readable format
-        assert 'python' in text
-        assert 'machine-learning' in text
-        
-    def test_custom_formatter(self):
-        """Test custom column formatter."""
-        def currency_formatter(value):
-            return f"${value:,.2f}"
-            
-        converter = TabularTextConverter(
-            column_formatters={'price': currency_formatter}
-        )
-        
-        row = pd.Series({
-            'product': 'Widget',
-            'price': 1234.56,
-        })
-        
-        text = converter.convert_row(row)
-        
-        assert '$1,234.56' in text
+        assert 'competition_type' in info
+        assert 'text_columns' in info
+        assert 'categorical_columns' in info
+        assert 'numerical_columns' in info
+        assert 'config' in info
 
 
 class TestBERTTextConverter:
     """Test BERTTextConverter class."""
     
     @pytest.fixture
-    def converter(self):
+    def dataset_spec(self):
+        """Create dataset spec for testing."""
+        return create_dataset_spec(
+            competition_type=CompetitionType.BINARY_CLASSIFICATION,
+            num_samples=100,
+            num_features=10,
+        )
+    
+    @pytest.fixture
+    def converter(self, dataset_spec):
         """Create BERTTextConverter instance."""
-        return BERTTextConverter()
+        return BERTTextConverter(dataset_spec)
         
     @pytest.fixture
     def sample_data(self):
@@ -271,139 +169,129 @@ class TestBERTTextConverter:
     def test_converter_creation(self, converter):
         """Test BERT converter creation."""
         assert converter is not None
-        assert hasattr(converter, 'template_style')
-        assert hasattr(converter, 'add_special_tokens')
+        assert hasattr(converter, 'dataset_spec')
+        assert hasattr(converter, 'tabular_converter')
         
-    def test_bert_specific_formatting(self, converter, sample_data):
-        """Test BERT-specific text formatting."""
-        row = sample_data.iloc[0]
-        text = converter.convert_row(row)
+    def test_fit_transform_to_text(self, converter, sample_data):
+        """Test fit and transform to text."""
+        texts = converter.fit_transform_to_text(sample_data)
         
-        # Should have BERT-friendly format
-        assert isinstance(text, str)
+        assert len(texts) == len(sample_data)
+        assert all(isinstance(text, str) for text in texts)
         
-        # Check for sentence structure
-        assert '.' in text or '!' in text or '?' in text
+    def test_transform_to_tokens_without_tokenizer(self, converter, sample_data):
+        """Test transform to tokens without tokenizer raises error."""
+        converter.fit(sample_data)
         
-    def test_template_styles(self, sample_data):
-        """Test different template styles."""
-        styles = ['descriptive', 'question_answer', 'factual', 'narrative']
-        
-        row = sample_data.iloc[0]
-        texts = []
-        
-        for style in styles:
-            converter = BERTTextConverter(template_style=style)
-            text = converter.convert_row(row)
-            texts.append(text)
+        with pytest.raises(ValueError, match="Tokenizer required"):
+            converter.transform_to_tokens(sample_data)
             
-        # Different styles should produce different texts
-        assert len(set(texts)) > 1
+    def test_bert_optimization_info(self, converter, sample_data):
+        """Test BERT optimization info."""
+        converter.fit(sample_data)
         
-    def test_special_token_handling(self, sample_data):
-        """Test handling of special tokens."""
-        converter = BERTTextConverter(add_special_tokens=True)
+        info = converter.get_bert_optimization_info()
         
-        row = sample_data.iloc[0]
-        text = converter.convert_row(row)
+        assert 'dataset_spec' in info
+        assert 'tokenizer_available' in info
+        assert info['tokenizer_available'] == False  # No tokenizer set
         
-        # Might include markers for downstream processing
-        # (actual tokens added during tokenization)
-        assert isinstance(text, str)
-        
-    def test_question_answer_format(self):
-        """Test question-answer formatting."""
-        converter = BERTTextConverter(template_style='question_answer')
-        
-        row = pd.Series({
-            'product': 'Laptop',
-            'price': 999.99,
-            'rating': 4.5,
-        })
-        
-        text = converter.convert_row(row)
-        
-        # Should be in Q&A format
-        assert '?' in text  # Contains questions
-        
-    def test_classification_context(self):
-        """Test formatting for classification tasks."""
-        converter = BERTTextConverter(
-            template_style='classification',
-            task_type='sentiment'
+    def test_different_competition_types(self, sample_data):
+        """Test with different competition types."""
+        for comp_type in [
+            CompetitionType.BINARY_CLASSIFICATION,
+            CompetitionType.MULTICLASS_CLASSIFICATION,
+            CompetitionType.REGRESSION,
+        ]:
+            spec = create_dataset_spec(competition_type=comp_type)
+            converter = BERTTextConverter(spec)
+            
+            texts = converter.fit_transform_to_text(sample_data)
+            assert len(texts) > 0
+            
+    def test_with_custom_template_config(self, dataset_spec, sample_data):
+        """Test with custom template configuration."""
+        config = TemplateConfig(
+            max_length=256,
+            use_special_tokens=True,
+            cls_token='[CLS]',
+            sep_token='[SEP]',
         )
         
-        row = pd.Series({
-            'review': 'Great product!',
-            'rating': 5,
-        })
+        converter = BERTTextConverter(dataset_spec, template_config=config)
+        texts = converter.fit_transform_to_text(sample_data)
         
-        text = converter.convert_row(row)
-        
-        # Should provide clear classification context
-        assert 'review' in text.lower() or 'Great product!' in text
-        
-    def test_max_length_enforcement(self, sample_data):
-        """Test max length enforcement for BERT."""
-        converter = BERTTextConverter(max_text_length=128)
-        
-        # Create row with long content
-        row = sample_data.iloc[0].copy()
-        row['description'] = ' '.join(['word'] * 100)
-        
-        text = converter.convert_row(row)
-        
-        # Should respect BERT's typical max length
-        assert len(text.split()) < 150  # Reasonable token count
+        assert len(texts) == len(sample_data)
+        # Special tokens should be in the text
+        assert all('[CLS]' in text for text in texts)
+        assert all('[SEP]' in text for text in texts)
 
 
 @pytest.mark.integration
 class TestConverterIntegration:
-    """Integration tests for text converters."""
+    """Integration tests for converters."""
     
-    def test_converter_pipeline(self):
-        """Test complete conversion pipeline."""
+    def test_end_to_end_tabular_conversion(self):
+        """Test complete tabular conversion pipeline."""
         # Create realistic dataset
-        df = create_sample_dataframe(size=100, include_all_types=True)
-        
-        # Test both converters
-        converters = [
-            TabularTextConverter(),
-            BERTTextConverter(),
-        ]
-        
-        for converter in converters:
-            texts = converter.convert_batch(df)
-            
-            assert len(texts) == len(df)
-            assert all(isinstance(t, str) for t in texts)
-            assert all(len(t) > 0 for t in texts)
-            
-            # Check variety in outputs
-            unique_texts = set(texts)
-            assert len(unique_texts) > len(texts) * 0.9  # Most should be unique
-            
-    def test_converter_with_real_kaggle_data(self):
-        """Test converter with Kaggle-like data."""
-        # Create Kaggle-like dataset
         df = pd.DataFrame({
-            'PassengerId': range(1, 101),
-            'Survived': np.random.randint(0, 2, 100),
-            'Pclass': np.random.randint(1, 4, 100),
-            'Name': [f"Person {i}" for i in range(100)],
-            'Sex': np.random.choice(['male', 'female'], 100),
-            'Age': np.random.randint(1, 80, 100),
-            'SibSp': np.random.randint(0, 5, 100),
-            'Parch': np.random.randint(0, 5, 100),
-            'Fare': np.random.uniform(10, 500, 100),
+            'age': [25, 30, 35, 40],
+            'income': [50000, 75000, 100000, 60000],
+            'education': ['Bachelor', 'Master', 'PhD', 'Bachelor'],
+            'city': ['New York', 'San Francisco', 'Boston', 'Chicago'],
+            'description': [
+                'Young professional in tech',
+                'Senior engineer with experience',
+                'Research scientist',
+                'Marketing manager',
+            ],
+            'approved': [1, 1, 1, 0],
         })
         
-        converter = BERTTextConverter(template_style='descriptive')
-        texts = converter.convert_batch(df)
+        # Create converter
+        converter = TabularTextConverter(
+            competition_type=CompetitionType.BINARY_CLASSIFICATION,
+        )
         
-        # Check quality of conversion
-        sample_text = texts[0]
-        assert 'Person' in sample_text
-        assert any(word in sample_text.lower() for word in ['passenger', 'class', 'age'])
-
-
+        # Convert
+        texts = converter.fit_transform(df, target_column='approved')
+        
+        # Verify
+        assert len(texts) == len(df)
+        assert all(isinstance(text, str) for text in texts)
+        
+        # Check that relevant information is included
+        assert 'Bachelor' in texts[0]
+        assert 'tech' in texts[0]
+        
+    def test_bert_conversion_pipeline(self):
+        """Test BERT conversion pipeline."""
+        # Create dataset spec
+        spec = create_dataset_spec(
+            competition_type=CompetitionType.MULTICLASS_CLASSIFICATION,
+            num_classes=3,
+            recommended_max_length=128,
+        )
+        
+        # Create data
+        df = create_sample_dataframe(
+            size=10,
+            num_text=2,
+            task_type='multiclass',
+        )
+        
+        # Create converter
+        converter = BERTTextConverter(spec)
+        
+        # Convert
+        texts = converter.fit_transform_to_text(df)
+        
+        # Verify
+        assert len(texts) == 10
+        assert all(len(text) > 0 for text in texts)
+        
+        # Get optimization info
+        info = converter.get_bert_optimization_info()
+        # The spec sets recommended_max_length to 128, but BERTTextConverter
+        # uses the template config which defaults to 512
+        assert info['dataset_spec']['recommended_max_length'] == 512

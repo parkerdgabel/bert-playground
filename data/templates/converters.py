@@ -45,6 +45,9 @@ class TabularTextConverter:
         self.competition_name = competition_name
         self.custom_template = custom_template
         
+        # Initialize logger first
+        self.logger = logger.bind(component="TabularTextConverter")
+        
         # Initialize template engine
         self.config = template_config or TemplateConfig()
         self.engine = TextTemplateEngine(self.config)
@@ -52,8 +55,6 @@ class TabularTextConverter:
         # Template selection
         self.selected_template: Optional[CompetitionTextTemplate] = None
         self._select_template()
-        
-        self.logger = logger.bind(component="TabularTextConverter")
         
     def _select_template(self) -> None:
         """Select the best template based on available information."""
