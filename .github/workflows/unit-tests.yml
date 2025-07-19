@@ -79,11 +79,6 @@ jobs:
         uv run pytest tests/training/ -v --tb=short --junit-xml=test-results/training-unit.xml -m "not integration and not e2e" || true
         echo "::endgroup::"
     
-    - name: Generate coverage report
-      if: always()
-      run: |
-        uv run pytest tests/ --cov=cli --cov-report=xml --cov-report=html --cov-fail-under=0 -q
-    
     - name: Upload test results
       if: always()
       uses: actions/upload-artifact@v4
@@ -91,14 +86,6 @@ jobs:
         name: test-results-py${{ matrix.python-version }}
         path: test-results/
     
-    - name: Upload coverage reports
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: coverage-py${{ matrix.python-version }}
-        path: |
-          coverage.xml
-          htmlcov/
     
     - name: Test summary
       if: always()

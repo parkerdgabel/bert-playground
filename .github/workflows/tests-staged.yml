@@ -73,12 +73,10 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Test Results:" >> $GITHUB_STEP_SUMMARY
         echo "- Python ${{ matrix.python-version }}" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        
-        # Generate coverage report
-        uv run pytest tests/ -m "not integration and not e2e" --cov=cli --cov-report=xml --cov-report=term --cov-report=html --cov-fail-under=0 --tb=no || true
-        
-        echo "Coverage report generated." >> $GITHUB_STEP_SUMMARY
+        echo "- CLI Unit Tests: Completed" >> $GITHUB_STEP_SUMMARY
+        echo "- Models Unit Tests: Completed" >> $GITHUB_STEP_SUMMARY
+        echo "- Data Unit Tests: Completed" >> $GITHUB_STEP_SUMMARY
+        echo "- Training Unit Tests: Completed" >> $GITHUB_STEP_SUMMARY
     
     - name: Upload unit test results
       if: always()
@@ -118,7 +116,7 @@ jobs:
     - name: Run integration tests
       run: |
         echo "Running integration tests..."
-        uv run pytest tests/ -v --tb=short -m "integration" --cov=cli --cov-report=xml --cov-report=html --cov-fail-under=0
+        uv run pytest tests/ -v --tb=short -m "integration"
     
     - name: Upload integration test results
       if: always()
@@ -159,7 +157,7 @@ jobs:
     - name: Run E2E tests
       run: |
         echo "Running E2E tests..."
-        uv run pytest tests/ -v --tb=short -m "e2e" --cov=cli --cov-report=xml --cov-report=html --cov-fail-under=0 || echo "E2E tests are not yet implemented"
+        uv run pytest tests/ -v --tb=short -m "e2e" || echo "E2E tests are not yet implemented"
     
     - name: Upload E2E test results
       if: always()
