@@ -59,19 +59,9 @@ def predict_command(
     
     # Import necessary components
     try:
-        from data import create_kaggle_dataloader
-        from models.factory import create_model
-        from models.modernbert_cnn_hybrid import create_cnn_hybrid_model
-        
-        # Import classifier
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "classification",
-            str(Path(__file__).parent.parent.parent.parent / "models" / "classification.py")
-        )
-        classification_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(classification_module)
-        UnifiedTitanicClassifier = classification_module.TitanicClassifier
+        from data import create_dataloader
+        from models.factory import create_model_from_checkpoint
+        from transformers import AutoTokenizer
         
     except ImportError as e:
         print_error(
@@ -87,95 +77,62 @@ def predict_command(
         with open(config_path) as f:
             train_config = json.load(f)
         model_name = train_config.get("model", "answerdotai/ModernBERT-base")
-        model_type = train_config.get("model_type", "base")
-        use_mlx_embeddings = train_config.get("use_mlx_embeddings", False)
-        tokenizer_backend = train_config.get("tokenizer_backend", "auto")
         print_info(f"Loaded training configuration from {config_path}")
     else:
         console.print("[yellow]Warning: No training config found, using defaults[/yellow]")
         model_name = "answerdotai/ModernBERT-base"
-        model_type = "base"
-        use_mlx_embeddings = False
-        tokenizer_backend = "auto"
     
-    # Create model
-    with console.status("[yellow]Loading model...[/yellow]"):
-        if use_mlx_embeddings:
-            # Create MLX embeddings model
-            try:
-                from models.classification import create_titanic_classifier
-                model = create_titanic_classifier(
-                    model_name=model_name,
-                    dropout_prob=0.0,  # No dropout for inference
-                    use_layer_norm=False,
-                    activation="relu",
-                )
-                model_desc = "MLX Embeddings ModernBERT"
-            except ImportError:
-                from embeddings.model_wrapper import MLXEmbeddingModel
-                model = MLXEmbeddingModel(
-                    model_name=model_name,
-                    num_labels=2,
-                    use_mlx_embeddings=True,
-                )
-                model_desc = "Legacy MLX Embeddings ModernBERT"
-        elif model_type == "cnn_hybrid":
-            bert_model = create_cnn_hybrid_model(
-                model_name=model_name,
-                num_labels=2,
-                cnn_kernel_sizes=train_config.get("cnn_kernel_sizes", [2, 3, 4, 5]),
-                cnn_num_filters=train_config.get("cnn_num_filters", 128),
-                use_dilated_conv=train_config.get("use_dilated_conv", True),
-            )
-            bert_model.config.hidden_size = bert_model.output_hidden_size
-            model = UnifiedTitanicClassifier(bert_model)
-            model_desc = "CNN-Enhanced ModernBERT"
-        else:
-            bert_model = create_model("standard")
-            model = UnifiedTitanicClassifier(bert_model)
-            model_desc = "Standard ModernBERT"
-        
-        # Load weights
-        model.load_pretrained(str(checkpoint))
-        
-    console.print(f"[green]✓ Loaded {model_desc} from {checkpoint}[/green]")
+    # Load model
+    console.print(f"Loading model from {checkpoint}...")
+    try:
+        model = create_model_from_checkpoint(checkpoint)
+        console.print(f"[green]✓ Loaded model from {checkpoint}[/green]")
+    except Exception as e:
+        print_error(f"Failed to load model: {str(e)}", title="Model Loading Error")
+        raise typer.Exit(1)
+    
+    # Create tokenizer
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        console.print(f"[green]✓ Loaded tokenizer: {model_name}[/green]")
+    except Exception as e:
+        print_error(f"Failed to load tokenizer: {str(e)}", title="Tokenizer Error")
+        raise typer.Exit(1)
     
     # Create data loader
-    test_loader = create_kaggle_dataloader(
-        dataset_name=dataset_name,
-        csv_path=str(test_data),
-        tokenizer_name=model_name,
+    test_loader = create_dataloader(
+        data_path=test_data,
         batch_size=batch_size,
-        max_length=max_length,
         shuffle=False,
-        prefetch_size=4,
         num_workers=num_workers,
-        tokenizer_backend=tokenizer_backend,
+        tokenizer=tokenizer,
+        max_length=max_length,
+        split="test",
     )
     
-    console.print(f"[green]✓ Loaded {len(test_loader)} test batches[/green]")
+    console.print(f"[green]✓ Created test data loader[/green]")
     
     # Generate predictions
     predictions = []
     probabilities = []
     
+    model.eval()
+    total_samples = 0
+    
     with console.status("[yellow]Generating predictions...[/yellow]"):
-        test_stream = test_loader.create_stream(is_training=False)
-        
-        for batch_idx, batch in enumerate(test_stream):
-            # Convert numpy arrays to MLX arrays if needed
-            if not isinstance(batch["input_ids"], mx.array):
-                batch["input_ids"] = mx.array(batch["input_ids"])
-                batch["attention_mask"] = mx.array(batch["attention_mask"])
-            
+        for batch_idx, batch in enumerate(test_loader):
             # Forward pass
-            outputs = model(
-                input_ids=batch["input_ids"],
-                attention_mask=batch["attention_mask"],
-            )
+            with mx.no_grad():
+                outputs = model(
+                    input_ids=batch["input_ids"],
+                    attention_mask=batch["attention_mask"],
+                )
             
             # Get predictions
-            logits = outputs["logits"]
+            if hasattr(outputs, "logits"):
+                logits = outputs.logits
+            else:
+                logits = outputs
             
             if probability:
                 # Calculate probabilities
@@ -186,9 +143,13 @@ def predict_command(
             preds = mx.argmax(logits, axis=-1)
             predictions.extend(preds.tolist())
             
+            total_samples += len(batch["input_ids"])
+            
             # Show progress
             if (batch_idx + 1) % 10 == 0:
-                console.print(f"Processed {(batch_idx + 1) * batch_size} samples...", end="\r")
+                console.print(f"Processed {total_samples} samples...", end="\r")
+    
+    console.print(f"\n[green]✓ Generated predictions for {total_samples} samples[/green]")
     
     # Load original test data for IDs
     df = pd.read_csv(test_data)
@@ -260,23 +221,9 @@ def predict_command(
         print_error(f"Unsupported format: {format}", title="Format Error")
         raise typer.Exit(1)
     
-    # Show results
-    print_success(f"Predictions saved to {output}")
-    console.print(f"[cyan]Total predictions: {len(predictions[:len(df)])}[/cyan]")
-    
-    if probability:
-        console.print("[cyan]Output includes probability scores[/cyan]")
-    
-    # Show sample predictions
-    console.print("\n[bold]Sample predictions:[/bold]")
-    sample_size = min(5, len(predictions))
-    for i in range(sample_size):
-        if probability:
-            console.print(f"  Sample {i+1}: Class {predictions[i]} (probs: {[f'{p:.3f}' for p in probabilities[i]]})")
-        else:
-            console.print(f"  Sample {i+1}: Class {predictions[i]}")
-    
-    # Next steps
-    console.print("\n[bold]Next steps:[/bold]")
-    console.print(f"1. Submit to Kaggle: [cyan]bert kaggle submit create --competition {dataset_name} --file {output}[/cyan]")
-    console.print("2. Evaluate locally: [cyan]bert model evaluate --predictions {} --ground-truth labels.csv[/cyan]".format(output))
+    print_success(
+        f"Predictions saved to {output}\n"
+        f"Format: {format}\n"
+        f"Total predictions: {len(predictions)}",
+        title="Prediction Complete"
+    )

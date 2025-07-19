@@ -78,8 +78,7 @@ def train_command(
     # Import training components
     try:
         from data import create_dataloader
-        from models import create_bert_with_head
-        from models.wrapper import ModelWrapper
+        from models.factory import create_model
         from training import create_trainer, BaseTrainerConfig
         from transformers import AutoTokenizer
         import mlx.core as mx
@@ -156,14 +155,21 @@ def train_command(
     
     # Create model
     with console.status("[yellow]Creating model...[/yellow]"):
-        base_model = create_bert_with_head(
-            model_type=model_type,
-            head_type=head_type,
-            num_labels=num_labels,
-            use_lora=use_lora,
-        )
-        # Wrap model to handle dictionary inputs
-        model = ModelWrapper(base_model)
+        if use_lora:
+            # Create model with LoRA
+            from models.factory import create_bert_with_lora
+            model, lora_adapter = create_bert_with_lora(
+                head_type=head_type,
+                num_labels=num_labels,
+                lora_preset="balanced",
+            )
+        else:
+            # Create standard model
+            model = create_model(
+                model_type=f"{model_type}_with_head",
+                head_type=head_type,
+                num_labels=num_labels,
+            )
     
     console.print(f"[green]✓ Created {model_type} model with {head_type} head[/green]")
     
