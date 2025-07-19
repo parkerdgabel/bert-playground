@@ -1,51 +1,72 @@
-# Titanic Competition Configuration
-competition_id: titanic
-title: "Titanic - Machine Learning from Disaster"
+# Titanic competition specific configuration
+optimizer:
+  type: adamw
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  beta1: 0.9
+  beta2: 0.999
+  epsilon: 1.0e-8
+  max_grad_norm: 1.0
 
-# Data configuration
+scheduler:
+  type: cosine
+  warmup_ratio: 0.1
+  warmup_steps: 0
+  num_cycles: 0.5
+
 data:
-  train_file: train.csv
-  test_file: test.csv
-  sample_submission: gender_submission.csv
-  
-# Column specifications
-columns:
-  id: PassengerId
-  target: Survived
-  features:
-    - Pclass
-    - Name
-    - Sex
-    - Age
-    - SibSp
-    - Parch
-    - Ticket
-    - Fare
-    - Cabin
-    - Embarked
+  batch_size: 32
+  eval_batch_size: 64
+  num_workers: 4
+  prefetch_size: 4
+  shuffle_train: true
+  drop_last: false
+  pin_memory: true
+  augment_train: true
+  augmentation_prob: 0.3
 
-# Submission configuration
-submission:
-  id_column: PassengerId
-  target_column: Survived
-  format: csv
-  encoding: utf-8
-  
-# Evaluation configuration
-evaluation:
-  metric: accuracy
-  higher_is_better: true
-  scoring_function: classification_accuracy
-  
-# Model configuration suggestions
-model:
-  suggested_batch_size: 32
-  suggested_epochs: 10
-  suggested_lr: 2e-5
-  augmentation_enabled: true
-  
-# Text template configuration
-text_template:
-  style: "narrative"  # narrative, factual, or structured
-  include_missing: true
-  max_length: 256
+training:
+  num_epochs: 10
+  max_steps: -1
+  gradient_accumulation_steps: 1
+  mixed_precision: true
+  eval_strategy: epoch
+  eval_steps: 100
+  eval_delay: 0
+  logging_steps: 20
+  log_level: info
+  report_to: ["mlflow"]
+  save_strategy: best
+  save_steps: 100
+  save_total_limit: 3
+  save_best_only: true
+  best_metric: eval_accuracy
+  best_metric_mode: max
+  early_stopping: true
+  early_stopping_patience: 3
+  early_stopping_threshold: 0.001
+  label_smoothing: 0.05
+  dropout_rate: 0.1
+
+environment:
+  output_dir: output/titanic
+  experiment_name: titanic_competition
+  run_name: modernbert_titanic
+  seed: 42
+  device: gpu
+  gradient_checkpointing: false
+  memory_efficient_attention: true
+  debug_mode: false
+  profile: false
+  mlflow_tags:
+    competition: titanic
+    model: modernbert
+    framework: mlx
+
+# Custom settings specific to Titanic
+custom:
+  task_type: binary_classification
+  num_labels: 2
+  focal_loss: true
+  focal_gamma: 2.0
+  class_weights: [0.6, 0.4]  # Adjust based on class imbalance

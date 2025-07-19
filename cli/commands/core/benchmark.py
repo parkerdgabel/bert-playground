@@ -21,7 +21,6 @@ from ...utils.console import create_table
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from models.factory import create_model, create_bert_with_head
-from models.heads.base_head import HeadType
 
 @handle_errors
 @track_time("Running benchmarks")

@@ -306,6 +306,23 @@ class GradientAccumulator:
                     if k not in acc_grads:
                         acc_grads[k] = {}
                     acc_grads[k] = accumulate_recursive(acc_grads[k], v, scale)
+                elif isinstance(v, list):
+                    # Handle list of gradients (e.g., from layers)
+                    if k not in acc_grads:
+                        acc_grads[k] = []
+                        for i, item in enumerate(v):
+                            if isinstance(item, dict):
+                                acc_grads[k].append(accumulate_recursive({}, item, scale))
+                            elif item is not None:
+                                acc_grads[k].append(item * scale)
+                            else:
+                                acc_grads[k].append(item)
+                    else:
+                        for i, item in enumerate(v):
+                            if isinstance(item, dict):
+                                acc_grads[k][i] = accumulate_recursive(acc_grads[k][i], item, scale)
+                            elif item is not None:
+                                acc_grads[k][i] += item * scale
                 elif v is not None:
                     # Base case for arrays
                     if k in acc_grads:
@@ -365,6 +382,13 @@ def clip_gradients(
         for k, v in grads.items():
             if isinstance(v, dict):
                 flat.extend(flatten_grads(v))
+            elif isinstance(v, list):
+                # Handle list of gradients (e.g., from layers)
+                for item in v:
+                    if isinstance(item, dict):
+                        flat.extend(flatten_grads(item))
+                    elif item is not None:
+                        flat.append(item)
             elif v is not None:
                 flat.append(v)
         return flat
@@ -387,6 +411,16 @@ def clip_gradients(
             for k, v in grads.items():
                 if isinstance(v, dict):
                     scaled[k] = scale_grads(v)
+                elif isinstance(v, list):
+                    # Handle list of gradients (e.g., from layers)
+                    scaled[k] = []
+                    for item in v:
+                        if isinstance(item, dict):
+                            scaled[k].append(scale_grads(item))
+                        elif item is not None:
+                            scaled[k].append(item * scale)
+                        else:
+                            scaled[k].append(item)
                 elif v is not None:
                     scaled[k] = v * scale
                 else:
@@ -417,6 +451,13 @@ def compute_gradient_stats(gradients: Dict[str, Any]) -> Dict[str, float]:
         for k, v in grads.items():
             if isinstance(v, dict):
                 flat.extend(flatten_grads(v))
+            elif isinstance(v, list):
+                # Handle list of gradients (e.g., from layers)
+                for item in v:
+                    if isinstance(item, dict):
+                        flat.extend(flatten_grads(item))
+                    elif item is not None:
+                        flat.append(item)
             elif v is not None:
                 flat.append(v)
         return flat

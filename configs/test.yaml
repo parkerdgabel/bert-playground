@@ -1,0 +1,33 @@
+# Minimal test configuration for CLI testing
+optimizer:
+  type: adamw
+  learning_rate: 5.0e-5
+  weight_decay: 0.0
+  max_grad_norm: 1.0
+
+scheduler:
+  type: none
+
+data:
+  batch_size: 4
+  eval_batch_size: 8
+  num_workers: 1
+  prefetch_size: 1
+  shuffle_train: true
+
+training:
+  num_epochs: 1
+  gradient_accumulation_steps: 1
+  mixed_precision: false
+  eval_strategy: no
+  logging_steps: 5
+  save_strategy: epoch
+  save_best_only: false
+  early_stopping: false
+
+environment:
+  output_dir: output/test_run
+  seed: 42
+  gradient_checkpointing: false
+  memory_efficient_attention: false
+  debug_mode: true
