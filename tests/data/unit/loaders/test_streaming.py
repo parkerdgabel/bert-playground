@@ -27,11 +27,14 @@ class TestStreamingConfig:
         """Test default streaming configuration."""
         config = StreamingConfig()
         
-        assert config.buffer_size == 1024
-        assert config.chunk_size == 256
-        assert config.num_workers == 4
-        assert config.target_throughput is None
-        assert config.adaptive_batching == False
+        assert config.buffer_size == 1000
+        assert config.batch_size == 32
+        assert config.max_queue_size == 100
+        assert config.num_producer_threads == 2
+        assert config.num_consumer_threads == 1
+        assert config.prefetch_batches == 5
+        assert config.max_memory_mb == 1024
+        assert config.enable_memory_monitoring == True
         
     def test_custom_config(self):
         """Test custom streaming configuration."""
