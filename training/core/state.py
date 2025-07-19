@@ -10,7 +10,8 @@ from datetime import datetime
 
 import mlx.core as mx
 import mlx.nn as nn
-from safetensors.mlx import save_model, load_model
+from mlx.utils import tree_flatten, tree_unflatten
+from safetensors.mlx import save_file, load_file
 from loguru import logger
 
 from .protocols import Model, Optimizer, TrainingState
@@ -157,9 +158,12 @@ class CheckpointManager:
         checkpoint_path = self.checkpoint_dir / name
         checkpoint_path.mkdir(exist_ok=True)
         
-        # Save model weights
+        # Save model weights using MLX tree_flatten
         model_path = checkpoint_path / "model.safetensors"
-        save_model(model, str(model_path))
+        
+        # Use MLX's tree_flatten to flatten the model parameters
+        flat_params = dict(tree_flatten(model.parameters()))
+        save_file(flat_params, str(model_path))
         
         # Save model config if available
         if hasattr(model, "config") and model.config is not None:
@@ -172,23 +176,49 @@ class CheckpointManager:
                 json.dump(config_dict, f, indent=2)
         
         # Save optimizer state
-        optimizer_path = checkpoint_path / "optimizer.json"
-        optimizer_state = {
-            "learning_rate": optimizer.learning_rate,
-            "state": optimizer.state if hasattr(optimizer, "state") else {},
+        optimizer_path = checkpoint_path / "optimizer.safetensors"
+        if hasattr(optimizer, "state") and optimizer.state:
+            # Use tree_flatten for optimizer state as well
+            flat_state = dict(tree_flatten(optimizer.state))
+            if flat_state:
+                save_file(flat_state, str(optimizer_path))
+        
+        # Save optimizer config separately
+        optimizer_config_path = checkpoint_path / "optimizer_config.json"
+        optimizer_config = {
+            "learning_rate": float(optimizer.learning_rate),
+            "type": optimizer.__class__.__name__,
         }
-        with open(optimizer_path, "w") as f:
-            json.dump(optimizer_state, f, indent=2)
+        with open(optimizer_config_path, "w") as f:
+            json.dump(optimizer_config, f, indent=2)
         
         # Save training state
         state_path = checkpoint_path / "training_state.json"
+        
+        # Convert state to dict and ensure all values are JSON serializable
+        def make_json_serializable(obj):
+            """Convert MLX arrays and other non-serializable objects to JSON-serializable format."""
+            if isinstance(obj, mx.array):
+                return obj.item() if obj.size == 1 else obj.tolist()
+            elif isinstance(obj, dict):
+                return {k: make_json_serializable(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [make_json_serializable(v) for v in obj]
+            elif hasattr(obj, 'item'):
+                return obj.item()
+            else:
+                return obj
+        
+        state_dict = make_json_serializable(state.to_dict())
+        
         with open(state_path, "w") as f:
-            json.dump(state.to_dict(), f, indent=2)
+            json.dump(state_dict, f, indent=2)
         
         # Save metrics
         metrics_path = checkpoint_path / "metrics.json"
+        metrics_dict = make_json_serializable(metrics)
         with open(metrics_path, "w") as f:
-            json.dump(metrics, f, indent=2)
+            json.dump(metrics_dict, f, indent=2)
         
         # Save checkpoint metadata
         metadata = {
@@ -250,21 +280,35 @@ class CheckpointManager:
         # Load model weights
         model_path = checkpoint_path / "model.safetensors"
         if model_path.exists():
-            load_model(model, str(model_path))
+            flat_weights = load_file(str(model_path))
+            
+            # Use tree_unflatten to reconstruct the nested structure
+            weights = tree_unflatten(list(flat_weights.items()))
+            
+            # Update model parameters
+            model.update(weights)
             logger.info(f"Loaded model weights from {model_path}")
         else:
             logger.warning(f"Model weights not found at {model_path}")
         
+        # Load optimizer config
+        optimizer_config_path = checkpoint_path / "optimizer_config.json"
+        if optimizer_config_path.exists():
+            with open(optimizer_config_path) as f:
+                optimizer_config = json.load(f)
+            
+            # Restore learning rate
+            if "learning_rate" in optimizer_config:
+                optimizer.learning_rate = optimizer_config["learning_rate"]
+        
         # Load optimizer state
-        optimizer_path = checkpoint_path / "optimizer.json"
+        optimizer_path = checkpoint_path / "optimizer.safetensors"
         if optimizer_path.exists():
-            with open(optimizer_path) as f:
-                optimizer_state = json.load(f)
+            # Load optimizer state arrays
+            flat_state = load_file(str(optimizer_path))
             
-            optimizer.learning_rate = optimizer_state.get("learning_rate", optimizer.learning_rate)
-            if hasattr(optimizer, "state") and "state" in optimizer_state:
-                optimizer.state = optimizer_state["state"]
-            
+            # Use tree_unflatten to reconstruct the nested state
+            optimizer.state = tree_unflatten(list(flat_state.items()))
             logger.info(f"Loaded optimizer state from {optimizer_path}")
         
         # Load training state

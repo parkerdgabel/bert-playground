@@ -442,9 +442,10 @@ def get_quick_test_config() -> BaseTrainerConfig:
         training=TrainingConfig(
             num_epochs=1,
             eval_strategy=EvalStrategy.NO,
-            save_strategy=CheckpointStrategy.NO,
+            save_strategy=CheckpointStrategy.EPOCH,
             logging_steps=10,
             early_stopping=False,
+            save_best_only=False,
         ),
         environment=EnvironmentConfig(
             output_dir=Path("output/test"),

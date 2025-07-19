@@ -20,12 +20,13 @@ from .core import (
     DatasetSpec,
     KaggleDataset,
 )
-from .kaggle import (
-    KaggleClient,
-    KaggleCompetitionDataset,
-    LeaderboardTracker,
-    SubmissionManager,
-)
+# Kaggle integration (to be implemented)
+# from .kaggle import (
+#     KaggleClient,
+#     KaggleCompetitionDataset,
+#     LeaderboardTracker,
+#     SubmissionManager,
+# )
 from .loaders import (
     MLXDataLoader,
     StreamingPipeline,
@@ -49,11 +50,11 @@ __all__ = [
     "DatasetAnalyzer", 
     "DatasetRegistry",
     
-    # Kaggle integration
-    "KaggleClient",
-    "KaggleCompetitionDataset", 
-    "LeaderboardTracker",
-    "SubmissionManager",
+    # Kaggle integration (to be implemented)
+    # "KaggleClient",
+    # "KaggleCompetitionDataset", 
+    # "LeaderboardTracker",
+    # "SubmissionManager",
     
     # MLX-optimized loaders
     "MLXDataLoader",

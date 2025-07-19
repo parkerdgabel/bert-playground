@@ -111,7 +111,7 @@ class BaseTrainer:
             return loss, outputs
         
         # Create value and grad function
-        value_and_grad_fn = nn.value_and_grad(loss_fn)
+        value_and_grad_fn = mx.value_and_grad(loss_fn)
         
         def train_step(batch: Dict[str, mx.array]) -> Tuple[float, Dict[str, mx.array]]:
             """Single training step."""
@@ -144,11 +144,22 @@ class BaseTrainer:
             # Ensure computation is executed
             mx.eval(loss, self.model.parameters())
             
-            return loss.item(), {
+            # Only convert scalar values to Python scalars
+            metrics = {
                 "grad_norm": grad_norm,
                 "learning_rate": current_lr,
-                **{k: v.item() if hasattr(v, 'item') else v for k, v in outputs.items() if k != "loss"}
             }
+            
+            # Add other outputs, converting scalars only
+            for k, v in outputs.items():
+                if k != "loss":
+                    if hasattr(v, 'item') and v.size == 1:
+                        metrics[k] = v.item()
+                    elif not hasattr(v, 'shape'):  # Already a Python scalar
+                        metrics[k] = v
+                    # Skip tensors with multiple elements
+            
+            return loss.item(), metrics
         
         return train_step
     
@@ -167,10 +178,17 @@ class BaseTrainer:
             # Ensure computation is executed
             mx.eval(loss)
             
-            return loss.item(), {
-                k: v.item() if hasattr(v, 'item') else v 
-                for k, v in outputs.items() if k != "loss"
-            }
+            # Only convert scalar values to Python scalars
+            metrics = {}
+            for k, v in outputs.items():
+                if k != "loss":
+                    if hasattr(v, 'item') and v.size == 1:
+                        metrics[k] = v.item()
+                    elif not hasattr(v, 'shape'):  # Already a Python scalar
+                        metrics[k] = v
+                    # Skip tensors with multiple elements
+            
+            return loss.item(), metrics
         
         return eval_step
     
@@ -232,7 +250,7 @@ class BaseTrainer:
             
             if should_evaluate:
                 val_metrics = self.evaluate(val_dataloader)
-                self.state.val_loss = val_metrics["loss"]
+                self.state.val_loss = val_metrics.get("eval_loss", val_metrics.get("loss", 0.0))
                 self.state.val_history.append(val_metrics)
                 self.state.metrics.update(val_metrics)
                 
@@ -305,8 +323,28 @@ class BaseTrainer:
         # Save final result
         result_path = self.config.environment.output_dir / "training_result.json"
         import json
+        
+        # Convert result to dict and ensure all values are JSON serializable
+        def make_json_serializable(obj):
+            """Convert MLX arrays and other non-serializable objects to JSON-serializable format."""
+            if hasattr(obj, 'item'):
+                try:
+                    return obj.item() if obj.size == 1 else obj.tolist()
+                except:
+                    return float(obj)
+            elif isinstance(obj, dict):
+                return {k: make_json_serializable(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [make_json_serializable(v) for v in obj]
+            elif isinstance(obj, Path):
+                return str(obj)
+            else:
+                return obj
+        
+        result_dict = make_json_serializable(result.to_dict())
+        
         with open(result_path, "w") as f:
-            json.dump(result.to_dict(), f, indent=2)
+            json.dump(result_dict, f, indent=2)
         
         logger.info(f"Training completed in {training_time:.2f} seconds")
         logger.info(f"Final model saved to: {final_path}")
@@ -363,7 +401,7 @@ class BaseTrainer:
                 self.state.global_step % self.config.training.eval_steps == 0):
                 if hasattr(self, '_val_dataloader') and self._val_dataloader is not None:
                     val_metrics = self.evaluate(self._val_dataloader)
-                    self.state.val_loss = val_metrics["loss"]
+                    self.state.val_loss = val_metrics.get("eval_loss", val_metrics.get("loss", 0.0))
                     self.state.metrics.update(val_metrics)
             
             # Save checkpoint if needed

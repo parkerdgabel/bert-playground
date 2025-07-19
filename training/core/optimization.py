@@ -2,7 +2,7 @@
 Optimization utilities for MLX training including optimizers, schedulers, and gradient handling.
 """
 
-from typing import Dict, Any, Optional, Callable
+from typing import Dict, Any, Optional, Callable, Tuple
 import mlx.core as mx
 import mlx.nn as nn
 import mlx.optimizers as optim
@@ -266,40 +266,51 @@ class GradientAccumulator:
     
     def __init__(self, accumulation_steps: int = 1):
         self.accumulation_steps = accumulation_steps
-        self.accumulated_grads: Optional[Dict[str, mx.array]] = None
+        self.accumulated_grads: Optional[Dict[str, Any]] = None
         self.step_count = 0
     
-    def accumulate(self, gradients: Dict[str, mx.array]) -> bool:
+    def accumulate(self, gradients: Dict[str, Any]) -> bool:
         """
         Accumulate gradients.
         
         Args:
-            gradients: Current batch gradients
+            gradients: Current batch gradients (may be nested)
             
         Returns:
             True if should update weights, False otherwise
         """
         self.step_count += 1
         
-        if self.accumulated_grads is None:
-            # First accumulation
-            self.accumulated_grads = {}
-            for k, v in gradients.items():
-                self.accumulated_grads[k] = v / self.accumulation_steps
-        else:
-            # Add to existing accumulation
-            for k, v in gradients.items():
-                if k in self.accumulated_grads:
-                    self.accumulated_grads[k] += v / self.accumulation_steps
+        def accumulate_recursive(acc_grads, new_grads, scale):
+            """Recursively accumulate gradients."""
+            if acc_grads is None:
+                acc_grads = {}
+            
+            for k, v in new_grads.items():
+                if isinstance(v, dict):
+                    # Recursive case for nested dict
+                    if k not in acc_grads:
+                        acc_grads[k] = {}
+                    acc_grads[k] = accumulate_recursive(acc_grads[k], v, scale)
+                elif v is not None:
+                    # Base case for arrays
+                    if k in acc_grads:
+                        acc_grads[k] += v * scale
+                    else:
+                        acc_grads[k] = v * scale
                 else:
-                    self.accumulated_grads[k] = v / self.accumulation_steps
+                    acc_grads[k] = v
+            return acc_grads
+        
+        scale = 1.0 / self.accumulation_steps
+        self.accumulated_grads = accumulate_recursive(self.accumulated_grads, gradients, scale)
         
         # Check if we should update
         should_update = (self.step_count % self.accumulation_steps) == 0
         
         return should_update
     
-    def get_gradients(self) -> Dict[str, mx.array]:
+    def get_gradients(self) -> Dict[str, Any]:
         """Get accumulated gradients and reset."""
         grads = self.accumulated_grads
         self.accumulated_grads = None
@@ -312,22 +323,34 @@ class GradientAccumulator:
 
 
 def clip_gradients(
-    gradients: Dict[str, mx.array],
+    gradients: Dict[str, Any],
     max_norm: float,
-) -> Tuple[Dict[str, mx.array], float]:
+) -> Tuple[Dict[str, Any], float]:
     """
     Clip gradients by global norm.
     
     Args:
-        gradients: Dictionary of gradients
+        gradients: Dictionary of gradients (may be nested)
         max_norm: Maximum gradient norm
         
     Returns:
         Clipped gradients and original norm
     """
+    # Flatten gradients to compute norm
+    def flatten_grads(grads):
+        """Recursively flatten gradient dictionary."""
+        flat = []
+        for k, v in grads.items():
+            if isinstance(v, dict):
+                flat.extend(flatten_grads(v))
+            elif v is not None:
+                flat.append(v)
+        return flat
+    
     # Compute global norm
+    flat_grads = flatten_grads(gradients)
     total_norm = 0.0
-    for grad in gradients.values():
+    for grad in flat_grads:
         if grad is not None:
             total_norm += mx.sum(grad ** 2).item()
     total_norm = total_norm ** 0.5
@@ -335,28 +358,49 @@ def clip_gradients(
     # Clip if needed
     if total_norm > max_norm:
         scale = max_norm / total_norm
-        clipped_grads = {}
-        for k, grad in gradients.items():
-            if grad is not None:
-                clipped_grads[k] = grad * scale
-            else:
-                clipped_grads[k] = grad
+        
+        def scale_grads(grads):
+            """Recursively scale gradients."""
+            scaled = {}
+            for k, v in grads.items():
+                if isinstance(v, dict):
+                    scaled[k] = scale_grads(v)
+                elif v is not None:
+                    scaled[k] = v * scale
+                else:
+                    scaled[k] = v
+            return scaled
+        
+        clipped_grads = scale_grads(gradients)
     else:
         clipped_grads = gradients
     
     return clipped_grads, total_norm
 
 
-def compute_gradient_stats(gradients: Dict[str, mx.array]) -> Dict[str, float]:
+def compute_gradient_stats(gradients: Dict[str, Any]) -> Dict[str, float]:
     """
     Compute statistics about gradients for monitoring.
     
     Args:
-        gradients: Dictionary of gradients
+        gradients: Dictionary of gradients (may be nested)
         
     Returns:
         Dictionary of statistics
     """
+    # Flatten gradients for statistics
+    def flatten_grads(grads):
+        """Recursively flatten gradient dictionary."""
+        flat = []
+        for k, v in grads.items():
+            if isinstance(v, dict):
+                flat.extend(flatten_grads(v))
+            elif v is not None:
+                flat.append(v)
+        return flat
+    
+    flat_grads = flatten_grads(gradients)
+    
     stats = {
         "grad_norm": 0.0,
         "grad_max": 0.0,
@@ -367,7 +411,7 @@ def compute_gradient_stats(gradients: Dict[str, mx.array]) -> Dict[str, float]:
     total_elements = 0
     total_sum = 0.0
     
-    for grad in gradients.values():
+    for grad in flat_grads:
         if grad is not None:
             stats["grad_norm"] += mx.sum(grad ** 2).item()
             stats["grad_max"] = max(stats["grad_max"], mx.max(mx.abs(grad)).item())

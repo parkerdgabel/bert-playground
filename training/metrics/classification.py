@@ -4,7 +4,7 @@ Classification metrics for training evaluation.
 
 import mlx.core as mx
 import numpy as np
-from typing import Optional
+from typing import Optional, Dict
 
 from .base import Metric, AveragedMetric
 
@@ -74,7 +74,7 @@ class F1Score(Metric):
             average: Averaging method ('binary', 'macro', 'micro', 'weighted')
             threshold: Threshold for binary classification
         """
-        super().__init__(name)
+        # Set attributes before calling super().__init__
         self.num_classes = num_classes
         self.average = average
         self.threshold = threshold
@@ -84,6 +84,9 @@ class F1Score(Metric):
         self.false_positives = None
         self.false_negatives = None
         self.support = None
+        
+        # Now call super().__init__ which will call reset()
+        super().__init__(name)
     
     def reset(self) -> None:
         """Reset metric state."""
@@ -302,3 +305,203 @@ class PrecisionRecall(Metric):
             "precision": precision,
             "recall": recall,
         }
+
+
+class Precision(AveragedMetric):
+    """Precision metric for classification."""
+    
+    def __init__(self, name: str = "precision", threshold: float = 0.5):
+        super().__init__(name)
+        self.threshold = threshold
+        self.true_positives = 0
+        self.false_positives = 0
+    
+    def reset(self) -> None:
+        """Reset metric state."""
+        super().reset()
+        self.true_positives = 0
+        self.false_positives = 0
+    
+    def update(self, predictions: mx.array, targets: mx.array) -> None:
+        """Update metric with batch results."""
+        if predictions.ndim > 1 and predictions.shape[-1] == 2:
+            preds = mx.argmax(predictions, axis=-1)
+        else:
+            preds = (predictions.squeeze() > self.threshold).astype(mx.int32)
+        
+        tp = mx.sum((preds == 1) & (targets == 1)).item()
+        fp = mx.sum((preds == 1) & (targets == 0)).item()
+        
+        self.true_positives += tp
+        self.false_positives += fp
+        self.total = self.true_positives
+        self.count = self.true_positives + self.false_positives
+    
+    def compute(self) -> float:
+        """Compute precision."""
+        if self.count == 0:
+            return 0.0
+        return self.total / self.count
+
+
+class Recall(AveragedMetric):
+    """Recall metric for classification."""
+    
+    def __init__(self, name: str = "recall", threshold: float = 0.5):
+        super().__init__(name)
+        self.threshold = threshold
+        self.true_positives = 0
+        self.false_negatives = 0
+    
+    def reset(self) -> None:
+        """Reset metric state."""
+        super().reset()
+        self.true_positives = 0
+        self.false_negatives = 0
+    
+    def update(self, predictions: mx.array, targets: mx.array) -> None:
+        """Update metric with batch results."""
+        if predictions.ndim > 1 and predictions.shape[-1] == 2:
+            preds = mx.argmax(predictions, axis=-1)
+        else:
+            preds = (predictions.squeeze() > self.threshold).astype(mx.int32)
+        
+        tp = mx.sum((preds == 1) & (targets == 1)).item()
+        fn = mx.sum((preds == 0) & (targets == 1)).item()
+        
+        self.true_positives += tp
+        self.false_negatives += fn
+        self.total = self.true_positives
+        self.count = self.true_positives + self.false_negatives
+    
+    def compute(self) -> float:
+        """Compute recall."""
+        if self.count == 0:
+            return 0.0
+        return self.total / self.count
+
+
+class MulticlassAccuracy(AveragedMetric):
+    """Multiclass accuracy metric."""
+    
+    def __init__(self, name: str = "multiclass_accuracy", num_classes: int = None):
+        super().__init__(name)
+        self.num_classes = num_classes
+    
+    def update(self, predictions: mx.array, targets: mx.array) -> None:
+        """Update metric with batch results."""
+        # Get predicted classes
+        if predictions.ndim == 1:
+            preds = predictions.astype(mx.int32)
+        else:
+            preds = mx.argmax(predictions, axis=-1)
+        
+        # Ensure targets are integers
+        if targets.dtype != mx.int32:
+            targets = targets.astype(mx.int32)
+        
+        # Calculate correct predictions
+        correct = mx.sum(preds == targets).item()
+        batch_size = targets.shape[0]
+        
+        self.total += correct
+        self.count += batch_size
+
+
+class TopKAccuracy(Metric):
+    """Top-K accuracy metric for multiclass classification."""
+    
+    def __init__(self, k: int = 5, name: str = None):
+        name = name or f"top{k}_accuracy"
+        super().__init__(name)
+        self.k = k
+        self.correct = 0
+        self.total = 0
+    
+    def reset(self) -> None:
+        """Reset metric state."""
+        self.correct = 0
+        self.total = 0
+    
+    def update(self, predictions: mx.array, targets: mx.array) -> None:
+        """Update metric with batch results."""
+        # Get top-k predictions
+        top_k = mx.argpartition(-predictions, self.k, axis=-1)[:, :self.k]
+        
+        # Check if target is in top-k
+        targets_expanded = targets.reshape(-1, 1)
+        correct = mx.any(top_k == targets_expanded, axis=1)
+        
+        self.correct += mx.sum(correct).item()
+        self.total += targets.shape[0]
+    
+    def compute(self) -> float:
+        """Compute top-k accuracy."""
+        if self.total == 0:
+            return 0.0
+        return self.correct / self.total
+
+
+class ClassificationMetricsCollection(Metric):
+    """Collection of classification metrics."""
+    
+    def __init__(
+        self,
+        num_classes: Optional[int] = None,
+        metrics: Optional[list] = None,
+        prefix: str = "",
+    ):
+        # Initialize metrics first before calling super().__init__
+        self.num_classes = num_classes
+        self.prefix = prefix
+        
+        # Default metrics
+        if metrics is None:
+            if num_classes == 2 or num_classes is None:
+                # Binary classification
+                self.metrics = {
+                    "accuracy": Accuracy(),
+                    "precision": Precision(),
+                    "recall": Recall(),
+                    "f1": F1Score(average="binary"),
+                }
+            else:
+                # Multiclass
+                self.metrics = {
+                    "accuracy": MulticlassAccuracy(num_classes=num_classes),
+                    "f1_macro": F1Score(num_classes=num_classes, average="macro"),
+                    "f1_micro": F1Score(num_classes=num_classes, average="micro"),
+                }
+                
+                # Add top-k accuracy for multiclass
+                if num_classes > 5:
+                    self.metrics["top5_accuracy"] = TopKAccuracy(k=5)
+        else:
+            self.metrics = {m.name: m for m in metrics}
+            
+        # Now call super().__init__
+        super().__init__("classification_metrics")
+    
+    def reset(self) -> None:
+        """Reset all metrics."""
+        for metric in self.metrics.values():
+            metric.reset()
+    
+    def update(self, predictions: mx.array, targets: mx.array) -> None:
+        """Update all metrics."""
+        for metric in self.metrics.values():
+            metric.update(predictions, targets)
+    
+    def compute(self) -> Dict[str, float]:
+        """Compute all metrics."""
+        results = {}
+        for name, metric in self.metrics.items():
+            value = metric.compute()
+            if isinstance(value, dict):
+                # Handle metrics that return multiple values
+                for k, v in value.items():
+                    results[f"{self.prefix}{name}_{k}"] = v
+            else:
+                results[f"{self.prefix}{name}"] = value
+        
+        return results

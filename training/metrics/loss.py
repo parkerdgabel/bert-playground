@@ -3,7 +3,7 @@ Loss metrics for training evaluation.
 """
 
 import mlx.core as mx
-from typing import Optional
+from typing import Optional, List
 
 from .base import AveragedMetric
 
@@ -30,6 +30,11 @@ class Loss(AveragedMetric):
         
         self.total += loss_value * batch_size
         self.count += batch_size
+
+
+class MeanLoss(Loss):
+    """Mean loss metric - alias for Loss."""
+    pass
 
 
 class SmoothLoss(Loss):
@@ -74,3 +79,40 @@ class SmoothLoss(Loss):
         """Reset metric state."""
         super().reset()
         self.smoothed_value = None
+
+
+class LossCollection:
+    """Collection of loss metrics."""
+    
+    def __init__(
+        self,
+        metrics: Optional[List] = None,
+        prefix: str = "",
+    ):
+        self.prefix = prefix
+        
+        # Default metrics
+        if metrics is None:
+            self.metrics = {
+                "loss": Loss(),
+                "smooth_loss": SmoothLoss(),
+            }
+        else:
+            self.metrics = {m.name: m for m in metrics}
+    
+    def update(self, loss_value: float, batch_size: Optional[int] = None) -> None:
+        """Update all loss metrics."""
+        for metric in self.metrics.values():
+            metric.update(loss_value, batch_size)
+    
+    def compute(self) -> dict:
+        """Compute all metrics."""
+        results = {}
+        for name, metric in self.metrics.items():
+            results[f"{self.prefix}{name}"] = metric.compute()
+        return results
+    
+    def reset(self) -> None:
+        """Reset all metrics."""
+        for metric in self.metrics.values():
+            metric.reset()
