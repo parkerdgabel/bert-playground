@@ -1,46 +1,68 @@
-"""Data loading and processing modules for MLX-based Kaggle competitions."""
+"""Data module for BERT Kaggle playground.
 
-# Core MLX DataLoader (unified implementation)
-from .universal_loader import (
-    UniversalKaggleLoader,
-    KaggleDataLoader,  # Backward compatibility alias
-    create_kaggle_dataloader,
-    create_titanic_dataloader,
-)
+This module provides a comprehensive data abstraction layer for Kaggle competitions,
+optimized for BERT models and Apple Silicon MLX framework.
 
-# Dataset specifications and registry
-from .datasets import (
+Key Features:
+- Unified interface for all Kaggle competition types
+- MLX-optimized data loading with unified memory
+- Automatic dataset analysis and optimization
+- BERT-compatible tokenization and batching
+- Real-time competition management and submission
+- Streaming data processing at 1000+ samples/sec
+"""
+
+from .core import (
+    CompetitionMetadata,
+    CompetitionType, 
+    DatasetAnalyzer,
+    DatasetRegistry,
     DatasetSpec,
-    ProblemType,
-    dataset_registry,
-    get_dataset_spec,
-    register_dataset,
-    list_datasets,
+    KaggleDataset,
+)
+from .kaggle import (
+    KaggleClient,
+    KaggleCompetitionDataset,
+    LeaderboardTracker,
+    SubmissionManager,
+)
+from .loaders import (
+    MLXDataLoader,
+    StreamingPipeline,
+    UnifiedMemoryManager,
+)
+from .templates import (
+    BERTTextConverter,
+    CompetitionTextTemplate,
+    TabularTextConverter,
+    TextTemplateEngine,
 )
 
-# Text generation utilities
-from .text_generation import (
-    TextGenerator,
-    TabularTextGenerator,
-    TitanicTextGenerator,
-    get_text_generator,
-)
+__version__ = "0.1.0"
 
 __all__ = [
-    # Core DataLoader
-    "KaggleDataLoader",
-    "create_kaggle_dataloader",
-    "create_titanic_dataloader",
-    # Dataset management
+    # Core abstractions
+    "KaggleDataset",
     "DatasetSpec",
-    "ProblemType",
-    "dataset_registry",
-    "get_dataset_spec",
-    "register_dataset",
-    "list_datasets",
-    # Text generation
-    "TextGenerator",
-    "TabularTextGenerator", 
-    "TitanicTextGenerator",
-    "get_text_generator",
+    "CompetitionType",
+    "CompetitionMetadata",
+    "DatasetAnalyzer", 
+    "DatasetRegistry",
+    
+    # Kaggle integration
+    "KaggleClient",
+    "KaggleCompetitionDataset", 
+    "LeaderboardTracker",
+    "SubmissionManager",
+    
+    # MLX-optimized loaders
+    "MLXDataLoader",
+    "StreamingPipeline", 
+    "UnifiedMemoryManager",
+    
+    # Text conversion
+    "TextTemplateEngine",
+    "TabularTextConverter",
+    "BERTTextConverter",
+    "CompetitionTextTemplate",
 ]
