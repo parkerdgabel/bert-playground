@@ -521,75 +521,83 @@ class BaseTrainer:
         
         logger.debug(f"About to start enumerate loop over dataloader")
         for batch_idx, batch in enumerate(dataloader):
-            logger.debug(f"Got batch {batch_idx}")
-            # Manual progress tracking
-            if batch_idx % max(1, total_batches // 10) == 0 or batch_idx == 0:
-                progress_pct = (batch_idx / total_batches) * 100
-                logger.info(f"Epoch {epoch} - Batch {batch_idx}/{total_batches} ({progress_pct:.1f}%)")
-            
-            self.state.global_step += 1
-            self.state.samples_seen += self.config.data.batch_size
-            
-            # Call batch begin hooks
-            self._call_hooks("on_batch_begin", self.state, batch)
-            
-            # Training step - use compiled version if available
-            if self._use_compiled:
-                loss, metrics = self._compiled_train_step(batch)
-            else:
-                loss, metrics = self._train_step(batch)
-            
-            # Update state with current batch metrics (for progress callback)
-            if 'grad_norm' in metrics and metrics['grad_norm'] is not None:
-                # Convert to float for state storage (used by progress callbacks)
-                if hasattr(metrics['grad_norm'], 'item'):
-                    self.state.grad_norm = float(metrics['grad_norm'].item())
+            try:
+                logger.debug(f"Got batch {batch_idx}")
+                logger.debug(f"Batch keys: {batch.keys() if isinstance(batch, dict) else 'Not a dict'}")
+                
+                # Manual progress tracking
+                if batch_idx % max(1, total_batches // 10) == 0 or batch_idx == 0:
+                    progress_pct = (batch_idx / total_batches) * 100
+                    logger.info(f"Epoch {epoch} - Batch {batch_idx}/{total_batches} ({progress_pct:.1f}%)")
+                
+                self.state.global_step += 1
+                self.state.samples_seen += self.config.data.batch_size
+                
+                # Call batch begin hooks
+                self._call_hooks("on_batch_begin", self.state, batch)
+                
+                # Training step - use compiled version if available
+                if self._use_compiled:
+                    loss, metrics = self._compiled_train_step(batch)
                 else:
-                    self.state.grad_norm = float(metrics['grad_norm'])
+                    loss, metrics = self._train_step(batch)
             
-            # Accumulate loss (keep as MLX array for now)
-            if epoch_loss == 0.0:
-                epoch_loss = loss
-            else:
-                epoch_loss = epoch_loss + loss
-            
-            # Accumulate metrics lazily
-            for k, v in metrics.items():
-                if k == "loss" or v is None:
-                    continue
-                    
-                # Skip non-scalar metrics (like logits)
-                if hasattr(v, 'shape') and v.size > 1:
-                    continue
-                    
-                if k not in epoch_metrics:
-                    epoch_metrics[k] = v
+                # Update state with current batch metrics (for progress callback)
+                if 'grad_norm' in metrics and metrics['grad_norm'] is not None:
+                    # Convert to float for state storage (used by progress callbacks)
+                    if hasattr(metrics['grad_norm'], 'item'):
+                        self.state.grad_norm = float(metrics['grad_norm'].item())
+                    else:
+                        self.state.grad_norm = float(metrics['grad_norm'])
+                
+                # Accumulate loss (keep as MLX array for now)
+                if epoch_loss == 0.0:
+                    epoch_loss = loss
                 else:
-                    epoch_metrics[k] = epoch_metrics[k] + v
+                    epoch_loss = epoch_loss + loss
+                
+                # Accumulate metrics lazily
+                for k, v in metrics.items():
+                    if k == "loss" or v is None:
+                        continue
+                        
+                    # Skip non-scalar metrics (like logits)
+                    if hasattr(v, 'shape') and v.size > 1:
+                        continue
+                        
+                    if k not in epoch_metrics:
+                        epoch_metrics[k] = v
+                    else:
+                        epoch_metrics[k] = epoch_metrics[k] + v
+                
+                num_batches += 1
             
-            num_batches += 1
-            
-            # Call batch end hooks with MLX array
-            self._call_hooks("on_batch_end", self.state, loss)
-            
-            # Log batch metrics occasionally - only convert for logging
-            if batch_idx % self.config.training.logging_steps == 0:
-                # Force evaluation only for logging
-                loss_val = float(loss.item()) if hasattr(loss, 'item') else float(loss)
-                logger.info(f"Step {self.state.global_step} - Loss: {loss_val:.4f}, LR: {metrics.get('learning_rate', 0):.2e}")
-            
-            # Evaluate during training if needed
-            if (self.config.training.eval_strategy == "steps" and 
-                self.state.global_step % self.config.training.eval_steps == 0):
-                if hasattr(self, '_val_dataloader') and self._val_dataloader is not None:
-                    val_metrics = self.evaluate(self._val_dataloader)
-                    self.state.val_loss = val_metrics.get("eval_loss", val_metrics.get("loss", 0.0))
-                    self.state.metrics.update(val_metrics)
-            
-            # Save checkpoint if needed
-            if (self.config.training.save_strategy == "steps" and
-                self.state.global_step % self.config.training.save_steps == 0):
-                self._save_checkpoint(is_best=False)
+                # Call batch end hooks with MLX array
+                self._call_hooks("on_batch_end", self.state, loss)
+                
+                # Log batch metrics occasionally - only convert for logging
+                if batch_idx % self.config.training.logging_steps == 0:
+                    # Force evaluation only for logging
+                    loss_val = float(loss.item()) if hasattr(loss, 'item') else float(loss)
+                    logger.info(f"Step {self.state.global_step} - Loss: {loss_val:.4f}, LR: {metrics.get('learning_rate', 0):.2e}")
+                
+                # Evaluate during training if needed
+                if (self.config.training.eval_strategy == "steps" and 
+                    self.state.global_step % self.config.training.eval_steps == 0):
+                    if hasattr(self, '_val_dataloader') and self._val_dataloader is not None:
+                        val_metrics = self.evaluate(self._val_dataloader)
+                        self.state.val_loss = val_metrics.get("eval_loss", val_metrics.get("loss", 0.0))
+                        self.state.metrics.update(val_metrics)
+                
+                # Save checkpoint if needed
+                if (self.config.training.save_strategy == "steps" and
+                    self.state.global_step % self.config.training.save_steps == 0):
+                    self._save_checkpoint(is_best=False)
+            except Exception as e:
+                logger.error(f"Error in batch {batch_idx}: {e}")
+                import traceback
+                traceback.print_exc()
+                raise
         
         # Average metrics - evaluate only at the end
         mx.eval(epoch_loss)  # Force evaluation before division
