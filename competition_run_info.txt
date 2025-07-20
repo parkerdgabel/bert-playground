@@ -1,0 +1,26 @@
+Competition Run Information
+==========================
+
+Process ID: 45548
+Start Time: 2025-07-19 22:16:12
+Log File: competition_modernbert_lora_20250719_221612.log
+
+Model Configuration:
+- Model: ModernBERT
+- Head: Binary Classification
+- LoRA: Enabled
+- Batch Size: 32
+- Learning Rate: 5e-4
+- Epochs: 10
+- Seed: 42
+
+Output Directory: output/competition_run_20250719_221612
+
+To monitor progress:
+  tail -f competition_modernbert_lora_20250719_221612.log
+
+To check if running:
+  ps -p 45548
+
+To stop training:
+  kill 45548
