@@ -375,6 +375,8 @@ def clip_gradients(
     Returns:
         Clipped gradients and original norm
     """
+    logger.debug(f"clip_gradients: Starting gradient clipping with max_norm={max_norm}")
+    
     # Flatten gradients to compute norm
     def flatten_grads(grads):
         """Recursively flatten gradient dictionary."""
@@ -394,13 +396,25 @@ def clip_gradients(
         return flat
     
     # Compute global norm
+    logger.debug("clip_gradients: Flattening gradients")
     flat_grads = flatten_grads(gradients)
-    total_norm = 0.0
-    for grad in flat_grads:
+    logger.debug(f"clip_gradients: Found {len(flat_grads)} gradient tensors")
+    
+    # Compute norm more efficiently by accumulating in MLX
+    norm_components = []
+    for i, grad in enumerate(flat_grads):
         if grad is not None:
             grad_norm_sq = mx.sum(grad ** 2)
-            total_norm += float(grad_norm_sq)
-    total_norm = total_norm ** 0.5
+            norm_components.append(grad_norm_sq)
+    
+    # Sum all components in MLX before converting to Python float
+    if norm_components:
+        total_norm_sq = mx.sum(mx.stack(norm_components))
+        total_norm = mx.sqrt(total_norm_sq).item()
+    else:
+        total_norm = 0.0
+    
+    logger.debug(f"clip_gradients: Total gradient norm: {total_norm}")
     
     # Clip if needed
     if total_norm > max_norm:
@@ -439,12 +453,16 @@ def compute_gradient_stats(gradients: Dict[str, Any]) -> Dict[str, float]:
     """
     Compute statistics about gradients for monitoring.
     
+    Optimized version that minimizes .item() calls and leverages MLX's lazy evaluation.
+    
     Args:
         gradients: Dictionary of gradients (may be nested)
         
     Returns:
         Dictionary of statistics
     """
+    logger.debug("compute_gradient_stats: Starting gradient statistics computation")
+    
     # Flatten gradients for statistics
     def flatten_grads(grads):
         """Recursively flatten gradient dictionary."""
@@ -463,46 +481,67 @@ def compute_gradient_stats(gradients: Dict[str, Any]) -> Dict[str, float]:
                 flat.append(v)
         return flat
     
+    logger.debug("compute_gradient_stats: Flattening gradients")
     flat_grads = flatten_grads(gradients)
+    logger.debug(f"compute_gradient_stats: Found {len(flat_grads)} gradient tensors")
     
-    stats = {
-        "grad_norm": 0.0,
-        "grad_max": 0.0,
-        "grad_min": float('inf'),
-        "grad_mean": 0.0,
-        "grad_std": 0.0,
-    }
+    if not flat_grads:
+        return {
+            "grad_norm": 0.0,
+            "grad_max": 0.0,
+            "grad_min": float('inf'),
+            "grad_mean": 0.0,
+            "grad_std": 0.0,
+        }
     
-    total_elements = 0
-    total_sum = 0.0
-    all_values = []
+    # Batch all computations in MLX before converting to Python
+    logger.debug("compute_gradient_stats: Batching gradient computations")
     
-    for grad in flat_grads:
+    # Compute all statistics in MLX arrays first
+    norm_components = []
+    abs_grads = []
+    
+    for i, grad in enumerate(flat_grads):
         if grad is not None:
-            stats["grad_norm"] += mx.sum(grad ** 2).item()
-            stats["grad_max"] = max(stats["grad_max"], mx.max(mx.abs(grad)).item())
-            stats["grad_min"] = min(stats["grad_min"], mx.min(mx.abs(grad)).item())
-            
-            total_sum += mx.sum(mx.abs(grad)).item()
-            total_elements += grad.size
-            
-            # Collect values for std calculation
-            all_values.append(mx.abs(grad).flatten())
+            grad_abs = mx.abs(grad)
+            abs_grads.append(grad_abs)
+            norm_components.append(mx.sum(grad ** 2))
     
-    stats["grad_norm"] = stats["grad_norm"] ** 0.5
-    
-    if total_elements > 0:
-        stats["grad_mean"] = total_sum / total_elements
+    # Compute aggregated statistics in MLX
+    if norm_components:
+        # Stack norm components and compute total norm
+        total_norm_sq = mx.sum(mx.stack(norm_components))
+        grad_norm = mx.sqrt(total_norm_sq)
+        
+        # Concatenate all absolute gradients
+        all_abs_grads = mx.concatenate([g.flatten() for g in abs_grads])
+        
+        # Compute statistics
+        grad_max = mx.max(all_abs_grads)
+        grad_min = mx.min(all_abs_grads)
+        grad_mean = mx.mean(all_abs_grads)
+        grad_std = mx.std(all_abs_grads)
+        
+        # Single eval call for all statistics
+        logger.debug("compute_gradient_stats: Evaluating all statistics")
+        mx.eval(grad_norm, grad_max, grad_min, grad_mean, grad_std)
+        
+        # Convert to Python scalars
+        stats = {
+            "grad_norm": grad_norm.item(),
+            "grad_max": grad_max.item(),
+            "grad_min": grad_min.item(),
+            "grad_mean": grad_mean.item(),
+            "grad_std": grad_std.item(),
+        }
     else:
-        # No gradients processed, keep defaults
-        stats["grad_min"] = float('inf')
-        stats["grad_mean"] = 0.0
+        stats = {
+            "grad_norm": 0.0,
+            "grad_max": 0.0,
+            "grad_min": float('inf'),
+            "grad_mean": 0.0,
+            "grad_std": 0.0,
+        }
     
-    # Calculate standard deviation
-    if all_values:
-        all_values = mx.concatenate(all_values)
-        stats["grad_std"] = mx.std(all_values).item()
-    else:
-        stats["grad_std"] = 0.0
-    
+    logger.debug(f"compute_gradient_stats: Completed. Stats: {stats}")
     return stats
