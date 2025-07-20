@@ -153,27 +153,19 @@ class BaseTrainer:
             # Ensure computation is executed
             mx.eval(loss, self.model.parameters())
             
-            # Only convert scalar values to Python scalars
-            loss_value = loss.item()
-            
-            # Convert grad_norm to float only when needed for metrics
-            grad_norm_value = grad_norm.item() if hasattr(grad_norm, 'item') else float(grad_norm)
-            
+            # Return MLX arrays directly, convert to Python scalars only when needed for logging
             metrics = {
-                "grad_norm": grad_norm_value,
+                "grad_norm": grad_norm,  # Keep as MLX array
                 "learning_rate": current_lr,
+                "loss": loss,  # Keep as MLX array
             }
             
-            # Add other outputs, converting scalars only
+            # Add other outputs without conversion
             for k, v in outputs.items():
                 if k != "loss":
-                    if hasattr(v, 'item') and v.size == 1:
-                        metrics[k] = v.item()
-                    elif not hasattr(v, 'shape'):  # Already a Python scalar
-                        metrics[k] = v
-                    # Skip tensors with multiple elements
+                    metrics[k] = v  # Keep as MLX arrays
             
-            return loss_value, metrics
+            return loss, metrics
         
         return train_step
     
@@ -441,22 +433,30 @@ class BaseTrainer:
             
             # Update state with current batch metrics (for progress callback)
             if 'grad_norm' in metrics:
-                self.state.grad_norm = metrics['grad_norm']
+                # Convert to float only for state (used by progress callback)
+                self.state.grad_norm = float(metrics['grad_norm'].item()) if hasattr(metrics['grad_norm'], 'item') else float(metrics['grad_norm'])
+            
+            # Convert loss to Python float for accumulation
+            loss_value = float(loss.item()) if hasattr(loss, 'item') else float(loss)
             
             # Update metrics
-            epoch_loss += loss
+            epoch_loss += loss_value
             for k, v in metrics.items():
                 if k not in epoch_metrics:
                     epoch_metrics[k] = 0.0
-                epoch_metrics[k] += v
+                # Convert MLX arrays to floats for accumulation
+                if hasattr(v, 'item'):
+                    epoch_metrics[k] += float(v.item())
+                else:
+                    epoch_metrics[k] += float(v)
             num_batches += 1
             
-            # Call batch end hooks
-            self._call_hooks("on_batch_end", self.state, loss)
+            # Call batch end hooks (expects float)
+            self._call_hooks("on_batch_end", self.state, loss_value)
             
             # Log batch metrics occasionally
             if batch_idx % self.config.training.logging_steps == 0:
-                logger.info(f"Step {self.state.global_step} - Loss: {loss:.4f}, LR: {metrics.get('learning_rate', 0):.2e}")
+                logger.info(f"Step {self.state.global_step} - Loss: {loss_value:.4f}, LR: {metrics.get('learning_rate', 0):.2e}")
             
             # Evaluate during training if needed
             if (self.config.training.eval_strategy == "steps" and 
