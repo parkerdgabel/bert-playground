@@ -425,11 +425,57 @@ def clip_gradients(
     Returns:
         Clipped gradients and original norm
     """
-    # Use MLX's native clip_grad_norm function
-    import mlx.optimizers as mlx_opt
+    # MLX's clip_grad_norm expects a list of arrays, not a nested dict
+    # We need to flatten the gradient structure first
+    def flatten_grads(grads, parent_key=''):
+        """Recursively flatten nested gradient dict to list of arrays."""
+        items = []
+        if isinstance(grads, dict):
+            for k, v in grads.items():
+                new_key = f"{parent_key}.{k}" if parent_key else k
+                if isinstance(v, mx.array):
+                    items.append(v)
+                else:
+                    items.extend(flatten_grads(v, new_key))
+        elif isinstance(grads, list):
+            for i, v in enumerate(grads):
+                new_key = f"{parent_key}[{i}]"
+                if isinstance(v, mx.array):
+                    items.append(v)
+                else:
+                    items.extend(flatten_grads(v, new_key))
+        elif isinstance(grads, mx.array):
+            items.append(grads)
+        return items
     
-    # MLX's clip_grad_norm returns (clipped_grads, total_norm)
-    clipped_grads, total_norm = mlx_opt.clip_grad_norm(gradients, max_norm)
+    # Flatten gradients to list
+    grad_list = flatten_grads(gradients)
+    
+    if not grad_list:
+        # No gradients to clip
+        return gradients, mx.array(0.0)
+    
+    # Compute total norm
+    total_norm = mx.sqrt(sum(mx.sum(g * g) for g in grad_list))
+    
+    # Clip if needed
+    if total_norm > max_norm:
+        scale = max_norm / total_norm
+        
+        # Apply scaling to original nested structure
+        def scale_grads(grads):
+            if isinstance(grads, dict):
+                return {k: scale_grads(v) for k, v in grads.items()}
+            elif isinstance(grads, list):
+                return [scale_grads(v) for v in grads]
+            elif isinstance(grads, mx.array):
+                return grads * scale
+            else:
+                return grads
+        
+        clipped_grads = scale_grads(gradients)
+    else:
+        clipped_grads = gradients
     
     return clipped_grads, total_norm
 

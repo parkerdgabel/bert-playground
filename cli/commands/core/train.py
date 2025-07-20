@@ -300,7 +300,7 @@ def train_command(
                 model_desc = "ModernBERT with LoRA adaptation"
             else:
                 bert_model = create_model(
-                    model_type,
+                    "modernbert_with_head",
                     head_type="binary_classification",
                     num_labels=2
                 )

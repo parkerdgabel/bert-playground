@@ -290,16 +290,22 @@ class BaseTrainer:
         logger.info(f"Total steps: {total_steps}, Steps per epoch: {steps_per_epoch}")
         
         # Ensure output is flushed
-        import sys
-        sys.stdout.flush()
-        sys.stderr.flush()
+        # Note: Commented out due to hanging issue with loguru
+        # import sys
+        # logger.debug("About to flush stdout/stderr")
+        # sys.stdout.flush()
+        # sys.stderr.flush()
+        # logger.debug("Flushed stdout/stderr")
         
         # Training loop
+        logger.debug(f"About to start training loop for {self.config.training.num_epochs} epochs")
         for epoch in range(self.state.epoch, self.config.training.num_epochs):
+            logger.debug(f"Starting epoch {epoch}")
             self.state.epoch = epoch
             self.state.epoch_start_time = time.time()
             
             # Train epoch
+            logger.debug(f"About to call _train_epoch for epoch {epoch}")
             train_metrics = self._train_epoch(train_dataloader, epoch)
             self.state.train_loss = train_metrics["loss"]
             self.state.train_history.append(train_metrics)
@@ -454,6 +460,7 @@ class BaseTrainer:
     
     def _train_epoch(self, dataloader: DataLoader, epoch: int) -> Dict[str, float]:
         """Train for one epoch."""
+        logger.debug(f"Entered _train_epoch for epoch {epoch}")
         self._call_hooks("on_epoch_begin", self.state)
         
         # Initialize metrics
@@ -463,8 +470,11 @@ class BaseTrainer:
         
         # Get total batches for progress tracking
         total_batches = len(dataloader)
+        logger.debug(f"Total batches in epoch: {total_batches}")
         
+        logger.debug(f"About to start enumerate loop over dataloader")
         for batch_idx, batch in enumerate(dataloader):
+            logger.debug(f"Got batch {batch_idx}")
             # Manual progress tracking
             if batch_idx % max(1, total_batches // 10) == 0 or batch_idx == 0:
                 progress_pct = (batch_idx / total_batches) * 100
