@@ -1,32 +1,43 @@
-Competition Run Information (FINAL OPTIMIZED)
-==============================================
+Competition Run Information (Optimized with Phase 1 & 2)
+=======================================================
 
-Process ID: 18879
-Start Time: 2025-07-19 22:47:57
-Log File: competition_modernbert_lora_final_20250719_224757.log
+Process ID: 56173
+Start Time: 2025-07-20 09:07:55
+Log File: competition_optimized_20250720_090755.log
 
 Model Configuration:
 - Model: ModernBERT
-- Head: Binary Classification
+- Head: Binary Classification  
 - LoRA: Enabled
 - Batch Size: 32
-- Learning Rate: 5e-4
+- Learning Rate: 2e-5
 - Epochs: 10
-- Seed: 42
+- Config: configs/production.yaml
+
+Data Files:
+- Train: data/titanic/train.csv
+- Validation: data/titanic/val_split.csv
+- Test: data/titanic/test.csv
 
 Optimizations Applied:
-- Native MLX gradient clipping (~2x faster)
-- Deferred evaluation (preserve lazy evaluation)
-- Minimal .item() calls (only for logging)
-- Scalar conversion fixes
+- Phase 1: Lazy evaluation throughout training loop
+- Phase 2: Optimized gradient stats and accumulation
+- Tree operations for gradient handling
+- Batched checkpoint I/O
+- Native MLX optimizations
 
-Output Directory: output/competition_run_20250719_224757
+Expected Performance Improvements:
+- 40-60% faster training
+- 35K+ samples/sec throughput
+- Minimal memory overhead
+
+Output Directory: output/production
 
 To monitor progress:
-  tail -f competition_modernbert_lora_final_20250719_224757.log
+  tail -f competition_optimized_20250720_090755.log
 
 To check if running:
-  ps -p 18879
+  ps -p 56173
 
 To stop training:
-  kill 18879
+  kill 56173

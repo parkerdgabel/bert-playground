@@ -235,6 +235,81 @@ class ReduceOnPlateauScheduler(LearningRateScheduler):
         return self.current_lr
 
 
+def create_mlx_lr_schedule(
+    config: SchedulerConfig,
+    base_lr: float,
+    num_training_steps: int,
+) -> Callable:
+    """
+    Create an MLX-native learning rate schedule from configuration.
+    
+    Args:
+        config: Scheduler configuration
+        base_lr: Base learning rate
+        num_training_steps: Total number of training steps
+        
+    Returns:
+        MLX learning rate schedule function
+    """
+    # Handle string types that weren't converted to enum
+    scheduler_type = config.type
+    if isinstance(scheduler_type, str):
+        try:
+            scheduler_type = SchedulerType(scheduler_type)
+        except ValueError:
+            raise ValueError(f"Unknown scheduler type: {scheduler_type}")
+    
+    # Calculate warmup steps
+    warmup_steps = config.warmup_steps
+    if warmup_steps == 0 and config.warmup_ratio > 0:
+        warmup_steps = int(num_training_steps * config.warmup_ratio)
+    
+    # Create the main schedule
+    if scheduler_type == SchedulerType.NONE or scheduler_type == SchedulerType.CONSTANT:
+        main_schedule = lambda step: base_lr
+    elif scheduler_type == SchedulerType.LINEAR:
+        # Linear decay from base_lr to min_lr
+        decay_steps = num_training_steps - warmup_steps
+        main_schedule = optim.schedulers.linear_schedule(
+            base_lr, config.min_lr, decay_steps
+        )
+    elif scheduler_type == SchedulerType.COSINE:
+        # Cosine decay
+        decay_steps = num_training_steps - warmup_steps
+        main_schedule = optim.schedulers.cosine_decay(
+            base_lr, decay_steps, end=config.min_lr
+        )
+    elif scheduler_type == SchedulerType.EXPONENTIAL:
+        # Exponential decay
+        main_schedule = optim.schedulers.exponential_decay(
+            base_lr, config.gamma
+        )
+    else:
+        # For unsupported schedulers, fall back to constant
+        logger.warning(f"Scheduler {scheduler_type} not supported with MLX native schedulers, using constant LR")
+        main_schedule = lambda step: base_lr
+    
+    # Add warmup if needed
+    if warmup_steps > 0:
+        warmup_schedule = optim.schedulers.linear_schedule(
+            0.0, base_lr, warmup_steps
+        )
+        # Join warmup and main schedule
+        schedule = optim.schedulers.join_schedules(
+            [warmup_schedule, main_schedule],
+            [warmup_steps]
+        )
+    else:
+        schedule = main_schedule
+    
+    logger.info(
+        f"Created MLX {scheduler_type} schedule with warmup_steps={warmup_steps}, "
+        f"num_training_steps={num_training_steps}, base_lr={base_lr}"
+    )
+    
+    return schedule
+
+
 def create_lr_scheduler(
     optimizer: optim.Optimizer,
     config: SchedulerConfig,

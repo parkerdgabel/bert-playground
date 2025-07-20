@@ -43,22 +43,56 @@ class LearningRateScheduler(Callback):
     
     def on_train_begin(self, trainer: Trainer, state: TrainingState) -> None:
         """Initialize scheduler."""
-        # Get scheduler from trainer
-        if hasattr(trainer, 'lr_scheduler'):
-            self.scheduler = trainer.lr_scheduler
+        # Check if using MLX native scheduling
+        if hasattr(trainer, '_lr_schedule_fn') and trainer._lr_schedule_fn is not None:
+            # Using MLX native scheduling
+            self.scheduler = None  # Don't use custom scheduler
+            self.using_mlx_native = True
             
-            # Override warmup steps if provided
-            if self.warmup_steps is not None and hasattr(self.scheduler, 'warmup_steps'):
-                self.scheduler.warmup_steps = self.warmup_steps
-            
-            # Get initial LR
-            self.last_lr = trainer.optimizer.learning_rate
+            # Get initial LR (might be a callable)
+            if callable(trainer.optimizer.learning_rate):
+                self.last_lr = float(trainer.optimizer.learning_rate(0))
+            else:
+                self.last_lr = float(trainer.optimizer.learning_rate)
             
             if self.verbose:
-                logger.info(f"LearningRateScheduler initialized with {self.scheduler.__class__.__name__}")
+                logger.info("Using MLX native learning rate scheduling")
+        else:
+            # Get scheduler from trainer
+            if hasattr(trainer, 'lr_scheduler'):
+                self.scheduler = trainer.lr_scheduler
+                self.using_mlx_native = False
+                
+                # Override warmup steps if provided
+                if self.warmup_steps is not None and hasattr(self.scheduler, 'warmup_steps'):
+                    self.scheduler.warmup_steps = self.warmup_steps
+                
+                # Get initial LR
+                self.last_lr = trainer.optimizer.learning_rate
+                
+                if self.verbose and self.scheduler is not None:
+                    logger.info(f"LearningRateScheduler initialized with {self.scheduler.__class__.__name__}")
     
     def on_batch_end(self, trainer: Trainer, state: TrainingState, loss: float) -> None:
         """Update LR after batch if configured."""
+        # If using MLX native scheduling, just log the current LR if verbose
+        if hasattr(self, 'using_mlx_native') and self.using_mlx_native:
+            if self.verbose and self.update_freq == "step":
+                # Get current LR from optimizer
+                if callable(trainer.optimizer.learning_rate):
+                    current_lr = float(trainer.optimizer.learning_rate(state.global_step))
+                else:
+                    current_lr = float(trainer.optimizer.learning_rate)
+                
+                # Only log significant changes
+                if self.last_lr is None or abs(current_lr - self.last_lr) / (self.last_lr + 1e-10) > 0.001:
+                    logger.info(
+                        f"Learning rate: {current_lr:.2e} (step {state.global_step})"
+                    )
+                    self.last_lr = current_lr
+            return
+        
+        # Legacy scheduler handling
         if self.scheduler is None:
             return
         
@@ -105,19 +139,21 @@ class LearningRateScheduler(Callback):
         current_lr = self.scheduler.step()
         
         # Log if changed
-        if self.verbose and current_lr != self.last_lr:
-            # Determine warmup status
-            in_warmup = False
-            if hasattr(self.scheduler, 'warmup_steps') and state.global_step <= self.scheduler.warmup_steps:
-                in_warmup = True
-            
-            status = "warmup" if in_warmup else "schedule"
-            logger.info(
-                f"Learning rate changed: {self.last_lr:.2e} → {current_lr:.2e} "
-                f"(step {state.global_step}, {status})"
-            )
-            
-            self.last_lr = current_lr
+        if self.verbose:
+            # Only log significant changes (> 0.1%)
+            if self.last_lr is None or abs(current_lr - self.last_lr) / (self.last_lr + 1e-10) > 0.001:
+                # Determine warmup status
+                in_warmup = False
+                if hasattr(self.scheduler, 'warmup_steps') and state.global_step <= self.scheduler.warmup_steps:
+                    in_warmup = True
+                
+                status = "warmup" if in_warmup else "schedule"
+                logger.info(
+                    f"Learning rate changed: {self.last_lr:.2e} → {current_lr:.2e} "
+                    f"(step {state.global_step}, {status})"
+                )
+                
+                self.last_lr = current_lr
         
         # Update state
         if hasattr(state, 'learning_rate'):

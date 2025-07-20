@@ -63,7 +63,11 @@ class BaseTrainer:
         
         # Initialize components
         self.optimizer = create_optimizer(self.model, self.config.optimizer)
-        self.lr_scheduler = create_lr_scheduler(self.optimizer, self.config.scheduler)
+        
+        # LR scheduler will be initialized in fit() when we know the total steps
+        self.lr_scheduler = None
+        self._lr_schedule_fn = None  # MLX native schedule function
+        
         self.gradient_accumulator = GradientAccumulator(self.config.training.gradient_accumulation_steps)
         
         # Initialize state management
@@ -160,13 +164,9 @@ class BaseTrainer:
                 # Update model
                 self.optimizer.update(self.model, accumulated_grads)
                 
-                # Update learning rate
-                if self.lr_scheduler is not None:
-                    current_lr = self.lr_scheduler.step()
-                else:
-                    current_lr = float(self.optimizer.learning_rate)
-            else:
-                current_lr = float(self.optimizer.learning_rate)
+            # Get current learning rate - MLX schedules update automatically
+            # Only convert to float when needed for logging
+            current_lr = self.optimizer.learning_rate
             
             # Build metrics dict - keep arrays lazy
             metrics = {
@@ -242,11 +242,21 @@ class BaseTrainer:
         steps_per_epoch = len(train_dataloader)
         total_steps = steps_per_epoch * self.config.training.num_epochs
         
-        # Update scheduler config if needed
-        if self.config.scheduler.num_training_steps is None:
-            self.config.scheduler.num_training_steps = total_steps
-            if self.lr_scheduler:
-                self.lr_scheduler.config.num_training_steps = total_steps
+        # Initialize MLX native learning rate scheduler now that we know total steps
+        if self.config.scheduler.type != "none":
+            from .optimization import create_mlx_lr_schedule
+            
+            # Create MLX native schedule
+            self._lr_schedule_fn = create_mlx_lr_schedule(
+                config=self.config.scheduler,
+                base_lr=self.config.optimizer.learning_rate,
+                num_training_steps=total_steps
+            )
+            
+            # Set the optimizer's learning rate to use the schedule
+            self.optimizer.learning_rate = self._lr_schedule_fn
+            
+            logger.info(f"Initialized MLX learning rate scheduler with {total_steps} total steps")
         
         # Initialize training
         self.state.training_start_time = time.time()
