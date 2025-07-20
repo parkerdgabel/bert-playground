@@ -220,6 +220,9 @@ class TrainingConfig:
     label_smoothing: float = 0.0
     dropout_rate: float = 0.1
     
+    # MLX Compilation
+    use_compilation: bool = True  # Enable MLX compilation for performance
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         config = asdict(self)

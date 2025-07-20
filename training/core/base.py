@@ -97,31 +97,50 @@ class BaseTrainer:
         self._train_step = self._create_train_step()
         self._eval_step = self._create_eval_step()
         
-        # Compile training step for performance if available
-        # Note: mx.compile may have limitations with certain operations
-        try:
-            import mlx
-            if hasattr(mlx, 'compile'):
-                logger.info("Attempting to compile training step with mlx.compile()")
-                # For now, disable compilation due to eval restrictions
-                # TODO: Create a compile-safe version of train_step
-                self._compiled_train_step = self._train_step
-                self._use_compiled = False
-                logger.info("Compilation disabled due to mx.eval() restrictions in compiled functions")
-            else:
-                logger.info("mlx.compile() not available, using uncompiled training step")
-                self._compiled_train_step = self._train_step
-                self._use_compiled = False
-        except Exception as e:
-            logger.warning(f"Failed to check for mlx.compile: {e}")
-            self._compiled_train_step = self._train_step
-            self._use_compiled = False
+        # Setup compilation if enabled
+        self._setup_compilation()
         
         # Initialize best metric tracking
         self._best_metric_value = float('inf') if self.config.training.best_metric_mode == "min" else float('-inf')
         self._is_better = self._create_metric_comparator()
         
         logger.info(f"Initialized BaseTrainer with config: {self.config.training}")
+    
+    def _setup_compilation(self):
+        """Setup MLX compilation for training if available and beneficial."""
+        self._use_compiled = False
+        self._compiled_train_step = self._train_step
+        self._compiled_eval_step = self._eval_step
+        self._compilation_state = None
+        
+        # Check if compilation is available and should be used
+        try:
+            from .compiled import (
+                create_compiled_train_step,
+                create_compiled_eval_step,
+                should_compile_model
+            )
+            
+            # Check if we should compile this model
+            if not should_compile_model(self.model, self.config):
+                logger.info("Model/config not suitable for compilation")
+                return
+            
+            # Check if explicitly disabled
+            if hasattr(self.config.training, 'use_compilation') and not self.config.training.use_compilation:
+                logger.info("Compilation disabled by config")
+                return
+            
+            logger.info("Setting up MLX compilation for training")
+            
+            # We'll create compiled functions after optimizer is initialized
+            # Store the flag to compile later
+            self._should_compile = True
+            
+        except ImportError:
+            logger.info("MLX compilation module not available")
+        except Exception as e:
+            logger.warning(f"Failed to setup compilation: {e}")
     
     def _create_metric_comparator(self) -> Callable[[float, float], bool]:
         """Create function to compare metrics based on mode."""
@@ -286,6 +305,29 @@ class BaseTrainer:
         self.config.optimizer.learning_rate = learning_rate  # Temporarily set for optimizer creation
         self.optimizer = create_optimizer(self.model, self.config.optimizer)
         self.config.optimizer.learning_rate = original_lr  # Restore original value
+        
+        # Now create compiled functions if requested
+        if hasattr(self, '_should_compile') and self._should_compile:
+            try:
+                from .compiled import create_compiled_train_step, create_compiled_eval_step
+                
+                # Create compiled training step
+                self._compiled_train_step, self._compilation_state = create_compiled_train_step(
+                    self.model,
+                    self.optimizer,
+                    self.config,
+                    self.gradient_accumulator
+                )
+                
+                # Create compiled eval step
+                self._compiled_eval_step = create_compiled_eval_step(self.model)
+                
+                self._use_compiled = True
+                logger.info("Successfully created compiled training functions")
+                
+            except Exception as e:
+                logger.warning(f"Failed to create compiled functions: {e}")
+                self._use_compiled = False
         
         # Initialize training
         self.state.training_start_time = time.time()
@@ -590,8 +632,11 @@ class BaseTrainer:
             if batch_idx % max(1, total_batches // 10) == 0 or batch_idx == 0:
                 progress_pct = (batch_idx / total_batches) * 100
                 logger.info(f"Evaluating - Batch {batch_idx}/{total_batches} ({progress_pct:.1f}%)")
-            # Evaluation step
-            loss, metrics = self._eval_step(batch)
+            # Evaluation step - use compiled version if available
+            if self._use_compiled:
+                loss, metrics = self._compiled_eval_step(batch)
+            else:
+                loss, metrics = self._eval_step(batch)
             
             # Accumulate metrics lazily
             if total_loss == 0.0:
