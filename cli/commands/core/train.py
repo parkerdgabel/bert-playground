@@ -342,6 +342,7 @@ def train_command(
     
     try:
         # Train model
+        logger.info("About to call trainer.train()")
         metrics = trainer.train(train_loader, val_loader)
         
         # Show final results

@@ -10,6 +10,11 @@ from dataclasses import dataclass, field
 import mlx.core as mx
 import mlx.nn as nn
 from loguru import logger
+import sys
+
+# Configure loguru to not buffer output
+logger.remove()
+logger.add(sys.stderr, level="INFO")
 
 from .protocols import (
     Model, DataLoader, Trainer, TrainerConfig,
