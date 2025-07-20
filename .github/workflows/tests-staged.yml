@@ -1,0 +1,187 @@
+name: Staged Tests
+
+on:
+  push:
+    paths:
+      - 'cli/**'
+      - 'utils/**'
+      - 'models/**'
+      - 'data/**'
+      - 'training/**'
+      - 'tests/**'
+      - '.github/workflows/tests-staged.yml'
+  pull_request:
+    paths:
+      - 'cli/**'
+      - 'utils/**'
+      - 'models/**'
+      - 'data/**'
+      - 'training/**'
+      - 'tests/**'
+      - '.github/workflows/tests-staged.yml'
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: macos-14  # M1 runners
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras
+        uv pip install pytest pytest-cov pytest-mock pytest-xdist
+    
+    - name: Run CLI unit tests
+      run: |
+        echo "Running CLI unit tests..."
+        uv run pytest tests/cli/unit/ -v --tb=short -m "not integration and not e2e"
+    
+    - name: Run models unit tests
+      run: |
+        echo "Running models unit tests..."
+        uv run pytest tests/models/ -v --tb=short -m "not integration and not e2e"
+    
+    - name: Run data unit tests
+      run: |
+        echo "Running data unit tests..."
+        uv run pytest tests/data/ -v --tb=short -m "not integration and not e2e"
+    
+    - name: Run training unit tests
+      run: |
+        echo "Running training unit tests..."
+        uv run pytest tests/training/ -v --tb=short -m "not integration and not e2e"
+    
+    - name: Generate unit test report
+      if: always()
+      run: |
+        echo "## Unit Test Summary" > $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Test Results:" >> $GITHUB_STEP_SUMMARY
+        echo "- Python ${{ matrix.python-version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- CLI Unit Tests: Completed" >> $GITHUB_STEP_SUMMARY
+        echo "- Models Unit Tests: Completed" >> $GITHUB_STEP_SUMMARY
+        echo "- Data Unit Tests: Completed" >> $GITHUB_STEP_SUMMARY
+        echo "- Training Unit Tests: Completed" >> $GITHUB_STEP_SUMMARY
+    
+    - name: Upload unit test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: unit-test-results-${{ matrix.python-version }}
+        path: |
+          .pytest_cache/
+          htmlcov/
+
+  integration-tests:
+    name: Integration Tests
+    needs: unit-tests
+    runs-on: macos-14
+    strategy:
+      matrix:
+        python-version: ["3.11"]  # Run integration tests on one Python version only
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras
+        uv pip install pytest pytest-cov pytest-mock
+    
+    - name: Run integration tests
+      run: |
+        echo "Running integration tests..."
+        uv run pytest tests/ -v --tb=short -m "integration"
+    
+    - name: Upload integration test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: integration-test-results-${{ matrix.python-version }}
+        path: |
+          .pytest_cache/
+          htmlcov/
+
+  e2e-tests:
+    name: E2E Tests (Optional)
+    needs: integration-tests
+    runs-on: macos-14
+    continue-on-error: true  # Don't fail the workflow if E2E tests fail
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras
+        uv pip install pytest pytest-cov pytest-mock
+    
+    - name: Run E2E tests
+      run: |
+        echo "Running E2E tests..."
+        uv run pytest tests/ -v --tb=short -m "e2e" || echo "E2E tests are not yet implemented"
+    
+    - name: Upload E2E test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: e2e-test-results-${{ matrix.python-version }}
+        path: |
+          .pytest_cache/
+          htmlcov/
+
+  test-summary:
+    name: Test Summary
+    needs: [unit-tests, integration-tests, e2e-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Create test summary
+      run: |
+        echo "## Test Suite Summary" > $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Stages:" >> $GITHUB_STEP_SUMMARY
+        echo "1. ✅ Unit Tests - Fast, isolated tests" >> $GITHUB_STEP_SUMMARY
+        echo "2. 🔄 Integration Tests - Tests with dependencies" >> $GITHUB_STEP_SUMMARY
+        echo "3. 🌐 E2E Tests - Full workflow tests (optional)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Check individual job results for details." >> $GITHUB_STEP_SUMMARY

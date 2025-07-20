@@ -327,7 +327,26 @@ class BaseTrainer:
         # Convert result to dict and ensure all values are JSON serializable
         def make_json_serializable(obj):
             """Convert MLX arrays and other non-serializable objects to JSON-serializable format."""
-            if hasattr(obj, 'item'):
+            import mlx.core as mx
+            
+            # Check if it's an MLX array directly
+            if isinstance(obj, mx.array):
+                try:
+                    return obj.item() if obj.size == 1 else obj.tolist()
+                except:
+                    return float(obj)
+            # Check if it's an MLX array by module
+            elif hasattr(obj, '__module__') and obj.__module__ and 'mlx' in obj.__module__:
+                if hasattr(obj, 'item') and hasattr(obj, 'size'):
+                    try:
+                        return obj.item() if obj.size == 1 else obj.tolist()
+                    except:
+                        return float(obj)
+                else:
+                    # For other MLX objects, convert to string
+                    return str(obj)
+            elif hasattr(obj, 'item') and hasattr(obj, 'size'):
+                # Handle numpy arrays or similar
                 try:
                     return obj.item() if obj.size == 1 else obj.tolist()
                 except:
@@ -335,6 +354,8 @@ class BaseTrainer:
             elif isinstance(obj, dict):
                 return {k: make_json_serializable(v) for k, v in obj.items()}
             elif isinstance(obj, list):
+                return [make_json_serializable(v) for v in obj]
+            elif isinstance(obj, tuple):
                 return [make_json_serializable(v) for v in obj]
             elif isinstance(obj, Path):
                 return str(obj)

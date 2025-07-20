@@ -53,7 +53,7 @@ class BertEmbeddings(nn.Module):
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
         # Position IDs (1, len position emb) is contiguous in memory and exported when serialized
-        self.position_ids = mx.arange(config.max_position_embeddings).reshape(1, -1)
+        self.position_ids = mx.arange(config.max_position_embeddings, dtype=mx.int32).reshape(1, -1)
 
     def forward(
         self,
@@ -76,7 +76,7 @@ class BertEmbeddings(nn.Module):
 
         # Get position IDs
         if position_ids is None:
-            position_ids = self.position_ids[:, :seq_length]
+            position_ids = self.position_ids[:, :seq_length].astype(mx.int32)
 
         # Get token type IDs
         if token_type_ids is None:

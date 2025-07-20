@@ -57,9 +57,6 @@ pythonpath = ["."]
 addopts = [
     "-ra",
     "--strict-markers",
-    "--cov=.",
-    "--cov-report=html",
-    "--cov-report=term-missing",
     "-vv",
     "--tb=short",
     "--maxfail=1",
@@ -68,6 +65,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
+    "e2e: marks tests as end-to-end tests",
     "mlx: marks tests that require MLX",
     "mlflow: marks tests that require MLflow",
 ]
@@ -76,28 +74,40 @@ filterwarnings = [
     "ignore::PendingDeprecationWarning",
 ]
 
-[tool.coverage.run]
-source = ["."]
-omit = [
-    "*/tests/*",
-    "*/test_*",
-    "*/__pycache__/*",
-    "*/site-packages/*",
-    "setup.py",
-    "legacy/*",
-]
-
-[tool.coverage.report]
-exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "if __name__ == .__main__.:",
-    "if TYPE_CHECKING:",
-    "class .*\\bProtocol\\):",
-    "@(abc\\.)?abstractmethod",
-]
+# [tool.coverage.run]
+# source = ["cli"]
+# omit = [
+#     "*/tests/*",
+#     "*/test_*",
+#     "*/__pycache__/*",
+#     "*/site-packages/*",
+#     "setup.py",
+#     "legacy/*",
+#     "embeddings/*",
+#     "scripts/*",
+#     "*/migrations/*",
+#     "cli/__main__.py",
+#     "cli/commands/models/*",
+#     "cli/commands/core/train.py",
+#     "cli/commands/core/train_simple.py",
+#     "cli/commands/core/init.py",
+#     "cli/commands/core/interactive.py",
+#     "cli/commands/core/config.py",
+#     "cli/commands/mlflow/ui.py",
+# ]
+# 
+# [tool.coverage.report]
+# exclude_lines = [
+#     "pragma: no cover",
+#     "def __repr__",
+#     "raise AssertionError",
+#     "raise NotImplementedError",
+#     "if __name__ == .__main__.:",
+#     "if TYPE_CHECKING:",
+#     "class .*\\bProtocol\\):",
+#     "@(abc\\.)?abstractmethod",
+# ]
+# fail_under = 0
 
 [tool.ruff]
 # Exclude legacy directory from linting

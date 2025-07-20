@@ -76,10 +76,9 @@ def download_competition_command(
         
         # Download competition data
         output_path = kaggle.download_competition_data(
-            competition=competition,
-            output_dir=output_dir,
-            unzip=unzip,
-            specific_file=specific_file
+            competition_id=competition,
+            path=output_dir,
+            unzip=unzip
         )
         
         print_success(f"Downloaded competition data to: {output_path}")

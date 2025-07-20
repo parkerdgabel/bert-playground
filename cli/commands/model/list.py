@@ -292,25 +292,18 @@ def _sort_models(models: List[dict], sort_by: str, reverse: bool) -> List[dict]:
 
 def _display_table(models: List[dict], show_metrics: bool, show_config: bool):
     """Display models in table format."""
-    table = create_table("Available Models")
+    # Define columns based on what information to show
+    columns = ["Name", "Type", "Date", "Size"]
     
-    # Basic columns
-    table.add_column("Name", style="cyan", overflow="fold")
-    table.add_column("Type", style="yellow")
-    table.add_column("Date", style="magenta")
-    table.add_column("Size", style="blue")
-    
-    # Metrics columns
     if show_metrics:
-        table.add_column("Accuracy", style="green")
-        table.add_column("Loss", style="red")
+        columns.extend(["Accuracy", "Loss"])
     
-    # Config columns
     if show_config:
-        table.add_column("Model", style="dim")
-        table.add_column("Params", style="dim")
+        columns.extend(["Model", "Params"])
     
-    table.add_column("Path", style="dim", overflow="fold")
+    columns.append("Path")
+    
+    table = create_table("Available Models", columns)
     
     for model in models:
         row = [

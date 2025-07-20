@@ -4,11 +4,12 @@ import typer
 from pathlib import Path
 import sys
 import time
-from typing import Optional
+from typing import Optional, Dict, Any
 import numpy as np
 import mlx.core as mx
 import mlx.nn as nn
 import mlx.optimizers as optim
+import json
 
 from ...utils import (
     get_console, print_success, print_error, print_info,
@@ -20,9 +21,6 @@ from ...utils.console import create_table
 # Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from models.factory import create_model, create_bert_with_head
-from models.heads.base_head import HeadType
-
 @handle_errors
 @track_time("Running benchmarks")
 def benchmark_command(
@@ -30,7 +28,7 @@ def benchmark_command(
                                   callback=validate_batch_size),
     seq_length: int = typer.Option(256, "--seq-length", "-s", help="Sequence length"),
     steps: int = typer.Option(20, "--steps", "-n", help="Number of steps to run"),
-    model_type: str = typer.Option("base", "--model-type", help="Model type: base, cnn_hybrid, mlx_embeddings"),
+    model_type: str = typer.Option("modernbert", "--model-type", help="Model type: bert, modernbert, bert-lora, modernbert-lora"),
     model_name: str = typer.Option("answerdotai/ModernBERT-base", "--model", "-m", help="Model name"),
     warmup_steps: int = typer.Option(5, "--warmup", help="Warmup steps"),
     profile: bool = typer.Option(False, "--profile", "-p", help="Enable detailed profiling"),
@@ -47,8 +45,8 @@ def benchmark_command(
         # Basic benchmark
         bert benchmark --batch-size 64 --steps 100
         
-        # Benchmark CNN model with profiling
-        bert benchmark --model-type cnn_hybrid --profile
+        # Benchmark ModernBERT with profiling
+        bert benchmark --model-type modernbert --profile
         
         # Compare different models
         bert benchmark --compare --export results.json
@@ -63,18 +61,7 @@ def benchmark_command(
     
     # Import necessary components
     try:
-        from models.factory import create_model
-        from models.modernbert_cnn_hybrid import create_cnn_hybrid_model
-        
-        # Import classifier
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "classification",
-            str(Path(__file__).parent.parent.parent.parent / "models" / "classification.py")
-        )
-        classification_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(classification_module)
-        UnifiedTitanicClassifier = classification_module.TitanicClassifier
+        from models.factory import create_model, MODEL_REGISTRY
         
     except ImportError as e:
         print_error(
@@ -93,265 +80,259 @@ def benchmark_command(
     
     # Run benchmarks for different models if compare mode
     if compare:
-        model_types = ["base", "cnn_hybrid"]
+        model_types = ["bert-binary", "modernbert-binary", "bert-lora-binary", "modernbert-lora-binary"]
         results = {}
         
         for mt in model_types:
             console.print(f"\n[yellow]Benchmarking {mt} model...[/yellow]")
             results[mt] = _run_single_benchmark(
-                model_type=mt,
-                model_name=model_name,
-                dummy_batch=dummy_batch,
-                steps=steps,
-                warmup_steps=warmup_steps,
-                profile=profile,
-                memory=memory,
-                console=console
+                mt, dummy_batch, steps, warmup_steps, 
+                profile, memory, console
             )
         
-        # Display comparison
+        # Display comparison results
         _display_comparison(results, console)
         
-        # Export if requested
+        # Export results if requested
         if export_results:
-            import json
             with open(export_results, "w") as f:
                 json.dump(results, f, indent=2)
-            print_info(f"Results exported to {export_results}")
-    
+            print_success(f"Results exported to {export_results}")
+            
     else:
         # Run single benchmark
         results = _run_single_benchmark(
-            model_type=model_type,
-            model_name=model_name,
-            dummy_batch=dummy_batch,
-            steps=steps,
-            warmup_steps=warmup_steps,
-            profile=profile,
-            memory=memory,
-            console=console
+            model_type, dummy_batch, steps, warmup_steps,
+            profile, memory, console
         )
         
-        # Export if requested
+        # Display results
+        _display_results(results, console)
+        
+        # Export results if requested
         if export_results:
-            import json
             with open(export_results, "w") as f:
                 json.dump({model_type: results}, f, indent=2)
-            print_info(f"Results exported to {export_results}")
+            print_success(f"Results exported to {export_results}")
 
 
 def _run_single_benchmark(
     model_type: str,
-    model_name: str,
-    dummy_batch: dict,
+    dummy_batch: Dict[str, mx.array],
     steps: int,
     warmup_steps: int,
     profile: bool,
     memory: bool,
     console
-) -> dict:
+) -> Dict[str, Any]:
     """Run benchmark for a single model type."""
     
-    # Create model
-    with console.status(f"[yellow]Creating {model_type} model...[/yellow]"):
-        if model_type == "cnn_hybrid":
-            bert_model = create_cnn_hybrid_model(
-                model_name=model_name,
-                num_labels=2,
-            )
-            bert_model.config.hidden_size = bert_model.output_hidden_size
-            model = UnifiedTitanicClassifier(bert_model)
-        elif model_type == "mlx_embeddings":
-            try:
-                from models.classification import create_titanic_classifier
-                model = create_titanic_classifier(
-                    model_name=model_name,
-                    dropout_prob=0.0,
-                    use_layer_norm=False,
-                    activation="relu",
-                )
-            except ImportError:
-                from embeddings.model_wrapper import MLXEmbeddingModel
-                model = MLXEmbeddingModel(
-                    model_name=model_name,
-                    num_labels=2,
-                    use_mlx_embeddings=True,
-                )
-        else:
-            # Create a BERT model with classification head for benchmarking
-            model = create_bert_with_head(
-                bert_config={"hidden_size": 768, "num_hidden_layers": 12, "num_attention_heads": 12},
-                head_type=HeadType.BINARY_CLASSIFICATION,
-                num_labels=2
-            )
+    # Import here to avoid issues with module loading
+    from models.factory import create_model, MODEL_REGISTRY
+    
+    # Create model based on type
+    if model_type in MODEL_REGISTRY:
+        model = MODEL_REGISTRY[model_type](num_labels=2)
+        model_desc = model_type
+    else:
+        # Default to modernbert with binary classification
+        model = create_model("modernbert_with_head", head_type="binary_classification", num_labels=2)
+        model_desc = "ModernBERT Binary"
+    
+    console.print(f"Created {model_desc} model")
     
     # Create optimizer
     optimizer = optim.AdamW(learning_rate=2e-5)
     
-    # Display configuration
-    config_table = create_table("Benchmark Configuration", ["Parameter", "Value"])
-    config_table.add_row("Model Type", model_type)
-    config_table.add_row("Batch Size", str(dummy_batch["input_ids"].shape[0]))
-    config_table.add_row("Sequence Length", str(dummy_batch["input_ids"].shape[1]))
-    config_table.add_row("Steps", str(steps))
-    config_table.add_row("Warmup Steps", str(warmup_steps))
-    console.print(config_table)
-    
-    # Define loss function for value_and_grad
-    def loss_fn():
-        outputs = model(
-            input_ids=dummy_batch["input_ids"],
-            attention_mask=dummy_batch["attention_mask"],
-            labels=dummy_batch["labels"],
-        )
-        return outputs["loss"]
-    
-    # Create value_and_grad function
-    value_and_grad_fn = nn.value_and_grad(model, loss_fn)
-    
     # Warmup
-    console.print("\n[yellow]Warming up...[/yellow]")
+    console.print(f"Running {warmup_steps} warmup steps...")
     for _ in range(warmup_steps):
-        loss_value, grads = value_and_grad_fn()
-        optimizer.update(model, grads)
-        mx.eval(model.parameters())
+        loss = _forward_backward_step(model, dummy_batch, optimizer)
     
     # Benchmark
-    console.print("\n[yellow]Running benchmark...[/yellow]")
+    console.print(f"Running {steps} benchmark steps...")
     forward_times = []
     backward_times = []
     total_times = []
+    losses = []
     memory_usage = []
     
-    if profile:
-        from utils.memory_profiler import MemoryProfiler
-        profiler = MemoryProfiler()
-    
     for step in range(steps):
-        # Track memory before
-        if memory:
-            import psutil
-            process = psutil.Process()
-            mem_before = process.memory_info().rss / 1e9  # GB
+        step_start = time.time()
         
         # Forward pass
-        start_time = time.time()
+        forward_start = time.time()
         outputs = model(
             input_ids=dummy_batch["input_ids"],
             attention_mask=dummy_batch["attention_mask"],
-            labels=dummy_batch["labels"],
         )
-        loss = outputs["loss"]
-        mx.eval(loss)
-        forward_time = time.time() - start_time
-        forward_times.append(forward_time)
+        
+        # Compute loss
+        if hasattr(outputs, "logits"):
+            logits = outputs.logits
+        else:
+            logits = outputs
+            
+        loss = nn.losses.cross_entropy(
+            logits,
+            dummy_batch["labels"],
+            reduction="mean"
+        )
+        forward_time = time.time() - forward_start
         
         # Backward pass
-        start_time = time.time()
-        loss_value, grads = value_and_grad_fn()
+        backward_start = time.time()
+        loss_val, grads = mx.value_and_grad(lambda m: loss)(model)
         optimizer.update(model, grads)
         mx.eval(model.parameters())
-        backward_time = time.time() - start_time
+        backward_time = time.time() - backward_start
+        
+        total_time = time.time() - step_start
+        
+        # Record metrics
+        forward_times.append(forward_time)
         backward_times.append(backward_time)
+        total_times.append(total_time)
+        losses.append(float(loss))
         
-        total_times.append(forward_time + backward_time)
-        
-        # Track memory after
         if memory:
-            mem_after = process.memory_info().rss / 1e9
-            memory_usage.append(mem_after - mem_before)
+            # Simple memory tracking
+            memory_usage.append(mx.metal.get_active_memory() / 1024**3)  # GB
         
         # Show progress
         if (step + 1) % 5 == 0:
-            console.print(f"Step {step + 1}/{steps} - "
-                         f"Forward: {forward_time:.3f}s, "
-                         f"Backward: {backward_time:.3f}s", end="\r")
+            console.print(f"Step {step + 1}/{steps} - Loss: {loss:.4f}", end="\r")
     
     # Calculate statistics
-    forward_times = np.array(forward_times)
-    backward_times = np.array(backward_times)
-    total_times = np.array(total_times)
-    
-    # Calculate throughput
-    batch_size = dummy_batch["input_ids"].shape[0]
-    samples_per_second = batch_size / total_times.mean()
-    
-    # Display results
-    results_table = create_table(f"{model_type.upper()} Model Results", ["Metric", "Value"])
-    results_table.add_row("Forward (mean)", f"{forward_times.mean():.3f}s")
-    results_table.add_row("Forward (std)", f"{forward_times.std():.3f}s")
-    results_table.add_row("Backward (mean)", f"{backward_times.mean():.3f}s")
-    results_table.add_row("Backward (std)", f"{backward_times.std():.3f}s")
-    results_table.add_row("Total (mean)", f"{total_times.mean():.3f}s")
-    results_table.add_row("Min time", f"{total_times.min():.3f}s")
-    results_table.add_row("Max time", f"{total_times.max():.3f}s")
-    results_table.add_row("Throughput", f"{samples_per_second:.1f} samples/s")
-    
-    if memory and memory_usage:
-        memory_usage = np.array(memory_usage)
-        results_table.add_row("Memory (mean)", f"{memory_usage.mean():.2f} GB")
-        results_table.add_row("Memory (max)", f"{memory_usage.max():.2f} GB")
-    
-    console.print("\n")
-    console.print(results_table)
-    
-    # Return results for comparison/export
     results = {
-        "forward_mean": float(forward_times.mean()),
-        "forward_std": float(forward_times.std()),
-        "backward_mean": float(backward_times.mean()),
-        "backward_std": float(backward_times.std()),
-        "total_mean": float(total_times.mean()),
-        "total_min": float(total_times.min()),
-        "total_max": float(total_times.max()),
-        "throughput": float(samples_per_second),
+        "model_type": model_type,
+        "batch_size": dummy_batch["input_ids"].shape[0],
+        "seq_length": dummy_batch["input_ids"].shape[1],
+        "steps": steps,
+        "forward_time": {
+            "mean": np.mean(forward_times),
+            "std": np.std(forward_times),
+            "min": np.min(forward_times),
+            "max": np.max(forward_times),
+        },
+        "backward_time": {
+            "mean": np.mean(backward_times),
+            "std": np.std(backward_times),
+            "min": np.min(backward_times),
+            "max": np.max(backward_times),
+        },
+        "total_time": {
+            "mean": np.mean(total_times),
+            "std": np.std(total_times),
+            "min": np.min(total_times),
+            "max": np.max(total_times),
+        },
+        "throughput": {
+            "samples_per_second": dummy_batch["input_ids"].shape[0] / np.mean(total_times),
+            "tokens_per_second": (dummy_batch["input_ids"].shape[0] * dummy_batch["input_ids"].shape[1]) / np.mean(total_times),
+        },
+        "loss": {
+            "final": losses[-1],
+            "mean": np.mean(losses),
+        }
     }
     
-    if memory and memory_usage:
-        results["memory_mean"] = float(memory_usage.mean())
-        results["memory_max"] = float(memory_usage.max())
+    if memory:
+        results["memory"] = {
+            "mean_gb": np.mean(memory_usage),
+            "max_gb": np.max(memory_usage),
+        }
     
     return results
 
 
-def _display_comparison(results: dict, console):
-    """Display comparison of different model types."""
+def _forward_backward_step(model, batch, optimizer):
+    """Perform a single forward-backward step."""
+    def loss_fn(model):
+        outputs = model(
+            input_ids=batch["input_ids"],
+            attention_mask=batch["attention_mask"],
+        )
+        
+        if hasattr(outputs, "logits"):
+            logits = outputs.logits
+        else:
+            logits = outputs
+            
+        return nn.losses.cross_entropy(
+            logits,
+            batch["labels"],
+            reduction="mean"
+        )
     
-    console.print("\n[bold blue]Model Comparison[/bold blue]")
+    loss, grads = mx.value_and_grad(loss_fn)(model)
+    optimizer.update(model, grads)
+    mx.eval(model.parameters())
+    
+    return loss
+
+
+def _display_results(results: Dict[str, Any], console):
+    """Display benchmark results."""
+    console.print("\n[bold green]Benchmark Results[/bold green]")
+    console.print("=" * 60)
+    
+    # Create results table
+    table = create_table("Performance Metrics", ["Metric", "Value"])
+    
+    table.add_row("Model Type", results["model_type"])
+    table.add_row("Batch Size", str(results["batch_size"]))
+    table.add_row("Sequence Length", str(results["seq_length"]))
+    table.add_row("Steps", str(results["steps"]))
+    table.add_row("", "")  # Separator
+    
+    # Timing metrics
+    table.add_row("Forward Time (ms)", f"{results['forward_time']['mean']*1000:.2f} ± {results['forward_time']['std']*1000:.2f}")
+    table.add_row("Backward Time (ms)", f"{results['backward_time']['mean']*1000:.2f} ± {results['backward_time']['std']*1000:.2f}")
+    table.add_row("Total Time (ms)", f"{results['total_time']['mean']*1000:.2f} ± {results['total_time']['std']*1000:.2f}")
+    table.add_row("", "")  # Separator
+    
+    # Throughput metrics
+    table.add_row("Samples/Second", f"{results['throughput']['samples_per_second']:.2f}")
+    table.add_row("Tokens/Second", f"{results['throughput']['tokens_per_second']:.2f}")
+    table.add_row("", "")  # Separator
+    
+    # Loss
+    table.add_row("Final Loss", f"{results['loss']['final']:.4f}")
+    
+    # Memory if available
+    if "memory" in results:
+        table.add_row("", "")  # Separator
+        table.add_row("Avg Memory (GB)", f"{results['memory']['mean_gb']:.2f}")
+        table.add_row("Max Memory (GB)", f"{results['memory']['max_gb']:.2f}")
+    
+    console.print(table)
+
+
+def _display_comparison(results: Dict[str, Dict[str, Any]], console):
+    """Display comparison of multiple benchmark results."""
+    console.print("\n[bold green]Benchmark Comparison[/bold green]")
+    console.print("=" * 60)
     
     # Create comparison table
-    comparison_table = create_table("Performance Comparison", 
-                                  ["Metric"] + list(results.keys()))
+    table = create_table("Model Comparison", 
+                        ["Model", "Forward (ms)", "Backward (ms)", "Total (ms)", "Samples/s", "Loss"])
     
-    # Add rows for each metric
-    metrics = ["forward_mean", "backward_mean", "total_mean", "throughput"]
-    metric_names = ["Forward (s)", "Backward (s)", "Total (s)", "Throughput (samples/s)"]
+    for model_type, result in results.items():
+        table.add_row(
+            model_type,
+            f"{result['forward_time']['mean']*1000:.2f}",
+            f"{result['backward_time']['mean']*1000:.2f}",
+            f"{result['total_time']['mean']*1000:.2f}",
+            f"{result['throughput']['samples_per_second']:.2f}",
+            f"{result['loss']['final']:.4f}"
+        )
     
-    for metric, name in zip(metrics, metric_names):
-        row = [name]
-        for model_type in results:
-            value = results[model_type].get(metric, "N/A")
-            if isinstance(value, float):
-                if metric == "throughput":
-                    row.append(f"{value:.1f}")
-                else:
-                    row.append(f"{value:.3f}")
-            else:
-                row.append(str(value))
-        comparison_table.add_row(*row)
+    console.print(table)
     
-    console.print(comparison_table)
+    # Find best performing model
+    best_throughput = max(results.items(), key=lambda x: x[1]['throughput']['samples_per_second'])
+    console.print(f"\n[bold green]Best throughput:[/bold green] {best_throughput[0]} ({best_throughput[1]['throughput']['samples_per_second']:.2f} samples/s)")
     
-    # Find best model
-    best_throughput = 0
-    best_model = None
-    for model_type, res in results.items():
-        if res.get("throughput", 0) > best_throughput:
-            best_throughput = res["throughput"]
-            best_model = model_type
-    
-    if best_model:
-        print_success(f"Best throughput: {best_model} ({best_throughput:.1f} samples/s)")
-
-
-from typing import Optional
+    best_speed = min(results.items(), key=lambda x: x[1]['total_time']['mean'])
+    console.print(f"[bold green]Fastest per step:[/bold green] {best_speed[0]} ({best_speed[1]['total_time']['mean']*1000:.2f} ms/step)")

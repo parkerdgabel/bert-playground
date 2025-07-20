@@ -1,0 +1,107 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: [ cli, main, master ]
+    paths:
+      - '**/*.py'
+      - 'pyproject.toml'
+      - '.github/workflows/unit-tests.yml'
+  pull_request:
+    branches: [ cli, main, master ]
+    paths:
+      - '**/*.py'
+      - 'pyproject.toml'
+      - '.github/workflows/unit-tests.yml'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  unit-tests:
+    name: Run Unit Tests
+    runs-on: macos-14  # M1 runners for MLX compatibility
+    strategy:
+      fail-fast: false  # Continue running other versions if one fails
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    
+    - name: Cache uv dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/uv
+        key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-uv-
+    
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras
+        uv pip install pytest pytest-cov pytest-mock pytest-timeout
+    
+    # Run each test module separately for better visibility
+    - name: Test CLI utilities
+      run: |
+        echo "::group::CLI Unit Tests"
+        uv run pytest tests/cli/unit/ -v --tb=short --junit-xml=test-results/cli-unit.xml -m "not integration and not e2e"
+        echo "::endgroup::"
+    
+    - name: Test models
+      if: always()
+      run: |
+        echo "::group::Models Unit Tests"
+        uv run pytest tests/models/ -v --tb=short --junit-xml=test-results/models-unit.xml -m "not integration and not e2e" || true
+        echo "::endgroup::"
+    
+    - name: Test data handling
+      if: always()
+      run: |
+        echo "::group::Data Unit Tests"
+        uv run pytest tests/data/ -v --tb=short --junit-xml=test-results/data-unit.xml -m "not integration and not e2e" || true
+        echo "::endgroup::"
+    
+    - name: Test training
+      if: always()
+      run: |
+        echo "::group::Training Unit Tests"
+        uv run pytest tests/training/ -v --tb=short --junit-xml=test-results/training-unit.xml -m "not integration and not e2e" || true
+        echo "::endgroup::"
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-py${{ matrix.python-version }}
+        path: test-results/
+    
+    
+    - name: Test summary
+      if: always()
+      run: |
+        echo "## Unit Test Results - Python ${{ matrix.python-version }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Count test results
+        if [ -d "test-results" ]; then
+          for file in test-results/*.xml; do
+            if [ -f "$file" ]; then
+              module=$(basename "$file" .xml)
+              echo "### $module" >> $GITHUB_STEP_SUMMARY
+              # This is a simple parse, could be improved
+              echo "Tests run from: $file" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+        fi

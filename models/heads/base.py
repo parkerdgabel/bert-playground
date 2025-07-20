@@ -109,6 +109,7 @@ class BaseHead(nn.Module, ABC):
         self,
         hidden_states: mx.array,
         attention_mask: mx.array | None = None,
+        labels: mx.array | None = None,
         **kwargs,
     ) -> dict[str, mx.array]:
         """Make the head callable.
@@ -116,17 +117,19 @@ class BaseHead(nn.Module, ABC):
         Args:
             hidden_states: Input hidden states from BERT [batch_size, seq_len, hidden_size]
             attention_mask: Optional attention mask [batch_size, seq_len]
+            labels: Optional labels for computing loss
             **kwargs: Additional arguments
 
         Returns:
             Dictionary containing output tensors
         """
-        return self.forward(hidden_states, attention_mask, **kwargs)
+        return self.forward(hidden_states, attention_mask, labels=labels, **kwargs)
 
     def forward(
         self,
         hidden_states: mx.array,
         attention_mask: mx.array | None = None,
+        labels: mx.array | None = None,
         **kwargs,
     ) -> dict[str, mx.array]:
         """Forward pass through the head.
@@ -134,6 +137,7 @@ class BaseHead(nn.Module, ABC):
         Args:
             hidden_states: Input hidden states from BERT [batch_size, seq_len, hidden_size]
             attention_mask: Optional attention mask [batch_size, seq_len]
+            labels: Optional labels for computing loss
             **kwargs: Additional arguments
 
         Returns:
@@ -148,6 +152,11 @@ class BaseHead(nn.Module, ABC):
         # Apply output layer (implemented by subclasses)
         output = self._forward_output(projected)
 
+        # Compute loss if labels are provided
+        if labels is not None:
+            loss = self.compute_loss(output, labels, **kwargs)
+            output["loss"] = loss
+
         return output
 
     @abstractmethod
@@ -159,6 +168,22 @@ class BaseHead(nn.Module, ABC):
 
         Returns:
             Dictionary containing output tensors
+        """
+        pass
+
+    @abstractmethod
+    def compute_loss(
+        self, predictions: dict[str, mx.array], targets: mx.array, **kwargs
+    ) -> mx.array:
+        """Compute loss for the head.
+
+        Args:
+            predictions: Output from forward pass
+            targets: Ground truth labels
+            **kwargs: Additional arguments
+
+        Returns:
+            Loss value
         """
         pass
 
