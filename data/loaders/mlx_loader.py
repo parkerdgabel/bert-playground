@@ -17,6 +17,7 @@ import mlx.core as mx
 from loguru import logger
 
 from ..core.base import KaggleDataset
+from ..preprocessing.tokenizer_cache import TokenizerCache, PreTokenizedDataset
 
 
 @dataclass
@@ -39,6 +40,10 @@ class MLXLoaderConfig:
     padding: str = "max_length"  # "max_length" or "longest"
     truncation: bool = True
     tokenizer_chunk_size: int = 100  # Process texts in chunks for better perf
+    
+    # Pre-tokenization
+    use_pretokenized: bool = False  # Use pre-tokenized data if available
+    pretokenized_cache_dir: str = "data/cache/tokenized"  # Cache directory
 
 
 class MLXDataLoader:
@@ -56,6 +61,7 @@ class MLXDataLoader:
         dataset: KaggleDataset,
         config: Optional[MLXLoaderConfig] = None,
         tokenizer=None,
+        pretokenized_data: Optional[PreTokenizedDataset] = None,
     ):
         """Initialize MLX data loader.
         
@@ -67,6 +73,12 @@ class MLXDataLoader:
         self.dataset = dataset
         self.config = config or MLXLoaderConfig()
         self.tokenizer = tokenizer
+        self.pretokenized_data = pretokenized_data
+        
+        # Use pretokenized dataset if available
+        if self.pretokenized_data is not None:
+            self.dataset = self.pretokenized_data
+            logger.info("Using pre-tokenized dataset for zero-copy operations")
         
         # MLX device
         self.device = mx.default_device()

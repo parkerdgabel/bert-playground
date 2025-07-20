@@ -29,20 +29,20 @@ The CLI is now organized into logical command groups. You can access commands di
 uv sync
 
 # Quick training test
-uv run python mlx_bert_cli.py train \
+uv run python bert_cli.py train \
     --train data/titanic/train.csv \
     --val data/titanic/val.csv \
     --epochs 1 \
     --batch-size 32
 
 # Standard production training
-uv run python mlx_bert_cli.py train \
+uv run python bert_cli.py train \
     --train data/titanic/train.csv \
     --val data/titanic/val.csv \
     --config configs/production.json
 
 # Training with MLX embeddings (faster on Apple Silicon)
-uv run python mlx_bert_cli.py train \
+uv run python bert_cli.py train \
     --train data/titanic/train.csv \
     --val data/titanic/val.csv \
     --use-mlx-embeddings \
@@ -50,13 +50,13 @@ uv run python mlx_bert_cli.py train \
     --model mlx-community/answerdotai-ModernBERT-base-4bit
 
 # Generate predictions
-uv run python mlx_bert_cli.py predict \
+uv run python bert_cli.py predict \
     --test data/titanic/test.csv \
     --checkpoint output/run_*/best_model_accuracy \
     --output submission.csv
 
 # Benchmark performance
-uv run python mlx_bert_cli.py benchmark \
+uv run python bert_cli.py benchmark \
     --batch-size 64 \
     --seq-length 256 \
     --steps 20
@@ -128,7 +128,7 @@ uv run python -m cli model list --registry mlflow
 
 ```bash
 # Production training with all optimizations
-uv run python mlx_bert_cli.py train \
+uv run python bert_cli.py train \
     --train data/titanic/train.csv \
     --val data/titanic/val.csv \
     --batch-size 64 \
@@ -139,7 +139,7 @@ uv run python mlx_bert_cli.py train \
     --experiment titanic_prod
 
 # Training with best model only (saves storage)
-uv run python mlx_bert_cli.py train \
+uv run python bert_cli.py train \
     --train data/titanic/train.csv \
     --val data/titanic/val.csv \
     --config configs/best_model_only.yaml
@@ -255,7 +255,7 @@ checkpoint:
 **Usage:**
 ```bash
 # Use pre-configured best model only config
-uv run python mlx_bert_cli.py train \
+uv run python bert_cli.py train \
     --train data/titanic/train.csv \
     --val data/titanic/val.csv \
     --config configs/best_model_only.yaml
@@ -268,7 +268,7 @@ uv run python mlx_bert_cli.py train \
 ### Issue: Slow Training
 ```bash
 # Use optimized settings
-uv run python mlx_bert_cli.py train \
+uv run python bert_cli.py train \
     --batch-size 64 \
     --workers 8 \
     --config configs/production.json
@@ -277,7 +277,7 @@ uv run python mlx_bert_cli.py train \
 ### Issue: Out of Memory
 ```bash
 # Reduce batch size and use gradient accumulation
-uv run python mlx_bert_cli.py train \
+uv run python bert_cli.py train \
     --batch-size 16 \
     --grad-accum 4
 ```
@@ -285,7 +285,7 @@ uv run python mlx_bert_cli.py train \
 ### Issue: Poor Accuracy
 ```bash
 # Enable augmentation and train longer
-uv run python mlx_bert_cli.py train \
+uv run python bert_cli.py train \
     --augment \
     --epochs 10 \
     --lr 1e-5
@@ -299,7 +299,7 @@ The project now supports native MLX embeddings for improved performance on Apple
 
 ```bash
 # Train with MLX embeddings backend (4-bit quantized models)
-uv run python mlx_bert_cli.py train \
+uv run python bert_cli.py train \
     --train data/titanic/train.csv \
     --val data/titanic/val.csv \
     --use-mlx-embeddings \
@@ -336,19 +336,19 @@ uv run python train_titanic_v2.py --launch_mlflow
 1. **Testing Changes**
    ```bash
    # Quick test with minimal data
-   uv run python mlx_bert_cli.py train --epochs 1 --batch-size 8
+   uv run python bert_cli.py train --epochs 1 --batch-size 8
    ```
 
 2. **Benchmarking**
    ```bash
    # Test performance improvements
-   uv run python mlx_bert_cli.py benchmark --steps 50
+   uv run python bert_cli.py benchmark --steps 50
    ```
 
 3. **Production Training**
    ```bash
    # Use production config
-   uv run python mlx_bert_cli.py train --config configs/production.json
+   uv run python bert_cli.py train --config configs/production.json
    ```
 
 ## Model Variants
@@ -496,12 +496,12 @@ Expected performance on M1/M2 Mac:
 Enable debug logging:
 ```bash
 export LOGURU_LEVEL=DEBUG
-uv run python mlx_bert_cli.py train --log-level DEBUG
+uv run python bert_cli.py train --log-level DEBUG
 ```
 
 Check MLX device:
 ```bash
-uv run python mlx_bert_cli.py info
+uv run python bert_cli.py info
 ```
 
 ## Important Notes

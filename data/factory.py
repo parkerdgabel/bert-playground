@@ -16,6 +16,7 @@ from .core import (
 )
 from .loaders.mlx_loader import MLXDataLoader, MLXLoaderConfig
 from .templates import TextTemplateEngine
+from .preprocessing.tokenizer_cache import TokenizerCache, PreTokenizedDataset
 
 
 class CSVDataset(KaggleDataset):
@@ -243,6 +244,9 @@ def create_dataloader(
     tokenizer=None,
     tokenizer_backend: str = "auto",
     max_length: int = 512,
+    use_pretokenized: bool = False,
+    pretokenized_cache_dir: str = "data/cache/tokenized",
+    force_rebuild_cache: bool = False,
     **kwargs
 ) -> MLXDataLoader:
     """Create a data loader instance.
@@ -277,16 +281,54 @@ def create_dataloader(
         batch_size=batch_size,
         shuffle=shuffle,
         max_length=max_length,
-        prefetch_size=mlx_prefetch_size or prefetch_size or 0,
+        prefetch_size=mlx_prefetch_size if mlx_prefetch_size is not None else prefetch_size,
         tokenizer_chunk_size=mlx_tokenizer_chunk_size,
+        use_pretokenized=use_pretokenized,
+        pretokenized_cache_dir=pretokenized_cache_dir,
         **{k: v for k, v in kwargs.items() if hasattr(MLXLoaderConfig, k)}
     )
+    
+    # Handle pre-tokenization if enabled
+    pretokenized_data = None
+    if use_pretokenized and tokenizer is not None:
+        logger.info("Pre-tokenizing dataset for optimal performance...")
+        
+        # Create tokenizer cache
+        cache = TokenizerCache(
+            cache_dir=pretokenized_cache_dir,
+            max_length=max_length,
+            tokenizer=tokenizer
+        )
+        
+        # Extract texts and labels from dataset
+        texts = []
+        labels = []
+        for i in range(len(dataset)):
+            sample = dataset[i]
+            texts.append(sample['text'])
+            if 'labels' in sample:
+                labels.append(sample['labels'])
+        
+        # Pre-tokenize and cache
+        split = kwargs.get('split', 'train')
+        tokenized_data = cache.tokenize_and_cache(
+            texts=texts,
+            labels=labels if labels else None,
+            dataset_path=data_path,
+            split=split,
+            force_rebuild=force_rebuild_cache
+        )
+        
+        # Create pre-tokenized dataset
+        pretokenized_data = PreTokenizedDataset(tokenized_data)
+        logger.info(f"Using pre-tokenized dataset with {len(pretokenized_data)} samples")
     
     # Create loader
     loader = MLXDataLoader(
         dataset=dataset,
         config=config,
         tokenizer=tokenizer,
+        pretokenized_data=pretokenized_data,
     )
     
     return loader

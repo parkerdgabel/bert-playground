@@ -66,7 +66,8 @@ def train_command(
     # Data loading options
     max_length: int = typer.Option(256, "--max-length", help="Maximum sequence length"),
     workers: int = typer.Option(0, "--workers", help="Number of data loading workers"),
-    prefetch_size: int = typer.Option(0, "--prefetch", help="Data prefetch size"),
+    prefetch_size: int = typer.Option(4, "--prefetch", help="Data prefetch size (0 to disable)"),
+    use_pretokenized: bool = typer.Option(False, "--pretokenize", help="Pre-tokenize data for optimal performance"),
     
     # Training control
     seed: int = typer.Option(42, "--seed", "-s", help="Random seed"),
@@ -168,6 +169,7 @@ def train_command(
     # Get MLX-specific parameters from config if available
     mlx_prefetch_size = config_overrides.get("data", {}).get("mlx_prefetch_size", None)
     mlx_tokenizer_chunk_size = config_overrides.get("data", {}).get("mlx_tokenizer_chunk_size", 100)
+    use_pretokenized_config = config_overrides.get("data", {}).get("use_pretokenized", use_pretokenized)
     
     # Create training data loader
     train_loader = create_dataloader(
@@ -179,7 +181,9 @@ def train_command(
         mlx_prefetch_size=mlx_prefetch_size,
         mlx_tokenizer_chunk_size=mlx_tokenizer_chunk_size,
         tokenizer=tokenizer,
-        split="train"
+        split="train",
+        use_pretokenized=use_pretokenized_config,
+        max_length=max_length
     )
     
     # Create validation loader if provided
@@ -190,11 +194,13 @@ def train_command(
             batch_size=eval_batch_size,
             shuffle=False,
             num_workers=2,
-            prefetch_size=2,
+            prefetch_size=prefetch_size,
             mlx_prefetch_size=mlx_prefetch_size,
             mlx_tokenizer_chunk_size=mlx_tokenizer_chunk_size,
             tokenizer=tokenizer,
-            split="val"
+            split="val",
+            use_pretokenized=use_pretokenized_config,
+            max_length=max_length
         )
     
     # Display dataset info
