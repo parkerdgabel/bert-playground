@@ -516,7 +516,9 @@ class BaseTrainer:
         """
         predictions = []
         
-        pbar = tqdm(dataloader, desc="Predicting", leave=False, dynamic_ncols=True)
+        # Avoid tqdm due to MLX threading issues
+        # pbar = tqdm(dataloader, desc="Predicting", leave=False, dynamic_ncols=True)
+        pbar = dataloader
         
         for batch in pbar:
             # Forward pass - handle different model calling conventions

@@ -88,11 +88,15 @@ class MLXDataLoader:
     
     def __iter__(self) -> Iterator[Dict[str, mx.array]]:
         """Iterate over batches."""
+        logger.debug(f"Starting iteration over {self.num_batches} batches")
+        
         # Reshuffle if needed
         if self.config.shuffle:
             random.shuffle(self.indices)
             
         for batch_idx in range(self.num_batches):
+            logger.debug(f"Processing batch {batch_idx}/{self.num_batches}")
+            
             # Get batch indices
             start_idx = batch_idx * self.config.batch_size
             end_idx = min(start_idx + self.config.batch_size, len(self.indices))
@@ -104,6 +108,7 @@ class MLXDataLoader:
             # Collate into batch
             batch = self._collate_samples(samples)
             
+            logger.debug(f"Yielding batch {batch_idx} with keys: {list(batch.keys())}")
             yield batch
     
     def _collate_samples(self, samples: list[Dict[str, Any]]) -> Dict[str, mx.array]:
