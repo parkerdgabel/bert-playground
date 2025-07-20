@@ -511,3 +511,9 @@ uv run python bert_cli.py info
 - The model uses random initialization (pretrained weights not loaded)
 - Data augmentation significantly improves performance
 - MLflow tracking is optional but recommended for experiments
+
+## Development Best Practices
+
+- **Debug Scripts**: Always place temporary debug scripts in `/tmp` to keep the repository clean
+- **Clean Repository**: Strive to leave the repository in a clean, polished state after making changes
+- **Commit Hygiene**: Make focused commits with clear messages that explain the changes
