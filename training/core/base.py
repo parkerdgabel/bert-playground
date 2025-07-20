@@ -145,9 +145,9 @@ class BaseTrainer:
                 if self.lr_scheduler is not None:
                     current_lr = self.lr_scheduler.step()
                 else:
-                    current_lr = self.optimizer.learning_rate
+                    current_lr = float(self.optimizer.learning_rate)
             else:
-                current_lr = self.optimizer.learning_rate
+                current_lr = float(self.optimizer.learning_rate)
             
             # Ensure computation is executed
             mx.eval(loss, self.model.parameters())
