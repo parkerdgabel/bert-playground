@@ -127,9 +127,10 @@ class BaseTrainer:
             # Gradient clipping
             if self.config.optimizer.max_grad_norm > 0:
                 grads, grad_norm = clip_gradients(grads, self.config.optimizer.max_grad_norm)
+                # Keep grad_norm as MLX array for now, convert only when needed for logging
             else:
                 # Skip detailed gradient stats computation during training for performance
-                grad_norm = 0.0  # Placeholder value
+                grad_norm = mx.array(0.0)  # Use MLX array for consistency
             
             # Accumulate gradients
             should_update = self.gradient_accumulator.accumulate(grads)
@@ -155,8 +156,11 @@ class BaseTrainer:
             # Only convert scalar values to Python scalars
             loss_value = loss.item()
             
+            # Convert grad_norm to float only when needed for metrics
+            grad_norm_value = grad_norm.item() if hasattr(grad_norm, 'item') else float(grad_norm)
+            
             metrics = {
-                "grad_norm": grad_norm,
+                "grad_norm": grad_norm_value,
                 "learning_rate": current_lr,
             }
             
@@ -434,6 +438,10 @@ class BaseTrainer:
             
             # Training step
             loss, metrics = self._train_step(batch)
+            
+            # Update state with current batch metrics (for progress callback)
+            if 'grad_norm' in metrics:
+                self.state.grad_norm = metrics['grad_norm']
             
             # Update metrics
             epoch_loss += loss

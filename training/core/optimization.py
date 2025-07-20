@@ -366,7 +366,7 @@ def clip_gradients(
     max_norm: float,
 ) -> Tuple[Dict[str, Any], float]:
     """
-    Clip gradients by global norm.
+    Clip gradients by global norm using MLX's native implementation.
     
     Args:
         gradients: Dictionary of gradients (may be nested)
@@ -377,74 +377,14 @@ def clip_gradients(
     """
     logger.debug(f"clip_gradients: Starting gradient clipping with max_norm={max_norm}")
     
-    # Flatten gradients to compute norm
-    def flatten_grads(grads):
-        """Recursively flatten gradient dictionary."""
-        flat = []
-        for k, v in grads.items():
-            if isinstance(v, dict):
-                flat.extend(flatten_grads(v))
-            elif isinstance(v, list):
-                # Handle list of gradients (e.g., from layers)
-                for item in v:
-                    if isinstance(item, dict):
-                        flat.extend(flatten_grads(item))
-                    elif item is not None:
-                        flat.append(item)
-            elif v is not None:
-                flat.append(v)
-        return flat
+    # Use MLX's native clip_grad_norm function
+    import mlx.optimizers as mlx_opt
     
-    # Compute global norm
-    logger.debug("clip_gradients: Flattening gradients")
-    flat_grads = flatten_grads(gradients)
-    logger.debug(f"clip_gradients: Found {len(flat_grads)} gradient tensors")
+    # MLX's clip_grad_norm returns (clipped_grads, total_norm)
+    clipped_grads, total_norm = mlx_opt.clip_grad_norm(gradients, max_norm)
     
-    # Compute norm more efficiently by accumulating in MLX
-    norm_components = []
-    for i, grad in enumerate(flat_grads):
-        if grad is not None:
-            grad_norm_sq = mx.sum(grad ** 2)
-            norm_components.append(grad_norm_sq)
-    
-    # Sum all components in MLX before converting to Python float
-    if norm_components:
-        total_norm_sq = mx.sum(mx.stack(norm_components))
-        total_norm = mx.sqrt(total_norm_sq).item()
-    else:
-        total_norm = 0.0
-    
-    logger.debug(f"clip_gradients: Total gradient norm: {total_norm}")
-    
-    # Clip if needed
-    if total_norm > max_norm:
-        scale = max_norm / total_norm
-        
-        def scale_grads(grads):
-            """Recursively scale gradients."""
-            scaled = {}
-            for k, v in grads.items():
-                if isinstance(v, dict):
-                    scaled[k] = scale_grads(v)
-                elif isinstance(v, list):
-                    # Handle list of gradients (e.g., from layers)
-                    scaled[k] = []
-                    for item in v:
-                        if isinstance(item, dict):
-                            scaled[k].append(scale_grads(item))
-                        elif item is not None:
-                            scaled[k].append(item * scale)
-                        else:
-                            scaled[k].append(item)
-                elif v is not None:
-                    scaled[k] = v * scale
-                else:
-                    scaled[k] = v
-            return scaled
-        
-        clipped_grads = scale_grads(gradients)
-    else:
-        clipped_grads = gradients
+    # Only convert to float for logging to avoid early evaluation
+    logger.debug(f"clip_gradients: Total gradient norm computed (deferred evaluation)")
     
     return clipped_grads, total_norm
 
