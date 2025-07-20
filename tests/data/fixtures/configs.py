@@ -344,23 +344,25 @@ def create_mlx_loader_config(
     **kwargs
 ) -> MLXLoaderConfig:
     """Create MLX data loader configuration."""
-    return MLXLoaderConfig(
-        batch_size=batch_size,
-        shuffle=shuffle,
-        drop_last=drop_last,
-        num_workers=num_workers,
-        prefetch_size=prefetch_size,
-        pin_memory=pin_memory,
-        persistent_workers=persistent_workers,
-        use_unified_memory=use_unified_memory,
-        async_device_transfer=async_device_transfer,
-        lazy_evaluation=lazy_evaluation,
-        enable_caching=enable_caching,
-        cache_size_mb=cache_size_mb,
-        max_length=max_length,
-        padding=padding,
-        truncation=truncation,
-    )
+    # Filter out parameters that MLXLoaderConfig doesn't support
+    mlx_params = {
+        "batch_size": batch_size,
+        "shuffle": shuffle,
+        "drop_last": drop_last,
+        "use_unified_memory": use_unified_memory,
+        "lazy_evaluation": lazy_evaluation,
+        "prefetch_size": prefetch_size,
+        "max_length": max_length,
+        "padding": padding,
+        "truncation": truncation,
+    }
+    
+    # Add any additional parameters from kwargs that MLXLoaderConfig supports
+    for key, value in kwargs.items():
+        if hasattr(MLXLoaderConfig, key):
+            mlx_params[key] = value
+    
+    return MLXLoaderConfig(**mlx_params)
 
 
 def load_config_from_file(file_path: Path, config_class: Optional[type] = None) -> Any:
