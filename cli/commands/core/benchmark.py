@@ -77,6 +77,7 @@ def benchmark_command(
         "input_ids": mx.ones((batch_size, seq_length), dtype=mx.int32),
         "attention_mask": mx.ones((batch_size, seq_length), dtype=mx.int32),
         "labels": mx.zeros((batch_size,), dtype=mx.int32),
+        "token_type_ids": mx.zeros((batch_size, seq_length), dtype=mx.int32),  # Some models may need this
     }
     
     # Test compilation if requested
@@ -235,29 +236,40 @@ def _run_single_benchmark(
             # Standard execution
             # Forward pass
             forward_start = time.time()
-            outputs = model(
-                input_ids=dummy_batch["input_ids"],
-                attention_mask=dummy_batch["attention_mask"],
-            )
+            outputs = model(**dummy_batch)
             
-            # Compute loss
-            if isinstance(outputs, dict) and "logits" in outputs:
-                logits = outputs["logits"]
-            elif hasattr(outputs, "logits"):
-                logits = outputs.logits
+            # Get loss
+            if "loss" in outputs:
+                loss = outputs["loss"]
             else:
-                logits = outputs
-                
-            loss = nn.losses.cross_entropy(
-                logits,
-                dummy_batch["labels"],
-                reduction="mean"
-            )
+                # Compute loss if not provided
+                if isinstance(outputs, dict) and "logits" in outputs:
+                    logits = outputs["logits"]
+                elif hasattr(outputs, "logits"):
+                    logits = outputs.logits
+                else:
+                    logits = outputs
+                    
+                loss = nn.losses.cross_entropy(
+                    logits,
+                    dummy_batch["labels"],
+                    reduction="mean"
+                )
             forward_time = time.time() - forward_start
             
             # Backward pass
             backward_start = time.time()
-            loss_val, grads = mx.value_and_grad(lambda m: loss)(model)
+            
+            # Define loss function for gradients
+            def loss_fn(model, batch):
+                outputs = model(**batch)
+                return outputs["loss"] if "loss" in outputs else loss
+            
+            # Compute gradients
+            value_and_grad_fn = nn.value_and_grad(model, loss_fn)
+            _, grads = value_and_grad_fn(model, dummy_batch)
+            
+            # Update
             optimizer.update(model, grads)
             mx.eval(model.parameters())
             backward_time = time.time() - backward_start
@@ -323,12 +335,14 @@ def _run_single_benchmark(
 
 def _forward_backward_step(model, batch, optimizer):
     """Perform a single forward-backward step."""
-    def loss_fn(model):
-        outputs = model(
-            input_ids=batch["input_ids"],
-            attention_mask=batch["attention_mask"],
-        )
+    def loss_fn(model, batch):
+        outputs = model(**batch)
         
+        # Model should return loss when labels are provided
+        if "loss" in outputs:
+            return outputs["loss"]
+        
+        # Fallback to computing loss manually
         if isinstance(outputs, dict) and "logits" in outputs:
             logits = outputs["logits"]
         elif hasattr(outputs, "logits"):
@@ -342,8 +356,16 @@ def _forward_backward_step(model, batch, optimizer):
             reduction="mean"
         )
     
-    loss, grads = mx.value_and_grad(loss_fn)(model)
+    # Create value_and_grad function
+    value_and_grad_fn = nn.value_and_grad(model, loss_fn)
+    
+    # Compute loss and gradients
+    loss, grads = value_and_grad_fn(model, batch)
+    
+    # Update model
     optimizer.update(model, grads)
+    
+    # Force evaluation
     mx.eval(model.parameters())
     
     return loss

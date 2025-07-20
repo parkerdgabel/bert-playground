@@ -16,7 +16,7 @@ from .protocols import Model
 
 def create_compiled_train_step(
     model: Model,
-    optimizer: nn.Optimizer,
+    optimizer: Any,  # MLX optimizer, not nn.Optimizer
     config: Any,
     gradient_accumulator: Optional[Any] = None
 ) -> Tuple[callable, List[Any]]:
@@ -213,7 +213,7 @@ def _scale_gradients(grads: Dict[str, Any], scale: float) -> Dict[str, Any]:
 
 def compile_full_training_loop(
     model: Model,
-    optimizer: nn.Optimizer,
+    optimizer: Any,  # MLX optimizer
     train_dataloader: Any,
     config: Any
 ) -> callable:
