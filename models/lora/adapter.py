@@ -242,33 +242,41 @@ class LoRAAdapter:
             name: Full module name (dot-separated)
             new_module: New module to insert
         """
-        # Split the name to get parent and child names
-        parts = name.split(".")
-        parent = self.model
-
-        # Navigate to parent module
-        for part in parts[:-1]:
-            parent = getattr(parent, part)
-
-        # Replace the module
-        setattr(parent, parts[-1], new_module)
+        # MLX's named_modules correctly generates names like "bert.encoder_layers.0.dense"
+        # We can use MLX's built-in module update functionality
+        modules_dict = dict(self.model.named_modules())
+        
+        # Verify the module exists
+        if name not in modules_dict:
+            raise ValueError(f"Module {name} not found in model")
+        
+        # Update the module using MLX's module update
+        self.model.update({name: new_module})
 
     def _freeze_non_lora_parameters(self) -> None:
         """Freeze all non-LoRA parameters in the model."""
-        for name, param in self.model.named_parameters():
-            # Check if parameter belongs to LoRA
-            is_lora_param = any(
-                lora_name in name
-                for lora_name in ["lora_A", "lora_B", "lora_bias", "magnitude"]
+        # In MLX, we freeze modules, not individual parameters
+        for name, module in self.model.named_modules():
+            # Skip the model itself
+            if name == "":
+                continue
+                
+            # Check if module contains LoRA parameters
+            is_lora_module = any(
+                hasattr(module, lora_attr)
+                for lora_attr in ["lora_A", "lora_B", "lora_bias", "magnitude"]
             )
-
-            # Also check modules to save
+            
+            # Check if module is in modules to save
             in_modules_to_save = any(
                 module_name in name for module_name in self.config.modules_to_save
             )
-
-            if not is_lora_param and not in_modules_to_save:
-                param.stop_gradient = True
+            
+            # Freeze non-LoRA modules
+            if not is_lora_module and not in_modules_to_save:
+                # Only freeze if it's a leaf module (no children)
+                if not list(module.children()):
+                    module.freeze()
 
     def _count_lora_parameters(self, module: nn.Module) -> int:
         """Count LoRA parameters in a module.

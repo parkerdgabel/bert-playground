@@ -223,23 +223,21 @@ class BertWithHead(nn.Module):
         """
         if num_layers is None:
             # Freeze all BERT parameters
-            for param in self.bert.parameters():
-                param.stop_gradient = True
+            # In MLX, we freeze modules, not individual parameters
+            self.bert.freeze()
         else:
             # Freeze embeddings
-            for param in self.bert.embeddings.parameters():
-                param.stop_gradient = True
+            self.bert.embeddings.freeze()
 
             # Freeze specified number of layers
             for i in range(num_layers):
                 if i < len(self.bert.encoder.layers):
-                    for param in self.bert.encoder.layers[i].parameters():
-                        param.stop_gradient = True
+                    self.bert.encoder.layers[i].freeze()
 
     def unfreeze_bert(self):
         """Unfreeze all BERT parameters."""
-        for param in self.bert.parameters():
-            param.stop_gradient = False
+        # In MLX, we unfreeze modules
+        self.bert.unfreeze()
 
 
 # Factory functions
