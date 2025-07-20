@@ -95,11 +95,17 @@ class BaseTrainer:
     def _create_train_step(self) -> Callable:
         """Create the training step function."""
         def loss_fn(model, batch):
-            # Forward pass - extract arguments from batch dictionary
+            # Forward pass - handle different model calling conventions
             # Remove metadata if present as it's not needed for model forward
             model_inputs = {k: v for k, v in batch.items() 
                           if k not in ['metadata'] and v is not None}
-            outputs = model(**model_inputs)
+            
+            try:
+                # Try unpacked arguments first (for BERT models)
+                outputs = model(**model_inputs)
+            except TypeError:
+                # Fall back to batch dictionary (for simple test models)
+                outputs = model(batch)
             
             # Extract loss (assuming model returns dict with 'loss' key)
             loss = outputs.get("loss")
@@ -170,11 +176,17 @@ class BaseTrainer:
         """Create the evaluation step function."""
         def eval_step(batch: Dict[str, mx.array]) -> Tuple[float, Dict[str, mx.array]]:
             """Single evaluation step."""
-            # Forward pass (no gradients) - extract arguments from batch dictionary
+            # Forward pass (no gradients) - handle different model calling conventions
             # Remove metadata if present as it's not needed for model forward
             model_inputs = {k: v for k, v in batch.items() 
                           if k not in ['metadata'] and v is not None}
-            outputs = self.model(**model_inputs)
+            
+            try:
+                # Try unpacked arguments first (for BERT models)
+                outputs = self.model(**model_inputs)
+            except TypeError:
+                # Fall back to batch dictionary (for simple test models)
+                outputs = self.model(batch)
             
             # Extract loss
             loss = outputs.get("loss")
@@ -507,11 +519,17 @@ class BaseTrainer:
         pbar = tqdm(dataloader, desc="Predicting", leave=False, dynamic_ncols=True)
         
         for batch in pbar:
-            # Forward pass - extract arguments from batch dictionary
+            # Forward pass - handle different model calling conventions
             # Remove metadata if present as it's not needed for model forward
             model_inputs = {k: v for k, v in batch.items() 
                           if k not in ['metadata'] and v is not None}
-            outputs = self.model(**model_inputs)
+            
+            try:
+                # Try unpacked arguments first (for BERT models)
+                outputs = self.model(**model_inputs)
+            except TypeError:
+                # Fall back to batch dictionary (for simple test models)
+                outputs = self.model(batch)
             
             # Extract predictions (assuming 'logits' key)
             if "logits" in outputs:

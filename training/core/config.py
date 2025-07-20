@@ -219,9 +219,10 @@ class TrainingConfig:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         config = asdict(self)
-        config["eval_strategy"] = self.eval_strategy.value
-        config["save_strategy"] = self.save_strategy.value
-        config["log_level"] = self.log_level.value
+        # Handle enum fields - check if they're already strings or enum objects
+        config["eval_strategy"] = self.eval_strategy.value if hasattr(self.eval_strategy, 'value') else self.eval_strategy
+        config["save_strategy"] = self.save_strategy.value if hasattr(self.save_strategy, 'value') else self.save_strategy
+        config["log_level"] = self.log_level.value if hasattr(self.log_level, 'value') else self.log_level
         return config
     
     @classmethod
