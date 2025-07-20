@@ -33,7 +33,7 @@ training:
   eval_strategy: steps
   eval_steps: 500
   eval_delay: 0
-  logging_steps: 100
+  logging_steps: 50  # Reduced from 100 for better monitoring
   log_level: info
   report_to: ["mlflow"]
   save_strategy: best
@@ -60,3 +60,20 @@ environment:
   mlflow_tags:
     environment: production
     framework: mlx
+
+# Callback-specific optimizations
+callbacks:
+  lr_scheduler:
+    verbose: false  # Disable per-step logging
+    update_freq: step
+  progress_bar:
+    update_freq: 10  # Update every 10 batches instead of every batch
+    show_batch_progress: true
+    show_epoch_progress: true
+  mlflow:
+    log_every_n_steps: 50  # Log to MLflow every 50 steps
+    log_model_checkpoints: false  # Only log final/best model
+  metrics_logger:
+    save_format: json
+    plot_freq: epoch  # Only plot at epoch end
+    aggregate_metrics: false

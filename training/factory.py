@@ -243,8 +243,17 @@ def _get_default_callbacks(config: BaseTrainerConfig) -> List[Callback]:
     """Get default callbacks based on configuration."""
     callbacks = []
     
-    # Progress bar - disabled to avoid multiprocessing conflicts
-    # callbacks.append(ProgressBar())
+    # Get callback configs from custom config if available
+    callback_config = config.custom.get("callbacks", {})
+    
+    # Progress bar
+    progress_config = callback_config.get("progress_bar", {})
+    if progress_config.get("show_batch_progress", True) or progress_config.get("show_epoch_progress", True):
+        callbacks.append(ProgressBar(
+            update_freq=progress_config.get("update_freq", 1),
+            show_batch_progress=progress_config.get("show_batch_progress", True),
+            show_epoch_progress=progress_config.get("show_epoch_progress", True),
+        ))
     
     # Early stopping
     if config.training.early_stopping:
@@ -269,14 +278,27 @@ def _get_default_callbacks(config: BaseTrainerConfig) -> List[Callback]:
     
     # Learning rate scheduler
     if config.scheduler.type != "none":
-        callbacks.append(LearningRateScheduler())
+        lr_config = callback_config.get("lr_scheduler", {})
+        callbacks.append(LearningRateScheduler(
+            verbose=lr_config.get("verbose", True),
+            update_freq=lr_config.get("update_freq", "step"),
+        ))
     
     # MLflow
     if "mlflow" in config.training.report_to:
-        callbacks.append(MLflowCallback())
+        mlflow_config = callback_config.get("mlflow", {})
+        callbacks.append(MLflowCallback(
+            log_every_n_steps=mlflow_config.get("log_every_n_steps", 1),
+            log_model_checkpoints=mlflow_config.get("log_model_checkpoints", False),
+        ))
     
     # Metrics logger
-    callbacks.append(MetricsLogger())
+    metrics_config = callback_config.get("metrics_logger", {})
+    callbacks.append(MetricsLogger(
+        save_format=metrics_config.get("save_format", "json"),
+        plot_freq=metrics_config.get("plot_freq", "epoch"),
+        aggregate_metrics=metrics_config.get("aggregate_metrics", True),
+    ))
     
     return callbacks
 

@@ -123,6 +123,14 @@ class BaseTrainer:
             model_inputs = {k: v for k, v in batch.items() 
                           if k not in ['metadata'] and v is not None}
             
+            # Apply mixed precision if enabled
+            if self.config.training.mixed_precision:
+                # Cast float inputs to bfloat16 for computation
+                model_inputs = {
+                    k: v.astype(mx.bfloat16) if v.dtype == mx.float32 else v
+                    for k, v in model_inputs.items()
+                }
+            
             try:
                 # Try unpacked arguments first (for BERT models)
                 outputs = model(**model_inputs)
