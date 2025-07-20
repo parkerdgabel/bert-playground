@@ -123,7 +123,8 @@ def train_command(
     from loguru import logger
     log_level_upper = log_level.upper()
     logger.remove()  # Remove default handler
-    logger.add(lambda msg: print(msg, end=""), level=log_level_upper)
+    # Add handler with immediate flushing to avoid buffering issues
+    logger.add(sys.stderr, level=log_level_upper, enqueue=False)
     
     # Show training configuration header
     console.print("\n[bold blue]MLX Unified Training System[/bold blue]")
