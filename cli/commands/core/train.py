@@ -87,6 +87,7 @@ def train_command(
     max_batch_size: int = typer.Option(64, "--max-batch-size", 
                                      help="Maximum batch size for dynamic batching"),
     disable_mlflow: bool = typer.Option(False, "--no-mlflow", help="Disable MLflow tracking"),
+    use_lora: bool = typer.Option(False, "--use-lora", help="Use LoRA adaptation"),
     
     # CNN-specific options
     cnn_kernel_sizes: str = typer.Option("2,3,4,5", "--cnn-kernels", 
@@ -259,6 +260,7 @@ def train_command(
     config_table.add_row("Output Directory", str(run_dir))
     config_table.add_row("MLX Embeddings", "Enabled" if use_mlx_embeddings else "Disabled")
     config_table.add_row("Tokenizer Backend", tokenizer_backend)
+    config_table.add_row("Use LoRA", "Enabled" if use_lora else "Disabled")
     config_table.add_row("Batch Size", str(batch_size_config))
     config_table.add_row("Learning Rate", str(training_config.optimizer.learning_rate))
     config_table.add_row("Epochs", str(training_config.training.num_epochs))
@@ -311,9 +313,20 @@ def train_command(
             model = UnifiedTitanicClassifier(bert_model)
         else:
             # Create standard model
-            bert_model = create_model(model_type)
-            model = UnifiedTitanicClassifier(bert_model)
-            model_desc = "ModernBERT with TitanicClassifier"
+            if use_lora:
+                # Create model with LoRA
+                from models.factory import create_bert_with_lora
+                bert_model, lora_adapter = create_bert_with_lora(
+                    head_type="binary_classification",
+                    num_labels=2,
+                    lora_preset="balanced",
+                )
+                model = UnifiedTitanicClassifier(bert_model)
+                model_desc = "ModernBERT with LoRA adaptation"
+            else:
+                bert_model = create_model(model_type)
+                model = UnifiedTitanicClassifier(bert_model)
+                model_desc = "ModernBERT with TitanicClassifier"
     
     console.print(f"[green]✓ Created {model_desc} model[/green]")
     
