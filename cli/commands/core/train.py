@@ -9,11 +9,9 @@ import json
 import sys
 
 from ...utils import (
-    get_console, print_success, print_error, print_info,
     handle_errors, track_time, requires_project,
     validate_path, validate_batch_size, validate_learning_rate, validate_epochs
 )
-from ...utils.console import create_progress, create_table
 
 # Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
@@ -77,6 +75,7 @@ def train_command(
                                               help="Early stopping patience (0 to disable)"),
     save_steps: int = typer.Option(100, "--save-steps", help="Checkpoint save frequency"),
     eval_steps: int = typer.Option(100, "--eval-steps", help="Evaluation frequency"),
+    logging_steps: int = typer.Option(10, "--logging-steps", help="Progress logging frequency"),
     save_best_only: bool = typer.Option(False, "--save-best-only", help="Save only the best model"),
     
     # Advanced options
@@ -112,8 +111,6 @@ def train_command(
         # Training with MLX embeddings
         bert train --train data/train.csv --mlx-embeddings --model mlx-bert
     """
-    console = get_console()
-    
     # Apply MLX compatibility patches
     from utils.mlx_patch import apply_mlx_patches
     apply_mlx_patches()
@@ -127,15 +124,15 @@ def train_command(
     logger.add(sys.stderr, level=log_level_upper, enqueue=False)
     
     # Show training configuration header
-    console.print("\n[bold blue]MLX Unified Training System[/bold blue]")
-    console.print("=" * 60)
+    logger.info("\nMLX Unified Training System")
+    logger.info("=" * 60)
     
     # Load configuration if provided
     config_overrides = {}
     if config and config.exists():
         from utils.config_loader import ConfigLoader
         config_overrides = ConfigLoader.load(config)
-        print_success(f"Loaded configuration from {config}")
+        logger.info(f"✓ Loaded configuration from {config}")
     
     # Create output directory with timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -151,10 +148,9 @@ def train_command(
         from transformers import AutoTokenizer
         
     except ImportError as e:
-        print_error(
+        logger.error(
             f"Failed to import training components: {str(e)}\n"
-            "Make sure all dependencies are installed.",
-            title="Import Error"
+            "Make sure all dependencies are installed."
         )
         raise typer.Exit(1)
     
@@ -164,10 +160,10 @@ def train_command(
     eval_batch_size = min(batch_size_config * 2, max_batch_size_config)
     
     # Create data loaders
-    console.print("\n[yellow]Loading data...[/yellow]")
+    logger.info("Loading data...")
     
     # Load tokenizer
-    console.print("[yellow]Loading tokenizer...[/yellow]")
+    logger.info("Loading tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     
     # Get MLX-specific parameters from config if available
@@ -209,10 +205,10 @@ def train_command(
     
     # Display dataset info
     train_samples = len(train_loader) * batch_size_config
-    console.print(f"[green]✓ Loaded ~{train_samples} training samples ({len(train_loader)} batches)[/green]")
+    logger.info(f"✓ Loaded ~{train_samples} training samples ({len(train_loader)} batches)")
     if val_loader:
         val_samples = len(val_loader) * eval_batch_size
-        console.print(f"[green]✓ Loaded ~{val_samples} validation samples ({len(val_loader)} batches)[/green]")
+        logger.info(f"✓ Loaded ~{val_samples} validation samples ({len(val_loader)} batches)")
     
     # Build training configuration
     if config and config_overrides:
@@ -230,7 +226,7 @@ def train_command(
         training_config.data.batch_size = batch_size_config
         training_config.data.eval_batch_size = eval_batch_size
         training_config.training.eval_steps = eval_steps
-        training_config.training.logging_steps = save_steps
+        training_config.training.logging_steps = logging_steps
         training_config.training.save_steps = save_steps
         training_config.training.early_stopping_patience = early_stopping_patience
         training_config.training.gradient_accumulation_steps = gradient_accumulation
@@ -248,67 +244,66 @@ def train_command(
         if disable_mlflow:
             training_config.training.report_to = []
     
-    # Display configuration table
-    config_table = create_table("Training Configuration", ["Parameter", "Value"])
-    config_table.add_row("Model", model_name)
-    config_table.add_row("Model Type", model_type)
-    config_table.add_row("Output Directory", str(run_dir))
-    config_table.add_row("MLX Embeddings", "Enabled" if use_mlx_embeddings else "Disabled")
-    config_table.add_row("Tokenizer Backend", tokenizer_backend)
-    config_table.add_row("Use LoRA", "Enabled" if use_lora else "Disabled")
-    config_table.add_row("Batch Size", str(batch_size_config))
-    config_table.add_row("Learning Rate", str(training_config.optimizer.learning_rate))
-    config_table.add_row("Epochs", str(training_config.training.num_epochs))
-    config_table.add_row("Gradient Accumulation", str(training_config.training.gradient_accumulation_steps))
-    config_table.add_row("MLflow", "Enabled" if "mlflow" in training_config.training.report_to else "Disabled")
-    config_table.add_row("Early Stopping", str(training_config.training.early_stopping_patience))
-    console.print(config_table)
+    # Display configuration
+    logger.info("\nTraining Configuration:")
+    logger.info(f"  Model: {model_name}")
+    logger.info(f"  Model Type: {model_type}")
+    logger.info(f"  Output Directory: {run_dir}")
+    logger.info(f"  MLX Embeddings: {'Enabled' if use_mlx_embeddings else 'Disabled'}")
+    logger.info(f"  Tokenizer Backend: {tokenizer_backend}")
+    logger.info(f"  Use LoRA: {'Enabled' if use_lora else 'Disabled'}")
+    logger.info(f"  Batch Size: {batch_size_config}")
+    logger.info(f"  Learning Rate: {training_config.optimizer.learning_rate}")
+    logger.info(f"  Epochs: {training_config.training.num_epochs}")
+    logger.info(f"  Gradient Accumulation: {training_config.training.gradient_accumulation_steps}")
+    logger.info(f"  MLflow: {'Enabled' if 'mlflow' in training_config.training.report_to else 'Disabled'}")
+    logger.info(f"  Early Stopping: {training_config.training.early_stopping_patience}\n")
     
     # Create model
-    with console.status("[yellow]Creating model...[/yellow]"):
-        if use_mlx_embeddings:
-            # Create MLX embeddings model
-            try:
-                from models.classification import create_titanic_classifier
-                model = create_titanic_classifier(
-                    model_name=model_name,
-                    dropout_prob=0.1,
-                    use_layer_norm=False,
-                    activation="relu",
-                )
-                model_desc = "New Architecture MLX Embeddings ModernBERT"
-            except ImportError:
-                # Fall back to old architecture
-                from embeddings.model_wrapper import MLXEmbeddingModel
-                bert_model = MLXEmbeddingModel(
-                    model_name=model_name,
-                    num_labels=2,
-                    use_mlx_embeddings=True,
-                )
-                model_desc = "Legacy MLX Embeddings ModernBERT"
-                model = bert_model
+    logger.info("Creating model...")
+    if use_mlx_embeddings:
+        # Create MLX embeddings model
+        try:
+            from models.classification import create_titanic_classifier
+            model = create_titanic_classifier(
+                model_name=model_name,
+                dropout_prob=0.1,
+                use_layer_norm=False,
+                activation="relu",
+            )
+            model_desc = "New Architecture MLX Embeddings ModernBERT"
+        except ImportError:
+            # Fall back to old architecture
+            from embeddings.model_wrapper import MLXEmbeddingModel
+            bert_model = MLXEmbeddingModel(
+                model_name=model_name,
+                num_labels=2,
+                use_mlx_embeddings=True,
+            )
+            model_desc = "Legacy MLX Embeddings ModernBERT"
+            model = bert_model
+    else:
+        # Create standard model
+        if use_lora:
+            # Create model with LoRA
+            from models.factory import create_bert_with_lora
+            bert_model, lora_adapter = create_bert_with_lora(
+                head_type="binary_classification",
+                num_labels=2,
+                lora_preset="balanced",
+            )
+            model = bert_model
+            model_desc = "ModernBERT with LoRA adaptation"
         else:
-            # Create standard model
-            if use_lora:
-                # Create model with LoRA
-                from models.factory import create_bert_with_lora
-                bert_model, lora_adapter = create_bert_with_lora(
-                    head_type="binary_classification",
-                    num_labels=2,
-                    lora_preset="balanced",
-                )
-                model = bert_model
-                model_desc = "ModernBERT with LoRA adaptation"
-            else:
-                bert_model = create_model(
-                    "modernbert_with_head",
-                    head_type="binary_classification",
-                    num_labels=2
-                )
-                model = bert_model
-                model_desc = "ModernBERT with TitanicClassifier"
+            bert_model = create_model(
+                "modernbert_with_head",
+                head_type="binary_classification",
+                num_labels=2
+            )
+            model = bert_model
+            model_desc = "ModernBERT with TitanicClassifier"
     
-    console.print(f"[green]✓ Created {model_desc} model[/green]")
+    logger.info(f"✓ Created {model_desc} model")
     
     # Create trainer
     trainer = BaseTrainer(
@@ -339,7 +334,7 @@ def train_command(
         trainer.load_checkpoint(resume)
     
     # Start training
-    console.print("\n[bold green]Starting training...[/bold green]\n")
+    logger.info("\nStarting training...")
     
     try:
         # Train model
@@ -347,28 +342,28 @@ def train_command(
         metrics = trainer.train(train_loader, val_loader)
         
         # Show final results
-        print_success("Training completed successfully!")
+        logger.info("✓ Training completed successfully!")
         
         # Save final model
         final_model_path = run_dir / "final_model"
         trainer.save_checkpoint(final_model_path)
-        print_info(f"Model saved to: {final_model_path}")
+        logger.info(f"Model saved to: {final_model_path}")
         
         # Show next steps
-        console.print("\n[bold]Next steps:[/bold]")
-        console.print(f"1. Generate predictions: [cyan]bert predict --test data/test.csv "
-                     f"--checkpoint {final_model_path}[/cyan]")
+        logger.info("\nNext steps:")
+        logger.info(f"1. Generate predictions: bert predict --test data/test.csv --checkpoint {final_model_path}")
         
         if "mlflow" in training_config.training.report_to:
-            console.print("2. View MLflow results: [cyan]bert mlflow ui[/cyan]")
+            logger.info("2. View MLflow results: bert mlflow ui")
         
-        console.print("3. Submit to Kaggle: [cyan]bert kaggle submit auto --competition NAME[/cyan]")
+        logger.info("3. Submit to Kaggle: bert kaggle submit auto --competition NAME")
         
     except KeyboardInterrupt:
-        print_error("Training interrupted by user", title="Interrupted")
+        logger.error("Training interrupted by user")
         raise typer.Exit(130)
     except Exception as e:
-        print_error(f"Training failed: {str(e)}", title="Training Error")
+        logger.error(f"Training failed: {str(e)}")
         if debug:
-            console.print_exception()
+            import traceback
+            traceback.print_exc()
         raise typer.Exit(1)
