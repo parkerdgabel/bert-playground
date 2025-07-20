@@ -181,6 +181,10 @@ bert-playground/
 3. **Workers**: Use 4-8 workers for data loading
 4. **Gradient Accumulation**: Use when memory is limited
 5. **Mixed Precision**: MLX handles this automatically
+6. **MLX Compilation**: Enable with `use_compilation: true` in config (default)
+   - Best speedup with larger models and batch sizes
+   - Test with `bert benchmark --test-compilation`
+   - Compilation automatically handles dropout and random state
 
 ## Checkpoint Management
 
