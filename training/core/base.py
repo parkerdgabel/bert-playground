@@ -95,8 +95,11 @@ class BaseTrainer:
     def _create_train_step(self) -> Callable:
         """Create the training step function."""
         def loss_fn(model, batch):
-            # Forward pass
-            outputs = model(batch)
+            # Forward pass - extract arguments from batch dictionary
+            # Remove metadata if present as it's not needed for model forward
+            model_inputs = {k: v for k, v in batch.items() 
+                          if k not in ['metadata'] and v is not None}
+            outputs = model(**model_inputs)
             
             # Extract loss (assuming model returns dict with 'loss' key)
             loss = outputs.get("loss")
@@ -167,8 +170,11 @@ class BaseTrainer:
         """Create the evaluation step function."""
         def eval_step(batch: Dict[str, mx.array]) -> Tuple[float, Dict[str, mx.array]]:
             """Single evaluation step."""
-            # Forward pass (no gradients)
-            outputs = self.model(batch)
+            # Forward pass (no gradients) - extract arguments from batch dictionary
+            # Remove metadata if present as it's not needed for model forward
+            model_inputs = {k: v for k, v in batch.items() 
+                          if k not in ['metadata'] and v is not None}
+            outputs = self.model(**model_inputs)
             
             # Extract loss
             loss = outputs.get("loss")
@@ -501,8 +507,11 @@ class BaseTrainer:
         pbar = tqdm(dataloader, desc="Predicting", leave=False, dynamic_ncols=True)
         
         for batch in pbar:
-            # Forward pass
-            outputs = self.model(batch)
+            # Forward pass - extract arguments from batch dictionary
+            # Remove metadata if present as it's not needed for model forward
+            model_inputs = {k: v for k, v in batch.items() 
+                          if k not in ['metadata'] and v is not None}
+            outputs = self.model(**model_inputs)
             
             # Extract predictions (assuming 'logits' key)
             if "logits" in outputs:

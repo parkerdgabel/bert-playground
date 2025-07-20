@@ -6,7 +6,7 @@ following clean architecture patterns with modular components.
 
 # Import configuration classes
 # Import base class
-from .base import BaseHead
+from .base import BaseHead, get_default_config_for_head_type
 
 # Import classification heads
 from .classification import (
@@ -159,6 +159,7 @@ __all__ = [
     "RegressionConfig",
     # Base class
     "BaseHead",
+    "get_default_config_for_head_type",
     # Classification heads
     "BinaryClassificationHead",
     "MulticlassClassificationHead",
