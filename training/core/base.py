@@ -94,38 +94,27 @@ class BaseTrainer:
     def _create_train_step(self) -> Callable:
         """Create the training step function."""
         def loss_fn(model, batch):
-            logger.debug("train_step: Entering loss_fn")
             # Forward pass - handle different model calling conventions
             # Remove metadata if present as it's not needed for model forward
             model_inputs = {k: v for k, v in batch.items() 
                           if k not in ['metadata'] and v is not None}
             
-            logger.debug(f"train_step: Model inputs keys: {list(model_inputs.keys())}")
-            
             try:
                 # Try unpacked arguments first (for BERT models)
-                logger.debug("train_step: Attempting model forward pass with unpacked arguments")
                 outputs = model(**model_inputs)
             except TypeError:
                 # Fall back to batch dictionary (for simple test models)
-                logger.debug("train_step: Falling back to batch dictionary for model forward")
                 outputs = model(batch)
-            
-            logger.debug(f"train_step: Model outputs keys: {list(outputs.keys()) if isinstance(outputs, dict) else 'not a dict'}")
             
             # Extract loss (assuming model returns dict with 'loss' key)
             loss = outputs.get("loss")
             if loss is None:
                 raise ValueError("Model must return a dictionary with 'loss' key")
             
-            logger.debug(f"train_step: Loss shape: {loss.shape if hasattr(loss, 'shape') else 'scalar'}")
-            
             # Apply label smoothing if configured
             if self.config.training.label_smoothing > 0:
                 # This is a simplified version - actual implementation depends on task
                 loss = loss * (1 - self.config.training.label_smoothing)
-            
-            logger.debug("train_step: Exiting loss_fn")
             return loss, outputs
         
         # Create value and grad function
@@ -133,36 +122,24 @@ class BaseTrainer:
         
         def train_step(batch: Dict[str, mx.array]) -> Tuple[float, Dict[str, mx.array]]:
             """Single training step."""
-            logger.debug("train_step: Starting training step")
-            
-            logger.debug("train_step: Computing loss and gradients")
             (loss, outputs), grads = value_and_grad_fn(self.model, batch)
-            logger.debug("train_step: Loss and gradients computed")
             
             # Gradient clipping
-            logger.debug("train_step: Starting gradient clipping")
             if self.config.optimizer.max_grad_norm > 0:
                 grads, grad_norm = clip_gradients(grads, self.config.optimizer.max_grad_norm)
-                logger.debug(f"train_step: Gradient norm after clipping: {grad_norm}")
             else:
                 # Skip detailed gradient stats computation during training for performance
                 grad_norm = 0.0  # Placeholder value
-                logger.debug("train_step: Skipping gradient norm computation (no clipping)")
             
             # Accumulate gradients
-            logger.debug("train_step: Accumulating gradients")
             should_update = self.gradient_accumulator.accumulate(grads)
-            logger.debug(f"train_step: Should update: {should_update}")
             
             if should_update:
                 # Get accumulated gradients
-                logger.debug("train_step: Getting accumulated gradients")
                 accumulated_grads = self.gradient_accumulator.get_gradients()
                 
                 # Update model
-                logger.debug("train_step: Updating model parameters")
                 self.optimizer.update(self.model, accumulated_grads)
-                logger.debug("train_step: Model parameters updated")
                 
                 # Update learning rate
                 if self.lr_scheduler is not None:
@@ -173,14 +150,10 @@ class BaseTrainer:
                 current_lr = self.optimizer.learning_rate
             
             # Ensure computation is executed
-            logger.debug("train_step: Calling mx.eval to synchronize")
             mx.eval(loss, self.model.parameters())
-            logger.debug("train_step: mx.eval completed")
             
             # Only convert scalar values to Python scalars
-            logger.debug("train_step: Converting loss to Python scalar")
             loss_value = loss.item()
-            logger.debug(f"train_step: Loss value: {loss_value}")
             
             metrics = {
                 "grad_norm": grad_norm,
@@ -196,7 +169,6 @@ class BaseTrainer:
                         metrics[k] = v
                     # Skip tensors with multiple elements
             
-            logger.debug("train_step: Training step completed successfully")
             return loss_value, metrics
         
         return train_step
@@ -375,9 +347,16 @@ class BaseTrainer:
         def make_json_serializable(obj):
             """Convert MLX arrays and other non-serializable objects to JSON-serializable format."""
             import mlx.core as mx
+            import numpy as np
             
             # Check if it's an MLX array directly
             if isinstance(obj, mx.array):
+                try:
+                    return obj.item() if obj.size == 1 else obj.tolist()
+                except:
+                    return float(obj)
+            # Check if it's a numpy array
+            elif isinstance(obj, np.ndarray):
                 try:
                     return obj.item() if obj.size == 1 else obj.tolist()
                 except:
@@ -406,8 +385,18 @@ class BaseTrainer:
                 return [make_json_serializable(v) for v in obj]
             elif isinstance(obj, Path):
                 return str(obj)
+            elif isinstance(obj, (np.integer, np.floating)):
+                # Handle numpy scalar types
+                return obj.item()
+            elif isinstance(obj, np.bool_):
+                return bool(obj)
             else:
-                return obj
+                # For any other type, try to convert to string if not already serializable
+                try:
+                    json.dumps(obj)
+                    return obj
+                except:
+                    return str(obj)
         
         result_dict = make_json_serializable(result.to_dict())
         
@@ -432,7 +421,6 @@ class BaseTrainer:
         total_batches = len(dataloader)
         
         for batch_idx, batch in enumerate(dataloader):
-            logger.debug(f"_train_epoch: Processing batch {batch_idx}")
             # Manual progress tracking
             if batch_idx % max(1, total_batches // 10) == 0 or batch_idx == 0:
                 progress_pct = (batch_idx / total_batches) * 100
@@ -442,13 +430,10 @@ class BaseTrainer:
             self.state.samples_seen += self.config.data.batch_size
             
             # Call batch begin hooks
-            logger.debug("_train_epoch: Calling batch begin hooks")
             self._call_hooks("on_batch_begin", self.state, batch)
             
             # Training step
-            logger.debug("_train_epoch: Calling _train_step")
             loss, metrics = self._train_step(batch)
-            logger.debug(f"_train_epoch: _train_step completed with loss: {loss}")
             
             # Update metrics
             epoch_loss += loss
@@ -459,7 +444,6 @@ class BaseTrainer:
             num_batches += 1
             
             # Call batch end hooks
-            logger.debug("_train_epoch: Calling batch end hooks")
             self._call_hooks("on_batch_end", self.state, loss)
             
             # Log batch metrics occasionally
