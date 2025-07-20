@@ -289,6 +289,11 @@ class BaseTrainer:
         logger.info(f"Starting training for {self.config.training.num_epochs} epochs")
         logger.info(f"Total steps: {total_steps}, Steps per epoch: {steps_per_epoch}")
         
+        # Ensure output is flushed
+        import sys
+        sys.stdout.flush()
+        sys.stderr.flush()
+        
         # Training loop
         for epoch in range(self.state.epoch, self.config.training.num_epochs):
             self.state.epoch = epoch
@@ -463,7 +468,7 @@ class BaseTrainer:
             # Manual progress tracking
             if batch_idx % max(1, total_batches // 10) == 0 or batch_idx == 0:
                 progress_pct = (batch_idx / total_batches) * 100
-                print(f"Epoch {epoch} - Batch {batch_idx}/{total_batches} ({progress_pct:.1f}%)")
+                logger.info(f"Epoch {epoch} - Batch {batch_idx}/{total_batches} ({progress_pct:.1f}%)")
             
             self.state.global_step += 1
             self.state.samples_seen += self.config.data.batch_size
@@ -569,7 +574,7 @@ class BaseTrainer:
             # Progress tracking
             if batch_idx % max(1, total_batches // 10) == 0 or batch_idx == 0:
                 progress_pct = (batch_idx / total_batches) * 100
-                print(f"Evaluating - Batch {batch_idx}/{total_batches} ({progress_pct:.1f}%)")
+                logger.info(f"Evaluating - Batch {batch_idx}/{total_batches} ({progress_pct:.1f}%)")
             # Evaluation step
             loss, metrics = self._eval_step(batch)
             
