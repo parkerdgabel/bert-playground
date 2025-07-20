@@ -266,7 +266,8 @@ def create_mlx_lr_schedule(
     
     # Create the main schedule
     if scheduler_type == SchedulerType.NONE or scheduler_type == SchedulerType.CONSTANT:
-        main_schedule = lambda step: base_lr
+        # For constant LR, return a scalar array directly
+        return mx.array(base_lr)
     elif scheduler_type == SchedulerType.LINEAR:
         # Linear decay from base_lr to min_lr
         decay_steps = num_training_steps - warmup_steps

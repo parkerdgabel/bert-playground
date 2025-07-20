@@ -264,14 +264,21 @@ class BaseTrainer:
             from .optimization import create_mlx_lr_schedule
             
             # Create MLX native schedule
-            self._lr_schedule_fn = create_mlx_lr_schedule(
+            schedule_result = create_mlx_lr_schedule(
                 config=self.config.scheduler,
                 base_lr=self.config.optimizer.learning_rate,
                 num_training_steps=total_steps
             )
             
-            # Set the optimizer's learning rate to use the schedule
-            self.optimizer.learning_rate = self._lr_schedule_fn
+            # Check if it's a constant (MLX array) or a schedule function
+            if isinstance(schedule_result, mx.array):
+                # For constant LR, just set the value
+                self.optimizer.learning_rate = schedule_result
+                self._lr_schedule_fn = None
+            else:
+                # For scheduled LR, set the schedule function
+                self.optimizer.learning_rate = schedule_result
+                self._lr_schedule_fn = schedule_result
             
             logger.info(f"Initialized MLX learning rate scheduler with {total_steps} total steps")
         
