@@ -442,11 +442,17 @@ class BaseTrainer:
             # Update metrics
             epoch_loss += loss_value
             for k, v in metrics.items():
+                # Skip non-scalar metrics (like logits)
+                if hasattr(v, 'shape') and v.size > 1:
+                    continue
+                    
                 if k not in epoch_metrics:
                     epoch_metrics[k] = 0.0
+                    
                 # Convert MLX arrays to floats for accumulation
                 if hasattr(v, 'item'):
-                    epoch_metrics[k] += float(v.item())
+                    if v.size == 1:  # Only convert scalars
+                        epoch_metrics[k] += float(v.item())
                 else:
                     epoch_metrics[k] += float(v)
             num_batches += 1
