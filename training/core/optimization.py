@@ -285,7 +285,7 @@ class GradientAccumulator:
     
     def accumulate(self, gradients: Dict[str, Any]) -> bool:
         """
-        Accumulate gradients.
+        Accumulate gradients using MLX tree_map for efficiency.
         
         Args:
             gradients: Current batch gradients (may be nested)
@@ -293,66 +293,40 @@ class GradientAccumulator:
         Returns:
             True if should update weights, False otherwise
         """
+        from mlx.utils import tree_map
+        
         self.step_count += 1
         
-        def accumulate_recursive(acc_grads, new_grads, scale):
-            """Recursively accumulate gradients."""
-            if acc_grads is None:
-                acc_grads = {}
-            
-            for k, v in new_grads.items():
-                if isinstance(v, dict):
-                    # Recursive case for nested dict
-                    if k not in acc_grads:
-                        acc_grads[k] = {}
-                    acc_grads[k] = accumulate_recursive(acc_grads[k], v, scale)
-                elif isinstance(v, list):
-                    # Handle list of gradients (e.g., from layers)
-                    if k not in acc_grads:
-                        acc_grads[k] = []
-                        for i, item in enumerate(v):
-                            if isinstance(item, dict):
-                                acc_grads[k].append(accumulate_recursive({}, item, scale))
-                            elif item is not None:
-                                acc_grads[k].append(item * scale)
-                            else:
-                                acc_grads[k].append(item)
-                    else:
-                        for i, item in enumerate(v):
-                            if isinstance(item, dict):
-                                acc_grads[k][i] = accumulate_recursive(acc_grads[k][i], item, scale)
-                            elif item is not None:
-                                acc_grads[k][i] += item * scale
-                elif v is not None:
-                    # Base case for arrays
-                    if k in acc_grads:
-                        acc_grads[k] += v * scale
-                    else:
-                        acc_grads[k] = v * scale
-                else:
-                    acc_grads[k] = v
-            return acc_grads
-        
-        scale = 1.0  # Don't scale during accumulation
-        self.accumulated_grads = accumulate_recursive(self.accumulated_grads, gradients, scale)
+        if self.accumulated_grads is None:
+            # First accumulation - just store the gradients
+            self.accumulated_grads = gradients
+        else:
+            # Accumulate using tree_map for efficiency
+            self.accumulated_grads = tree_map(
+                lambda acc, new: acc + new if acc is not None and new is not None else (acc or new),
+                self.accumulated_grads,
+                gradients
+            )
         
         # Check if we should update
         should_update = (self.step_count % self.accumulation_steps) == 0
         
         return should_update
     
-    def get_gradients(self, average: bool = False) -> Dict[str, Any]:
+    def get_gradients(self, average: bool = True) -> Dict[str, Any]:
         """Get accumulated gradients and reset."""
+        from mlx.utils import tree_map
+        
         grads = self.accumulated_grads
-        if average and grads is not None:
+        
+        if average and grads is not None and self.accumulation_steps > 1:
             # Average the gradients by the number of accumulation steps
-            def average_grads(g):
-                if isinstance(g, dict):
-                    return {k: average_grads(v) for k, v in g.items()}
-                else:
-                    return g / self.accumulation_steps
-            grads = average_grads(grads)
+            scale = 1.0 / self.accumulation_steps
+            grads = tree_map(lambda g: g * scale if g is not None else None, grads)
+        
+        # Reset for next accumulation
         self.accumulated_grads = None
+        
         return grads
     
     def reset(self) -> None:
@@ -375,16 +349,11 @@ def clip_gradients(
     Returns:
         Clipped gradients and original norm
     """
-    logger.debug(f"clip_gradients: Starting gradient clipping with max_norm={max_norm}")
-    
     # Use MLX's native clip_grad_norm function
     import mlx.optimizers as mlx_opt
     
     # MLX's clip_grad_norm returns (clipped_grads, total_norm)
     clipped_grads, total_norm = mlx_opt.clip_grad_norm(gradients, max_norm)
-    
-    # Only convert to float for logging to avoid early evaluation
-    logger.debug(f"clip_gradients: Total gradient norm computed (deferred evaluation)")
     
     return clipped_grads, total_norm
 
@@ -401,87 +370,91 @@ def compute_gradient_stats(gradients: Dict[str, Any]) -> Dict[str, float]:
     Returns:
         Dictionary of statistics
     """
-    logger.debug("compute_gradient_stats: Starting gradient statistics computation")
+    # Use tree_flatten for efficient gradient collection
+    from mlx.utils import tree_flatten
     
-    # Flatten gradients for statistics
-    def flatten_grads(grads):
-        """Recursively flatten gradient dictionary."""
-        flat = []
-        for k, v in grads.items():
-            if isinstance(v, dict):
-                flat.extend(flatten_grads(v))
-            elif isinstance(v, list):
-                # Handle list of gradients (e.g., from layers)
-                for item in v:
-                    if isinstance(item, dict):
-                        flat.extend(flatten_grads(item))
-                    elif item is not None:
-                        flat.append(item)
-            elif v is not None:
-                flat.append(v)
-        return flat
-    
-    logger.debug("compute_gradient_stats: Flattening gradients")
-    flat_grads = flatten_grads(gradients)
-    logger.debug(f"compute_gradient_stats: Found {len(flat_grads)} gradient tensors")
+    flat_grads = tree_flatten(gradients)
     
     if not flat_grads:
         return {
             "grad_norm": 0.0,
             "grad_max": 0.0,
-            "grad_min": float('inf'),
+            "grad_min": 0.0,
             "grad_mean": 0.0,
             "grad_std": 0.0,
         }
     
-    # Batch all computations in MLX before converting to Python
-    logger.debug("compute_gradient_stats: Batching gradient computations")
+    # Filter out None values and get just the arrays
+    grad_arrays = [v for k, v in flat_grads if v is not None]
     
-    # Compute all statistics in MLX arrays first
-    norm_components = []
-    abs_grads = []
-    
-    for i, grad in enumerate(flat_grads):
-        if grad is not None:
-            grad_abs = mx.abs(grad)
-            abs_grads.append(grad_abs)
-            norm_components.append(mx.sum(grad ** 2))
-    
-    # Compute aggregated statistics in MLX
-    if norm_components:
-        # Stack norm components and compute total norm
-        total_norm_sq = mx.sum(mx.stack(norm_components))
-        grad_norm = mx.sqrt(total_norm_sq)
-        
-        # Concatenate all absolute gradients
-        all_abs_grads = mx.concatenate([g.flatten() for g in abs_grads])
-        
-        # Compute statistics
-        grad_max = mx.max(all_abs_grads)
-        grad_min = mx.min(all_abs_grads)
-        grad_mean = mx.mean(all_abs_grads)
-        grad_std = mx.std(all_abs_grads)
-        
-        # Single eval call for all statistics
-        logger.debug("compute_gradient_stats: Evaluating all statistics")
-        mx.eval(grad_norm, grad_max, grad_min, grad_mean, grad_std)
-        
-        # Convert to Python scalars
-        stats = {
-            "grad_norm": grad_norm.item(),
-            "grad_max": grad_max.item(),
-            "grad_min": grad_min.item(),
-            "grad_mean": grad_mean.item(),
-            "grad_std": grad_std.item(),
-        }
-    else:
-        stats = {
+    if not grad_arrays:
+        return {
             "grad_norm": 0.0,
             "grad_max": 0.0,
-            "grad_min": float('inf'),
+            "grad_min": 0.0,
             "grad_mean": 0.0,
             "grad_std": 0.0,
         }
     
-    logger.debug(f"compute_gradient_stats: Completed. Stats: {stats}")
-    return stats
+    # Compute norm efficiently
+    norm_sq = mx.sum(mx.stack([mx.sum(g * g) for g in grad_arrays]))
+    grad_norm = mx.sqrt(norm_sq)
+    
+    # For other stats, only compute if really needed (expensive)
+    # Most training loops only need grad_norm
+    return {
+        "grad_norm": grad_norm,  # Keep as MLX array
+        "grad_max": mx.array(0.0),  # Placeholder
+        "grad_min": mx.array(0.0),  # Placeholder
+        "grad_mean": mx.array(0.0),  # Placeholder
+        "grad_std": mx.array(0.0),  # Placeholder
+    }
+
+
+def compute_gradient_stats_detailed(gradients: Dict[str, Any]) -> Dict[str, float]:
+    """
+    Compute detailed gradient statistics (use sparingly - expensive).
+    
+    Args:
+        gradients: Dictionary of gradients (may be nested)
+        
+    Returns:
+        Dictionary of detailed statistics with Python floats
+    """
+    from mlx.utils import tree_flatten
+    
+    flat_grads = tree_flatten(gradients)
+    grad_arrays = [v for k, v in flat_grads if v is not None]
+    
+    if not grad_arrays:
+        return {
+            "grad_norm": 0.0,
+            "grad_max": 0.0,
+            "grad_min": 0.0,
+            "grad_mean": 0.0,
+            "grad_std": 0.0,
+        }
+    
+    # Compute all statistics
+    norm_sq = mx.sum(mx.stack([mx.sum(g * g) for g in grad_arrays]))
+    grad_norm = mx.sqrt(norm_sq)
+    
+    # Concatenate for detailed stats
+    all_grads = mx.concatenate([g.flatten() for g in grad_arrays])
+    all_abs_grads = mx.abs(all_grads)
+    
+    grad_max = mx.max(all_abs_grads)
+    grad_min = mx.min(all_abs_grads)
+    grad_mean = mx.mean(all_abs_grads)
+    grad_std = mx.std(all_abs_grads)
+    
+    # Single evaluation
+    mx.eval(grad_norm, grad_max, grad_min, grad_mean, grad_std)
+    
+    return {
+        "grad_norm": float(grad_norm.item()),
+        "grad_max": float(grad_max.item()),
+        "grad_min": float(grad_min.item()),
+        "grad_mean": float(grad_mean.item()),
+        "grad_std": float(grad_std.item()),
+    }

@@ -119,13 +119,9 @@ class ProgressBar(Callback):
             }
             
             # Add gradient norm if available
-            if hasattr(state, 'grad_norm') and state.grad_norm is not None:
-                # Convert grad_norm only for display
-                if hasattr(state.grad_norm, 'item'):
-                    grad_norm_val = float(state.grad_norm.item())
-                else:
-                    grad_norm_val = float(state.grad_norm)
-                metrics["grad_norm"] = f"{grad_norm_val:.2f}"
+            if hasattr(state, 'grad_norm') and state.grad_norm > 0:
+                # grad_norm is already a float in TrainingState
+                metrics["grad_norm"] = f"{state.grad_norm:.2f}"
             
             self.batch_pbar.set_postfix(metrics)
     

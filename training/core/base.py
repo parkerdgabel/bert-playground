@@ -445,8 +445,11 @@ class BaseTrainer:
             
             # Update state with current batch metrics (for progress callback)
             if 'grad_norm' in metrics and metrics['grad_norm'] is not None:
-                # Store the MLX array directly - let callbacks decide when to convert
-                self.state.grad_norm = metrics['grad_norm']
+                # Convert to float for state storage (used by progress callbacks)
+                if hasattr(metrics['grad_norm'], 'item'):
+                    self.state.grad_norm = float(metrics['grad_norm'].item())
+                else:
+                    self.state.grad_norm = float(metrics['grad_norm'])
             
             # Accumulate loss (keep as MLX array for now)
             if epoch_loss == 0.0:

@@ -127,6 +127,9 @@ class TrainingState:
     epoch_start_time: float = 0.0
     training_start_time: float = 0.0
     
+    # Gradient norm (store as float, not MLX array)
+    grad_norm: float = 0.0
+    
     def __post_init__(self):
         if self.metrics is None:
             self.metrics = {}
