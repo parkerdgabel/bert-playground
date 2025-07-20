@@ -185,7 +185,8 @@ def _clip_gradients_compiled(grads: Dict[str, Any], max_norm: float) -> Dict[str
     """
     # Compute global norm
     total_norm_sq = 0.0
-    for g in mx.tree_flatten(grads):
+    # Use tree_flatten from nn module
+    for g in nn.tree_flatten(grads):
         if g is not None:
             total_norm_sq = total_norm_sq + mx.sum(g * g)
     
@@ -195,7 +196,7 @@ def _clip_gradients_compiled(grads: Dict[str, Any], max_norm: float) -> Dict[str
     clip_factor = mx.minimum(1.0, max_norm / (total_norm + 1e-6))
     
     # Apply clipping
-    clipped_grads = mx.tree_map(
+    clipped_grads = nn.tree_map(
         lambda g: g * clip_factor if g is not None else None,
         grads
     )
@@ -205,7 +206,7 @@ def _clip_gradients_compiled(grads: Dict[str, Any], max_norm: float) -> Dict[str
 
 def _scale_gradients(grads: Dict[str, Any], scale: float) -> Dict[str, Any]:
     """Scale gradients by a factor."""
-    return mx.tree_map(
+    return nn.tree_map(
         lambda g: g * scale if g is not None else None,
         grads
     )
@@ -293,7 +294,7 @@ def should_compile_model(model: Model, config: Any) -> bool:
         return False
     
     # Check model size - very small models may not benefit
-    param_count = sum(p.size for p in mx.tree_flatten(model.parameters()) if p is not None)
+    param_count = sum(p.size for p in nn.tree_flatten(model.parameters()) if p is not None)
     if param_count < 1000:  # Less than 1K parameters
         logger.info(f"Model too small for compilation benefits ({param_count} parameters)")
         return False
