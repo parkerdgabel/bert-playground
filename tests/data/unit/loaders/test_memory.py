@@ -445,7 +445,6 @@ class TestMemoryIntegration:
         
         loader_config = MLXLoaderConfig(
             batch_size=32,
-            memory_manager=memory_manager,
         )
         
         loader = MLXDataLoader(dataset, loader_config)

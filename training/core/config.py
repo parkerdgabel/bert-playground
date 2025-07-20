@@ -154,8 +154,8 @@ class DataConfig:
     
     batch_size: int = 32
     eval_batch_size: Optional[int] = None
-    num_workers: int = 4
-    prefetch_size: int = 2
+    num_workers: int = 0
+    prefetch_size: int = 0
     shuffle_train: bool = True
     drop_last: bool = False
     pin_memory: bool = True

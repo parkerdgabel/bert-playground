@@ -243,8 +243,8 @@ def _get_default_callbacks(config: BaseTrainerConfig) -> List[Callback]:
     """Get default callbacks based on configuration."""
     callbacks = []
     
-    # Progress bar
-    callbacks.append(ProgressBar())
+    # Progress bar - disabled to avoid multiprocessing conflicts
+    # callbacks.append(ProgressBar())
     
     # Early stopping
     if config.training.early_stopping:

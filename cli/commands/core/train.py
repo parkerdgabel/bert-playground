@@ -65,8 +65,8 @@ def train_command(
     
     # Data loading options
     max_length: int = typer.Option(256, "--max-length", help="Maximum sequence length"),
-    workers: int = typer.Option(4, "--workers", help="Number of data loading workers"),
-    prefetch_size: int = typer.Option(4, "--prefetch", help="Data prefetch size"),
+    workers: int = typer.Option(0, "--workers", help="Number of data loading workers"),
+    prefetch_size: int = typer.Option(0, "--prefetch", help="Data prefetch size"),
     
     # Training control
     seed: int = typer.Option(42, "--seed", "-s", help="Random seed"),
@@ -170,8 +170,8 @@ def train_command(
         data_path=train_data,
         batch_size=batch_size_config,
         shuffle=True,
-        num_workers=config_overrides.get("num_workers", workers),
-        prefetch_size=config_overrides.get("prefetch_size", prefetch_size),
+        num_workers=workers,
+        prefetch_size=prefetch_size,
         tokenizer=tokenizer,
         split="train"
     )

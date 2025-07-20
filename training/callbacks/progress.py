@@ -3,7 +3,8 @@ Progress bar callback for training visualization.
 """
 
 from typing import Optional, Dict
-from tqdm.auto import tqdm
+import sys
+from tqdm import tqdm
 from loguru import logger
 
 from .base import Callback
@@ -71,6 +72,8 @@ class ProgressBar(Callback):
                 unit="epoch",
                 leave=self.leave_epoch,
                 position=0,
+                file=sys.stdout,
+                disable=False,
             )
             self.epoch_pbar.update(state.epoch)
     
@@ -91,6 +94,8 @@ class ProgressBar(Callback):
                 unit="batch",
                 leave=self.leave_batch,
                 position=1,
+                file=sys.stdout,
+                disable=False,
             )
     
     def on_batch_end(self, trainer: Trainer, state: TrainingState, loss: float) -> None:

@@ -14,7 +14,7 @@ from .core import (
     DatasetSpec,
     KaggleDataset,
 )
-from .loaders import MLXDataLoader, MLXLoaderConfig
+from .loaders.mlx_loader import MLXDataLoader, MLXLoaderConfig
 from .templates import TextTemplateEngine
 
 
@@ -236,9 +236,10 @@ def create_dataloader(
     data_path: Optional[Union[str, Path]] = None,
     batch_size: int = 32,
     shuffle: bool = True,
-    num_workers: int = 4,
-    prefetch_size: int = 4,
+    num_workers: int = 0,
+    prefetch_size: int = 0,
     tokenizer=None,
+    tokenizer_backend: str = "auto",
     max_length: int = 512,
     **kwargs
 ) -> MLXDataLoader:
@@ -258,6 +259,11 @@ def create_dataloader(
     Returns:
         DataLoader instance
     """
+    # Create MLX tokenizer if needed
+    if tokenizer is None and tokenizer_backend in ["mlx", "auto"]:
+        from .tokenizers import MLXTokenizer
+        tokenizer = MLXTokenizer(backend=tokenizer_backend, max_length=max_length)
+    
     # Create dataset if not provided
     if dataset is None:
         if data_path is None:
@@ -268,8 +274,6 @@ def create_dataloader(
     config = MLXLoaderConfig(
         batch_size=batch_size,
         shuffle=shuffle,
-        num_workers=num_workers,
-        prefetch_size=prefetch_size,
         max_length=max_length,
         **{k: v for k, v in kwargs.items() if hasattr(MLXLoaderConfig, k)}
     )

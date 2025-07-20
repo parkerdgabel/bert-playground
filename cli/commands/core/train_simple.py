@@ -130,6 +130,7 @@ def train_command(
             batch_size=trainer_config.data.batch_size,
             shuffle=True,
             tokenizer=tokenizer,
+            tokenizer_backend="auto",  # Will use MLX if available
             max_length=512,
             num_workers=trainer_config.data.num_workers,
             label_column="Survived" if "titanic" in str(train_data).lower() else None,
@@ -143,8 +144,9 @@ def train_command(
                 batch_size=trainer_config.data.eval_batch_size or trainer_config.data.batch_size * 2,
                 shuffle=False,
                 tokenizer=tokenizer,
+                tokenizer_backend="auto",  # Will use MLX if available
                 max_length=512,
-                num_workers=2,
+                num_workers=0,
                 label_column="Survived" if "titanic" in str(val_data).lower() else None,
             )
     

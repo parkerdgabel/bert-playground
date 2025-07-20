@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 import mlx.core as mx
 import mlx.nn as nn
 from loguru import logger
-from tqdm import tqdm
 
 from .protocols import (
     Model, DataLoader, Trainer, TrainerConfig,
@@ -399,7 +398,7 @@ class BaseTrainer:
         epoch_metrics = {}
         num_batches = 0
         
-        # Use manual progress tracking instead of tqdm to avoid multiprocessing conflicts
+        # Get total batches for progress tracking
         total_batches = len(dataloader)
         
         for batch_idx, batch in enumerate(dataloader):
@@ -471,9 +470,13 @@ class BaseTrainer:
         num_batches = 0
         
         # Evaluation loop
-        pbar = tqdm(dataloader, desc="Evaluating", leave=False, dynamic_ncols=True)
+        total_batches = len(dataloader)
         
-        for batch in pbar:
+        for batch_idx, batch in enumerate(dataloader):
+            # Progress tracking
+            if batch_idx % max(1, total_batches // 10) == 0 or batch_idx == 0:
+                progress_pct = (batch_idx / total_batches) * 100
+                print(f"Evaluating - Batch {batch_idx}/{total_batches} ({progress_pct:.1f}%)")
             # Evaluation step
             loss, metrics = self._eval_step(batch)
             
