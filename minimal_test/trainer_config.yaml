@@ -2,7 +2,7 @@ custom: {}
 data:
   augment_train: false
   augmentation_prob: 0.5
-  batch_size: 4
+  batch_size: 8
   drop_last: false
   eval_batch_size: 8
   num_workers: 2
@@ -12,13 +12,13 @@ data:
 environment:
   debug_mode: false
   device: gpu
-  experiment_name: simple_test
+  experiment_name: null
   gradient_checkpointing: false
   memory_efficient_attention: true
   mlflow_experiment_id: null
   mlflow_tags: {}
   mlflow_tracking_uri: null
-  output_dir: simple_test_output
+  output_dir: minimal_test
   profile: false
   run_name: null
   seed: 42

@@ -398,7 +398,8 @@ def clip_gradients(
     total_norm = 0.0
     for grad in flat_grads:
         if grad is not None:
-            total_norm += mx.sum(grad ** 2).item()
+            grad_norm_sq = mx.sum(grad ** 2)
+            total_norm += float(grad_norm_sq)
     total_norm = total_norm ** 0.5
     
     # Clip if needed

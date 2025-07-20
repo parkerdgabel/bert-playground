@@ -63,6 +63,7 @@ def test_simple_training():
     config.data.batch_size = 4
     config.training.logging_steps = 10
     config.environment.experiment_name = "simple_test"
+    config.training.report_to = []  # Disable MLflow to avoid hanging
     
     # Create tokenizer
     print("Loading tokenizer...")
@@ -100,8 +101,10 @@ def test_simple_training():
     
     # Create trainer
     trainer = BaseTrainer(model=model, config=config)
+    print("✅ Trainer created successfully!")
     
     # Run training
+    print("🚨 About to call trainer.train()")
     result = trainer.train(train_dataloader=train_loader)
     
     print(f"✅ Training completed successfully!")
