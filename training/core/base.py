@@ -21,6 +21,7 @@ from .optimization import (
     clip_gradients, compute_gradient_stats
 )
 from .state import TrainingStateManager, CheckpointManager
+from .memory_pool import create_memory_pools, ArrayPool, GradientPool
 
 
 class BaseTrainer:
@@ -68,7 +69,15 @@ class BaseTrainer:
         self.lr_scheduler = None
         self._lr_schedule_fn = None  # MLX native schedule function
         
-        self.gradient_accumulator = GradientAccumulator(self.config.training.gradient_accumulation_steps)
+        # Initialize memory pools if enabled
+        memory_pool_config = self.config.custom.get("memory_pool", {})
+        self.array_pool, self.gradient_pool = create_memory_pools(
+            self.model, memory_pool_config
+        )
+        
+        self.gradient_accumulator = GradientAccumulator(
+            self.config.training.gradient_accumulation_steps
+        )
         
         # Initialize state management
         self._state = TrainingState()  # Set the internal attribute directly

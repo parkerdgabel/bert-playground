@@ -80,3 +80,7 @@ callbacks:
     save_format: json
     plot_freq: epoch  # Only plot at epoch end
     aggregate_metrics: false
+
+# Memory optimization
+memory_pool:
+  enable_memory_pooling: true  # Reuse arrays to reduce allocations
