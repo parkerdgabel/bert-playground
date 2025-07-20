@@ -7,6 +7,7 @@ for improved performance on Apple Silicon.
 
 import mlx.core as mx
 import mlx.nn as nn
+from mlx.utils import tree_flatten, tree_map
 from functools import partial
 from typing import Dict, Tuple, List, Any, Optional
 from loguru import logger
@@ -185,8 +186,8 @@ def _clip_gradients_compiled(grads: Dict[str, Any], max_norm: float) -> Dict[str
     """
     # Compute global norm
     total_norm_sq = 0.0
-    # Use tree_flatten from nn module
-    for g in nn.tree_flatten(grads):
+    # Use tree_flatten from mlx.utils
+    for g in tree_flatten(grads):
         if g is not None:
             total_norm_sq = total_norm_sq + mx.sum(g * g)
     
@@ -196,7 +197,7 @@ def _clip_gradients_compiled(grads: Dict[str, Any], max_norm: float) -> Dict[str
     clip_factor = mx.minimum(1.0, max_norm / (total_norm + 1e-6))
     
     # Apply clipping
-    clipped_grads = nn.tree_map(
+    clipped_grads = tree_map(
         lambda g: g * clip_factor if g is not None else None,
         grads
     )
@@ -206,7 +207,7 @@ def _clip_gradients_compiled(grads: Dict[str, Any], max_norm: float) -> Dict[str
 
 def _scale_gradients(grads: Dict[str, Any], scale: float) -> Dict[str, Any]:
     """Scale gradients by a factor."""
-    return nn.tree_map(
+    return tree_map(
         lambda g: g * scale if g is not None else None,
         grads
     )
@@ -294,7 +295,7 @@ def should_compile_model(model: Model, config: Any) -> bool:
         return False
     
     # Check model size - very small models may not benefit
-    param_count = sum(p.size for p in nn.tree_flatten(model.parameters()) if p is not None)
+    param_count = sum(p.size for p in tree_flatten(model.parameters()) if p is not None)
     if param_count < 1000:  # Less than 1K parameters
         logger.info(f"Model too small for compilation benefits ({param_count} parameters)")
         return False
