@@ -74,8 +74,12 @@ class TestBaseTrainer:
         # Run internal training step
         loss, metrics = trainer._train_step(batch)
         
-        assert isinstance(loss, float)
-        assert loss > 0
+        # Loss can be MLX array or float
+        if hasattr(loss, 'item'):
+            loss_val = float(loss.item())
+        else:
+            loss_val = float(loss)
+        assert loss_val > 0
         assert isinstance(metrics, dict)
         assert "grad_norm" in metrics
         assert "learning_rate" in metrics
@@ -95,8 +99,12 @@ class TestBaseTrainer:
         # Run internal evaluation step
         loss, metrics = trainer._eval_step(batch)
         
-        assert isinstance(loss, float)
-        assert loss > 0
+        # Loss can be MLX array or float
+        if hasattr(loss, 'item'):
+            loss_val = float(loss.item())
+        else:
+            loss_val = float(loss)
+        assert loss_val > 0
         assert isinstance(metrics, dict)
     
     def test_gradient_accumulation(self, tmp_path):

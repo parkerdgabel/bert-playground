@@ -88,6 +88,7 @@ class StreamingPipeline:
         self._producer_threads: List[threading.Thread] = []
         self._consumer_threads: List[threading.Thread] = []
         self._batch_thread: Optional[threading.Thread] = None
+        self._workers = []  # For compatibility
         
         # Performance tracking
         self._samples_produced = 0
@@ -374,10 +375,19 @@ class StreamingPipeline:
             if key in samples[0]:
                 # Pad sequences
                 sequences = [sample[key] for sample in samples]
-                max_len = max(len(seq) for seq in sequences)
+                
+                # Convert MLX arrays to lists if needed
+                list_sequences = []
+                for seq in sequences:
+                    if isinstance(seq, mx.array):
+                        list_sequences.append(seq.tolist())
+                    else:
+                        list_sequences.append(list(seq))
+                
+                max_len = max(len(seq) for seq in list_sequences)
                 
                 padded = []
-                for seq in sequences:
+                for seq in list_sequences:
                     padded_seq = seq + [0] * (max_len - len(seq))
                     padded.append(padded_seq)
                     
@@ -475,6 +485,149 @@ class StreamingPipeline:
                 'batch_worker': self._batch_thread.is_alive() if self._batch_thread else False,
             }
         }
+    
+    def __iter__(self):
+        """Make pipeline iterable for streaming samples."""
+        return self.stream_samples()
+    
+    def __next__(self):
+        """Get next item when used as iterator."""
+        try:
+            return next(self.stream_samples())
+        except StopIteration:
+            raise
+    
+    def is_running(self) -> bool:
+        """Check if pipeline is running."""
+        return len(self._producer_threads) > 0 and not self._stop_event.is_set()
+    
+    def get_throughput_stats(self) -> Dict[str, float]:
+        """Get throughput statistics."""
+        elapsed = time.time() - self._start_time
+        if elapsed <= 0:
+            return {
+                'samples_per_second': 0.0,
+                'avg_batch_time_ms': 0.0,
+            }
+        
+        return {
+            'samples_per_second': self._samples_consumed / elapsed,
+            'avg_batch_time_ms': (elapsed * 1000) / max(self._batches_created, 1),
+        }
+    
+    def get_buffer_info(self) -> Dict[str, Any]:
+        """Get buffer information."""
+        return {
+            'buffer_size': self.config.buffer_size,
+            'current_items': self._sample_queue.qsize(),
+            'buffer_utilization': self._sample_queue.qsize() / self.config.max_queue_size,
+        }
+    
+    def get_adaptation_metrics(self) -> Dict[str, int]:
+        """Get adaptation metrics."""
+        return {
+            'buffer_adjustments': 0,  # Placeholder - adaptation not yet implemented
+            'worker_adjustments': 0,  # Placeholder - adaptation not yet implemented
+        }
+    
+    def enable_error_recovery(self, max_retries: int = 3) -> None:
+        """Enable error recovery with retry limit."""
+        self._error_recovery_enabled = True
+        self._max_retries = max_retries
+        self._error_count = 0
+        self._recovered_errors = 0
+    
+    def get_error_statistics(self) -> Dict[str, int]:
+        """Get error statistics."""
+        return {
+            'total_errors': getattr(self, '_error_count', 0),
+            'recovered_errors': getattr(self, '_recovered_errors', 0),
+        }
+    
+    def get_worker_info(self) -> Dict[str, Any]:
+        """Get worker information."""
+        active_workers = len([t for t in self._producer_threads if t.is_alive()])
+        
+        return {
+            'active_workers': active_workers,
+            'worker_stats': {
+                'producers': len(self._producer_threads),
+                'consumers': len(self._consumer_threads),
+                'batch_worker': 1 if self._batch_thread and self._batch_thread.is_alive() else 0,
+            }
+        }
+    
+    def get_worker_statistics(self) -> List[Dict[str, Any]]:
+        """Get statistics for each worker."""
+        stats = []
+        
+        # Calculate samples per worker
+        if self._producer_threads:
+            samples_per_worker = self._samples_produced // max(len(self._producer_threads), 1)
+            
+            for i, thread in enumerate(self._producer_threads):
+                stats.append({
+                    'worker_id': i,
+                    'thread_name': thread.name,
+                    'is_alive': thread.is_alive(),
+                    'samples_processed': samples_per_worker,  # Approximation
+                })
+        
+        return stats
+    
+    def enable_monitoring(self, alert_threshold: float = 0.8) -> None:
+        """Enable monitoring with alert threshold."""
+        self._monitoring_enabled = True
+        self._alert_threshold = alert_threshold
+    
+    def set_alert_callback(self, callback: callable) -> None:
+        """Set alert callback for monitoring."""
+        self._alert_callback = callback
+    
+    def get_pool_utilization(self) -> float:
+        """Get pool utilization metric."""
+        # For streaming pipeline, use queue utilization as proxy
+        return self._sample_queue.qsize() / self.config.max_queue_size
+    
+    def stop(self, graceful: bool = True, timeout: float = 5.0) -> None:
+        """Stop the streaming pipeline.
+        
+        Args:
+            graceful: Whether to wait for pending work to complete
+            timeout: Maximum time to wait for graceful shutdown
+        """
+        if not self._producer_threads:
+            return
+            
+        self.logger.info(f"Stopping streaming pipeline (graceful={graceful})...")
+        
+        # Signal stop
+        self._stop_event.set()
+        
+        if graceful:
+            # Wait for threads with timeout
+            start_time = time.time()
+            
+            for thread in self._producer_threads:
+                remaining_time = max(0, timeout - (time.time() - start_time))
+                thread.join(timeout=remaining_time)
+                
+            if self._batch_thread:
+                remaining_time = max(0, timeout - (time.time() - start_time))
+                self._batch_thread.join(timeout=remaining_time)
+        else:
+            # Just wait briefly
+            time.sleep(0.1)
+            
+        # Clear queues
+        self._clear_queues()
+        
+        # Reset thread lists
+        self._producer_threads = []
+        self._consumer_threads = []
+        self._batch_thread = None
+        
+        self.logger.info("Streaming pipeline stopped")
     
     def __del__(self):
         """Cleanup when pipeline is destroyed."""

@@ -176,7 +176,7 @@ class TestBertEmbeddings:
 class TestBertEmbeddingsIntegration:
     """Integration tests for BERT embeddings."""
     
-    def test_with_variable_length_batch(self, create_variable_length_batch):
+    def test_with_variable_length_batch(self):
         """Test embeddings with variable length sequences."""
         config = create_small_bert_config()
         embeddings = BertEmbeddings(config)

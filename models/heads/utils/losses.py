@@ -68,8 +68,13 @@ def cross_entropy_loss(
     if num_classes is None:
         num_classes = predictions.shape[-1]
 
-    # Apply softmax to get probabilities
-    log_probs = mx.log_softmax(predictions, axis=-1)
+    # Apply log_softmax manually (MLX doesn't have log_softmax)
+    # log_softmax(x) = x - log(sum(exp(x)))
+    max_vals = mx.max(predictions, axis=-1, keepdims=True)
+    shifted = predictions - max_vals  # For numerical stability
+    exp_shifted = mx.exp(shifted)
+    sum_exp = mx.sum(exp_shifted, axis=-1, keepdims=True)
+    log_probs = shifted - mx.log(sum_exp)
 
     # Convert targets to one-hot if needed
     if targets.ndim == 1:

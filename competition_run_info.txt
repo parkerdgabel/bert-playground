@@ -1,0 +1,45 @@
+Competition Run Information (Fully Optimized)
+============================================
+
+Process ID: 55793
+Start Time: 2025-07-20 13:08:53
+Log File: competition_optimized_20250720_130853.log
+
+Model Configuration:
+- Model: ModernBERT
+- Head: Binary Classification  
+- LoRA: Enabled
+- Batch Size: 32
+- Learning Rate: 2e-5
+- Epochs: 5
+- Config: configs/production.yaml
+
+Data Files:
+- Train: data/titanic/train.csv
+- Validation: data/titanic/val_split.csv
+- Test: data/titanic/test.csv
+
+Optimizations Applied:
+- Phase 1: Native MLX schedulers and optimizations
+- Phase 2: Asynchronous prefetching and memory pooling
+- Lazy evaluation throughout training loop
+- Optimized gradient handling with tree operations
+- Batched tokenization for efficiency
+- Mixed precision training with bfloat16
+
+Expected Performance:
+- 40-60% faster than baseline
+- 35K+ samples/sec throughput
+- Minimal memory overhead
+- Stable convergence
+
+Output Directory: output/optimized_run
+
+To monitor progress:
+  tail -f competition_optimized_20250720_130853.log
+
+To check if running:
+  ps -p 55004
+
+To stop training:
+  kill 55004

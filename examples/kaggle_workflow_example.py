@@ -50,14 +50,14 @@ def main():
     # Step 1: List available competitions
     console.print("\n[bold yellow]Step 1: Browse Kaggle Competitions[/bold yellow]")
     run_command(
-        "uv run python mlx_bert_cli.py kaggle-competitions --category tabular --limit 10",
+        "uv run python bert_cli.py kaggle-competitions --category tabular --limit 10",
         "List tabular competitions"
     )
     
     # Step 2: Download competition data
     console.print("\n[bold yellow]Step 2: Download Competition Data[/bold yellow]")
     if run_command(
-        "uv run python mlx_bert_cli.py kaggle-download titanic --output data/titanic_demo",
+        "uv run python bert_cli.py kaggle-download titanic --output data/titanic_demo",
         "Download Titanic competition data"
     ):
         console.print("[green]Data downloaded successfully![/green]")
@@ -65,7 +65,7 @@ def main():
     # Step 3: Quick training run
     console.print("\n[bold yellow]Step 3: Train Model with MLflow Tracking[/bold yellow]")
     run_command(
-        """uv run python mlx_bert_cli.py train \\
+        """uv run python bert_cli.py train \\
         --train data/titanic_demo/train.csv \\
         --val data/titanic_demo/train.csv \\
         --epochs 1 \\
@@ -87,7 +87,7 @@ def main():
             
             if checkpoint.exists():
                 run_command(
-                    f"""uv run python mlx_bert_cli.py predict \\
+                    f"""uv run python bert_cli.py predict \\
                     --test data/titanic_demo/test.csv \\
                     --checkpoint {checkpoint} \\
                     --output submissions/titanic_demo.csv""",
@@ -99,7 +99,7 @@ def main():
     console.print(Panel(
         "[yellow]Note: Actual submission requires accepted competition rules[/yellow]\n"
         "Example command:\n"
-        "[cyan]uv run python mlx_bert_cli.py kaggle-submit titanic submissions/titanic_demo.csv \\[/cyan]\n"
+        "[cyan]uv run python bert_cli.py kaggle-submit titanic submissions/titanic_demo.csv \\[/cyan]\n"
         "[cyan]    --message \"MLX-BERT baseline model\" \\[/cyan]\n"
         "[cyan]    --checkpoint output/run_001/best_model_accuracy[/cyan]",
         title="Submission Example"
@@ -108,21 +108,21 @@ def main():
     # Step 6: View leaderboard
     console.print("\n[bold yellow]Step 6: View Competition Leaderboard[/bold yellow]")
     run_command(
-        "uv run python mlx_bert_cli.py kaggle-leaderboard titanic --top 20",
+        "uv run python bert_cli.py kaggle-leaderboard titanic --top 20",
         "View top 20 leaderboard entries"
     )
     
     # Step 7: Check submission history
     console.print("\n[bold yellow]Step 7: View Submission History[/bold yellow]")
     run_command(
-        "uv run python mlx_bert_cli.py kaggle-history titanic --limit 5",
+        "uv run python bert_cli.py kaggle-history titanic --limit 5",
         "View recent submissions"
     )
     
     # Step 8: Search for datasets
     console.print("\n[bold yellow]Step 8: Explore Kaggle Datasets[/bold yellow]")
     run_command(
-        "uv run python mlx_bert_cli.py kaggle-datasets --search \"text classification\" --limit 5",
+        "uv run python bert_cli.py kaggle-datasets --search \"text classification\" --limit 5",
         "Search for text classification datasets"
     )
     

@@ -94,7 +94,7 @@ class TestBasicTraining:
             # Should stop early
             assert result.early_stopped
             assert result.total_epochs < 10
-            assert "early stopping" in result.stop_reason.lower()
+            assert "early_stopping" in result.stop_reason.lower()
             
     def test_checkpoint_saving(self):
         """Test checkpoint saving during training."""

@@ -57,7 +57,7 @@ def callback(
         os.environ["BERT_CLI_QUIET"] = "1"
 
 # Core commands at root level for convenience
-from .commands.core.train_simple import train_command
+from .commands.core.train import train_command
 from .commands.core.predict import predict_command
 from .commands.core.benchmark import benchmark_command
 from .commands.core.info import info_command

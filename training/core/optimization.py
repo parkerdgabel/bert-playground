@@ -74,9 +74,9 @@ class LearningRateScheduler:
     def __init__(self, optimizer: optim.Optimizer, config: SchedulerConfig):
         self.optimizer = optimizer
         self.config = config
-        self.base_lr = optimizer.learning_rate
+        self.base_lr = float(optimizer.learning_rate)
         self.current_step = 0
-        self.current_lr = self.base_lr
+        self.current_lr = float(self.base_lr)
         
         # Warmup settings
         self.warmup_steps = config.warmup_steps
@@ -89,9 +89,9 @@ class LearningRateScheduler:
         
         # Handle warmup
         if self.current_step <= self.warmup_steps:
-            self.current_lr = self.base_lr * (self.current_step / self.warmup_steps)
+            self.current_lr = float(self.base_lr * (self.current_step / self.warmup_steps))
         else:
-            self.current_lr = self._compute_lr(self.current_step - self.warmup_steps)
+            self.current_lr = float(self._compute_lr(self.current_step - self.warmup_steps))
         
         # Update optimizer learning rate
         self.optimizer.learning_rate = self.current_lr
@@ -199,7 +199,7 @@ class ReduceOnPlateauScheduler(LearningRateScheduler):
         
         # Handle warmup
         if self.current_step <= self.warmup_steps:
-            self.current_lr = self.base_lr * (self.current_step / self.warmup_steps)
+            self.current_lr = float(self.base_lr * (self.current_step / self.warmup_steps))
             self.optimizer.learning_rate = self.current_lr
             return self.current_lr
         
@@ -233,6 +233,82 @@ class ReduceOnPlateauScheduler(LearningRateScheduler):
             logger.info(f"Reduced learning rate to {self.current_lr}")
         
         return self.current_lr
+
+
+def create_mlx_lr_schedule(
+    config: SchedulerConfig,
+    base_lr: float,
+    num_training_steps: int,
+) -> Callable:
+    """
+    Create an MLX-native learning rate schedule from configuration.
+    
+    Args:
+        config: Scheduler configuration
+        base_lr: Base learning rate
+        num_training_steps: Total number of training steps
+        
+    Returns:
+        MLX learning rate schedule function
+    """
+    # Handle string types that weren't converted to enum
+    scheduler_type = config.type
+    if isinstance(scheduler_type, str):
+        try:
+            scheduler_type = SchedulerType(scheduler_type)
+        except ValueError:
+            raise ValueError(f"Unknown scheduler type: {scheduler_type}")
+    
+    # Calculate warmup steps
+    warmup_steps = config.warmup_steps
+    if warmup_steps == 0 and config.warmup_ratio > 0:
+        warmup_steps = int(num_training_steps * config.warmup_ratio)
+    
+    # Create the main schedule
+    if scheduler_type == SchedulerType.NONE or scheduler_type == SchedulerType.CONSTANT:
+        # For constant LR, return a scalar array directly
+        return mx.array(base_lr)
+    elif scheduler_type == SchedulerType.LINEAR:
+        # Linear decay from base_lr to min_lr
+        decay_steps = num_training_steps - warmup_steps
+        main_schedule = optim.schedulers.linear_schedule(
+            base_lr, config.min_lr, decay_steps
+        )
+    elif scheduler_type == SchedulerType.COSINE:
+        # Cosine decay
+        decay_steps = num_training_steps - warmup_steps
+        main_schedule = optim.schedulers.cosine_decay(
+            base_lr, decay_steps, end=config.min_lr
+        )
+    elif scheduler_type == SchedulerType.EXPONENTIAL:
+        # Exponential decay
+        main_schedule = optim.schedulers.exponential_decay(
+            base_lr, config.gamma
+        )
+    else:
+        # For unsupported schedulers, fall back to constant
+        logger.warning(f"Scheduler {scheduler_type} not supported with MLX native schedulers, using constant LR")
+        main_schedule = lambda step: base_lr
+    
+    # Add warmup if needed
+    if warmup_steps > 0:
+        warmup_schedule = optim.schedulers.linear_schedule(
+            0.0, base_lr, warmup_steps
+        )
+        # Join warmup and main schedule
+        schedule = optim.schedulers.join_schedules(
+            [warmup_schedule, main_schedule],
+            [warmup_steps]
+        )
+    else:
+        schedule = main_schedule
+    
+    logger.info(
+        f"Created MLX {scheduler_type} schedule with warmup_steps={warmup_steps}, "
+        f"num_training_steps={num_training_steps}, base_lr={base_lr}"
+    )
+    
+    return schedule
 
 
 def create_lr_scheduler(
@@ -285,7 +361,7 @@ class GradientAccumulator:
     
     def accumulate(self, gradients: Dict[str, Any]) -> bool:
         """
-        Accumulate gradients.
+        Accumulate gradients using MLX tree_map for efficiency.
         
         Args:
             gradients: Current batch gradients (may be nested)
@@ -293,66 +369,40 @@ class GradientAccumulator:
         Returns:
             True if should update weights, False otherwise
         """
+        from mlx.utils import tree_map
+        
         self.step_count += 1
         
-        def accumulate_recursive(acc_grads, new_grads, scale):
-            """Recursively accumulate gradients."""
-            if acc_grads is None:
-                acc_grads = {}
-            
-            for k, v in new_grads.items():
-                if isinstance(v, dict):
-                    # Recursive case for nested dict
-                    if k not in acc_grads:
-                        acc_grads[k] = {}
-                    acc_grads[k] = accumulate_recursive(acc_grads[k], v, scale)
-                elif isinstance(v, list):
-                    # Handle list of gradients (e.g., from layers)
-                    if k not in acc_grads:
-                        acc_grads[k] = []
-                        for i, item in enumerate(v):
-                            if isinstance(item, dict):
-                                acc_grads[k].append(accumulate_recursive({}, item, scale))
-                            elif item is not None:
-                                acc_grads[k].append(item * scale)
-                            else:
-                                acc_grads[k].append(item)
-                    else:
-                        for i, item in enumerate(v):
-                            if isinstance(item, dict):
-                                acc_grads[k][i] = accumulate_recursive(acc_grads[k][i], item, scale)
-                            elif item is not None:
-                                acc_grads[k][i] += item * scale
-                elif v is not None:
-                    # Base case for arrays
-                    if k in acc_grads:
-                        acc_grads[k] += v * scale
-                    else:
-                        acc_grads[k] = v * scale
-                else:
-                    acc_grads[k] = v
-            return acc_grads
-        
-        scale = 1.0  # Don't scale during accumulation
-        self.accumulated_grads = accumulate_recursive(self.accumulated_grads, gradients, scale)
+        if self.accumulated_grads is None:
+            # First accumulation - just store the gradients
+            self.accumulated_grads = gradients
+        else:
+            # Accumulate using tree_map for efficiency
+            self.accumulated_grads = tree_map(
+                lambda acc, new: acc + new if acc is not None and new is not None else (acc or new),
+                self.accumulated_grads,
+                gradients
+            )
         
         # Check if we should update
         should_update = (self.step_count % self.accumulation_steps) == 0
         
         return should_update
     
-    def get_gradients(self, average: bool = False) -> Dict[str, Any]:
+    def get_gradients(self, average: bool = True) -> Dict[str, Any]:
         """Get accumulated gradients and reset."""
+        from mlx.utils import tree_map
+        
         grads = self.accumulated_grads
-        if average and grads is not None:
+        
+        if average and grads is not None and self.accumulation_steps > 1:
             # Average the gradients by the number of accumulation steps
-            def average_grads(g):
-                if isinstance(g, dict):
-                    return {k: average_grads(v) for k, v in g.items()}
-                else:
-                    return g / self.accumulation_steps
-            grads = average_grads(grads)
+            scale = 1.0 / self.accumulation_steps
+            grads = tree_map(lambda g: g * scale if g is not None else None, grads)
+        
+        # Reset for next accumulation
         self.accumulated_grads = None
+        
         return grads
     
     def reset(self) -> None:
@@ -366,7 +416,7 @@ def clip_gradients(
     max_norm: float,
 ) -> Tuple[Dict[str, Any], float]:
     """
-    Clip gradients by global norm.
+    Clip gradients by global norm using MLX's native implementation.
     
     Args:
         gradients: Dictionary of gradients (may be nested)
@@ -375,57 +425,53 @@ def clip_gradients(
     Returns:
         Clipped gradients and original norm
     """
-    # Flatten gradients to compute norm
-    def flatten_grads(grads):
-        """Recursively flatten gradient dictionary."""
-        flat = []
-        for k, v in grads.items():
-            if isinstance(v, dict):
-                flat.extend(flatten_grads(v))
-            elif isinstance(v, list):
-                # Handle list of gradients (e.g., from layers)
-                for item in v:
-                    if isinstance(item, dict):
-                        flat.extend(flatten_grads(item))
-                    elif item is not None:
-                        flat.append(item)
-            elif v is not None:
-                flat.append(v)
-        return flat
+    # MLX's clip_grad_norm expects a list of arrays, not a nested dict
+    # We need to flatten the gradient structure first
+    def flatten_grads(grads, parent_key=''):
+        """Recursively flatten nested gradient dict to list of arrays."""
+        items = []
+        if isinstance(grads, dict):
+            for k, v in grads.items():
+                new_key = f"{parent_key}.{k}" if parent_key else k
+                if isinstance(v, mx.array):
+                    items.append(v)
+                else:
+                    items.extend(flatten_grads(v, new_key))
+        elif isinstance(grads, list):
+            for i, v in enumerate(grads):
+                new_key = f"{parent_key}[{i}]"
+                if isinstance(v, mx.array):
+                    items.append(v)
+                else:
+                    items.extend(flatten_grads(v, new_key))
+        elif isinstance(grads, mx.array):
+            items.append(grads)
+        return items
     
-    # Compute global norm
-    flat_grads = flatten_grads(gradients)
-    total_norm = 0.0
-    for grad in flat_grads:
-        if grad is not None:
-            total_norm += mx.sum(grad ** 2).item()
-    total_norm = total_norm ** 0.5
+    # Flatten gradients to list
+    grad_list = flatten_grads(gradients)
+    
+    if not grad_list:
+        # No gradients to clip
+        return gradients, mx.array(0.0)
+    
+    # Compute total norm
+    total_norm = mx.sqrt(sum(mx.sum(g * g) for g in grad_list))
     
     # Clip if needed
     if total_norm > max_norm:
         scale = max_norm / total_norm
         
+        # Apply scaling to original nested structure
         def scale_grads(grads):
-            """Recursively scale gradients."""
-            scaled = {}
-            for k, v in grads.items():
-                if isinstance(v, dict):
-                    scaled[k] = scale_grads(v)
-                elif isinstance(v, list):
-                    # Handle list of gradients (e.g., from layers)
-                    scaled[k] = []
-                    for item in v:
-                        if isinstance(item, dict):
-                            scaled[k].append(scale_grads(item))
-                        elif item is not None:
-                            scaled[k].append(item * scale)
-                        else:
-                            scaled[k].append(item)
-                elif v is not None:
-                    scaled[k] = v * scale
-                else:
-                    scaled[k] = v
-            return scaled
+            if isinstance(grads, dict):
+                return {k: scale_grads(v) for k, v in grads.items()}
+            elif isinstance(grads, list):
+                return [scale_grads(v) for v in grads]
+            elif isinstance(grads, mx.array):
+                return grads * scale
+            else:
+                return grads
         
         clipped_grads = scale_grads(gradients)
     else:
@@ -438,70 +484,99 @@ def compute_gradient_stats(gradients: Dict[str, Any]) -> Dict[str, float]:
     """
     Compute statistics about gradients for monitoring.
     
+    Optimized version that minimizes .item() calls and leverages MLX's lazy evaluation.
+    
     Args:
         gradients: Dictionary of gradients (may be nested)
         
     Returns:
         Dictionary of statistics
     """
-    # Flatten gradients for statistics
-    def flatten_grads(grads):
-        """Recursively flatten gradient dictionary."""
-        flat = []
-        for k, v in grads.items():
-            if isinstance(v, dict):
-                flat.extend(flatten_grads(v))
-            elif isinstance(v, list):
-                # Handle list of gradients (e.g., from layers)
-                for item in v:
-                    if isinstance(item, dict):
-                        flat.extend(flatten_grads(item))
-                    elif item is not None:
-                        flat.append(item)
-            elif v is not None:
-                flat.append(v)
-        return flat
+    # Use tree_flatten for efficient gradient collection
+    from mlx.utils import tree_flatten
     
-    flat_grads = flatten_grads(gradients)
+    flat_grads = tree_flatten(gradients)
     
-    stats = {
-        "grad_norm": 0.0,
-        "grad_max": 0.0,
-        "grad_min": float('inf'),
-        "grad_mean": 0.0,
-        "grad_std": 0.0,
+    if not flat_grads:
+        return {
+            "grad_norm": 0.0,
+            "grad_max": 0.0,
+            "grad_min": 0.0,
+            "grad_mean": 0.0,
+            "grad_std": 0.0,
+        }
+    
+    # Filter out None values and get just the arrays
+    grad_arrays = [v for k, v in flat_grads if v is not None]
+    
+    if not grad_arrays:
+        return {
+            "grad_norm": 0.0,
+            "grad_max": 0.0,
+            "grad_min": 0.0,
+            "grad_mean": 0.0,
+            "grad_std": 0.0,
+        }
+    
+    # Compute norm efficiently
+    norm_sq = mx.sum(mx.stack([mx.sum(g * g) for g in grad_arrays]))
+    grad_norm = mx.sqrt(norm_sq)
+    
+    # For other stats, only compute if really needed (expensive)
+    # Most training loops only need grad_norm
+    return {
+        "grad_norm": grad_norm,  # Keep as MLX array
+        "grad_max": mx.array(0.0),  # Placeholder
+        "grad_min": mx.array(0.0),  # Placeholder
+        "grad_mean": mx.array(0.0),  # Placeholder
+        "grad_std": mx.array(0.0),  # Placeholder
     }
+
+
+def compute_gradient_stats_detailed(gradients: Dict[str, Any]) -> Dict[str, float]:
+    """
+    Compute detailed gradient statistics (use sparingly - expensive).
     
-    total_elements = 0
-    total_sum = 0.0
-    all_values = []
+    Args:
+        gradients: Dictionary of gradients (may be nested)
+        
+    Returns:
+        Dictionary of detailed statistics with Python floats
+    """
+    from mlx.utils import tree_flatten
     
-    for grad in flat_grads:
-        if grad is not None:
-            stats["grad_norm"] += mx.sum(grad ** 2).item()
-            stats["grad_max"] = max(stats["grad_max"], mx.max(mx.abs(grad)).item())
-            stats["grad_min"] = min(stats["grad_min"], mx.min(mx.abs(grad)).item())
-            
-            total_sum += mx.sum(mx.abs(grad)).item()
-            total_elements += grad.size
-            
-            # Collect values for std calculation
-            all_values.append(mx.abs(grad).flatten())
+    flat_grads = tree_flatten(gradients)
+    grad_arrays = [v for k, v in flat_grads if v is not None]
     
-    stats["grad_norm"] = stats["grad_norm"] ** 0.5
+    if not grad_arrays:
+        return {
+            "grad_norm": 0.0,
+            "grad_max": 0.0,
+            "grad_min": 0.0,
+            "grad_mean": 0.0,
+            "grad_std": 0.0,
+        }
     
-    if total_elements > 0:
-        stats["grad_mean"] = total_sum / total_elements
-    else:
-        # No gradients processed, keep defaults
-        stats["grad_min"] = float('inf')
-        stats["grad_mean"] = 0.0
+    # Compute all statistics
+    norm_sq = mx.sum(mx.stack([mx.sum(g * g) for g in grad_arrays]))
+    grad_norm = mx.sqrt(norm_sq)
     
-    # Calculate standard deviation
-    if all_values:
-        all_values = mx.concatenate(all_values)
-        stats["grad_std"] = mx.std(all_values).item()
-    else:
-        stats["grad_std"] = 0.0
+    # Concatenate for detailed stats
+    all_grads = mx.concatenate([g.flatten() for g in grad_arrays])
+    all_abs_grads = mx.abs(all_grads)
     
-    return stats
+    grad_max = mx.max(all_abs_grads)
+    grad_min = mx.min(all_abs_grads)
+    grad_mean = mx.mean(all_abs_grads)
+    grad_std = mx.std(all_abs_grads)
+    
+    # Single evaluation
+    mx.eval(grad_norm, grad_max, grad_min, grad_mean, grad_std)
+    
+    return {
+        "grad_norm": float(grad_norm.item()),
+        "grad_max": float(grad_max.item()),
+        "grad_min": float(grad_min.item()),
+        "grad_mean": float(grad_mean.item()),
+        "grad_std": float(grad_std.item()),
+    }

@@ -20,138 +20,87 @@ This project implements ModernBERT using Apple's MLX framework for efficient tra
 
 ### Core CLI Commands
 
-The CLI is now organized into logical command groups. You can access commands directly or through their groups:
-
-#### Direct Commands (shortcuts for common operations)
-
 ```bash
 # Install dependencies
 uv sync
 
-# Quick training test
-uv run python mlx_bert_cli.py train \
+# Quick training test (small batch size for testing)
+uv run python bert_cli.py train \
     --train data/titanic/train.csv \
     --val data/titanic/val.csv \
     --epochs 1 \
-    --batch-size 32
+    --batch-size 4 \
+    --logging-steps 1
 
-# Standard production training
-uv run python mlx_bert_cli.py train \
+# Standard training (recommended batch size for performance)
+uv run python bert_cli.py train \
+    --train data/titanic/train.csv \
+    --val data/titanic/val.csv \
+    --epochs 5 \
+    --batch-size 32 \
+    --lr 2e-5
+
+# Production training with config file
+uv run python bert_cli.py train \
     --train data/titanic/train.csv \
     --val data/titanic/val.csv \
     --config configs/production.json
 
-# Training with MLX embeddings (faster on Apple Silicon)
-uv run python mlx_bert_cli.py train \
+# Training with pre-tokenization (recommended for performance)
+uv run python bert_cli.py train \
     --train data/titanic/train.csv \
     --val data/titanic/val.csv \
-    --use-mlx-embeddings \
-    --tokenizer-backend mlx \
-    --model mlx-community/answerdotai-ModernBERT-base-4bit
+    --use-pretokenized \
+    --batch-size 64
 
 # Generate predictions
-uv run python mlx_bert_cli.py predict \
+uv run python bert_cli.py predict \
     --test data/titanic/test.csv \
     --checkpoint output/run_*/best_model_accuracy \
     --output submission.csv
 
 # Benchmark performance
-uv run python mlx_bert_cli.py benchmark \
+uv run python bert_cli.py benchmark \
     --batch-size 64 \
     --seq-length 256 \
     --steps 20
 
 # System info
-uv run python -m cli info
+uv run python bert_cli.py info
 ```
 
-#### Command Groups
+### Advanced Commands (Future Implementation)
 
-##### Kaggle Commands (`bert kaggle`)
-```bash
-# List competitions
-uv run python -m cli kaggle competitions --category tabular
+The following command groups are planned for future implementation:
 
-# Download competition data
-uv run python -m cli kaggle download titanic --output data/titanic
+- **Kaggle Integration**: Competition downloads, submissions, leaderboard tracking
+- **MLflow Management**: Experiment tracking, model registry, metrics visualization
+- **Model Serving**: REST API endpoints, ONNX export, model inspection
+- **AutoML Features**: Hyperparameter tuning, architecture search
 
-# Submit predictions
-uv run python -m cli kaggle submit titanic submission.csv
-
-# Auto-generate and submit
-uv run python -m cli kaggle auto-submit titanic output/best_model data/test.csv
-
-# View leaderboard
-uv run python -m cli kaggle leaderboard titanic --top 20
-
-# Check submission history
-uv run python -m cli kaggle history titanic --limit 10
-```
-
-##### MLflow Commands (`bert mlflow`)
-```bash
-# Start MLflow server
-uv run python -m cli mlflow server --port 5000
-
-# View experiments
-uv run python -m cli mlflow experiments list
-
-# Compare runs
-uv run python -m cli mlflow runs compare exp_001 exp_002
-
-# Launch UI
-uv run python -m cli mlflow ui
-
-# Health check
-uv run python -m cli mlflow health
-```
-
-##### Model Commands (`bert model`)
-```bash
-# Serve model via REST API
-uv run python -m cli model serve output/best_model --port 8080
-
-# Export to ONNX
-uv run python -m cli model export output/best_model --format onnx
-
-# Evaluate on test set
-uv run python -m cli model evaluate output/best_model data/test.csv
-
-# Inspect architecture
-uv run python -m cli model inspect output/best_model
-
-# List available models
-uv run python -m cli model list --registry mlflow
-```
-
-### Production Commands
+### Training Tips
 
 ```bash
-# Production training with all optimizations
-uv run python mlx_bert_cli.py train \
+# Background training with logging
+nohup uv run python bert_cli.py train \
     --train data/titanic/train.csv \
     --val data/titanic/val.csv \
-    --batch-size 64 \
+    --batch-size 32 \
+    --epochs 5 \
+    > training.log 2>&1 &
+
+# Monitor training progress
+tail -f training.log
+
+# Training with optimal settings for M1/M2 Mac
+uv run python bert_cli.py train \
+    --train data/titanic/train.csv \
+    --val data/titanic/val.csv \
+    --batch-size 32 \
     --lr 2e-5 \
     --epochs 5 \
-    --workers 8 \
-    --augment \
-    --experiment titanic_prod
-
-# Training with best model only (saves storage)
-uv run python mlx_bert_cli.py train \
-    --train data/titanic/train.csv \
-    --val data/titanic/val.csv \
-    --config configs/best_model_only.yaml
-
-# Quick test run
-uv run python run_production.py --config quick
-
-# Standard training (recommended)
-uv run python run_production.py --config standard --enable-mlflow --predict
-
-# Thorough training
-uv run python run_production.py --config thorough --enable-mlflow --predict
+    --num-workers 4 \
+    --prefetch-size 4
 ```
 
 ## Project Structure
@@ -232,6 +181,10 @@ bert-playground/
 3. **Workers**: Use 4-8 workers for data loading
 4. **Gradient Accumulation**: Use when memory is limited
 5. **Mixed Precision**: MLX handles this automatically
+6. **MLX Compilation**: Enable with `use_compilation: true` in config (default)
+   - Best speedup with larger models and batch sizes
+   - Test with `bert benchmark --test-compilation`
+   - Compilation automatically handles dropout and random state
 
 ## Checkpoint Management
 
@@ -255,7 +208,7 @@ checkpoint:
 **Usage:**
 ```bash
 # Use pre-configured best model only config
-uv run python mlx_bert_cli.py train \
+uv run python bert_cli.py train \
     --train data/titanic/train.csv \
     --val data/titanic/val.csv \
     --config configs/best_model_only.yaml
@@ -265,70 +218,94 @@ uv run python mlx_bert_cli.py train \
 
 ## Common Issues and Solutions
 
-### Issue: Slow Training
+### Issue: Training Appears to Hang
+**Symptom**: Training shows "Starting training..." but no progress updates
+**Solution**: This is usually due to loguru buffering. Training is running but output is buffered.
 ```bash
-# Use optimized settings
-uv run python mlx_bert_cli.py train \
-    --batch-size 64 \
-    --workers 8 \
-    --config configs/production.json
+# Monitor actual progress by checking output files
+ls -la output/run_*/
+# Or use logging-steps 1 to see frequent updates
+uv run python bert_cli.py train --logging-steps 1
+```
+
+### Issue: Slow Training with Small Batches
+**Symptom**: Very slow training with batch sizes < 16
+**Solution**: MLX performs better with larger batch sizes
+```bash
+# Use larger batch size (recommended: 32-64)
+uv run python bert_cli.py train --batch-size 32
+
+# If memory constrained, use gradient accumulation
+uv run python bert_cli.py train \
+    --batch-size 16 \
+    --grad-accum 2
 ```
 
 ### Issue: Out of Memory
 ```bash
-# Reduce batch size and use gradient accumulation
-uv run python mlx_bert_cli.py train \
-    --batch-size 16 \
+# Option 1: Reduce batch size
+uv run python bert_cli.py train --batch-size 16
+
+# Option 2: Use pre-tokenization to reduce memory
+uv run python bert_cli.py train --use-pretokenized
+
+# Option 3: Use gradient accumulation
+uv run python bert_cli.py train \
+    --batch-size 8 \
     --grad-accum 4
 ```
 
-### Issue: Poor Accuracy
+### Issue: Model Creation Errors
+**Symptom**: "Unknown model type" or "head_type must be provided"
+**Solution**: The CLI now uses modernbert_with_head model type
 ```bash
-# Enable augmentation and train longer
-uv run python mlx_bert_cli.py train \
-    --augment \
-    --epochs 10 \
-    --lr 1e-5
+# Correct usage (model type is handled internally)
+uv run python bert_cli.py train \
+    --train data/titanic/train.csv \
+    --val data/titanic/val.csv
 ```
 
-## MLX Embeddings Integration
+## Pre-tokenization Support
 
-The project now supports native MLX embeddings for improved performance on Apple Silicon:
+The project supports pre-tokenization for improved performance:
 
-### Using MLX Embeddings
+### Using Pre-tokenization
 
 ```bash
-# Train with MLX embeddings backend (4-bit quantized models)
-uv run python mlx_bert_cli.py train \
+# Train with pre-tokenized data (automatic caching)
+uv run python bert_cli.py train \
     --train data/titanic/train.csv \
     --val data/titanic/val.csv \
-    --use-mlx-embeddings \
-    --model mlx-community/answerdotai-ModernBERT-base-4bit
+    --use-pretokenized
+
+# Pre-tokenized data is cached in safetensors format at:
+# data/.tokenizer_cache/{dataset_hash}_{model_name}_{split}.safetensors
 ```
 
 ### Benefits
-- **Native Performance**: Optimized for Apple Silicon
-- **4-bit Quantization**: Reduced memory usage
-- **Faster Tokenization**: MLX-native text processing
-- **Backward Compatible**: Works with existing code
-
-### Migration Guide
-See `MLX_EMBEDDINGS_MIGRATION_GUIDE.md` for detailed migration instructions.
+- **Faster Loading**: Skip tokenization during training
+- **Reduced Memory**: Efficient safetensors format
+- **Automatic Caching**: Reuse tokenized data across runs
+- **Zero-Copy Operations**: Direct MLX array loading
 
 ## MLflow Integration
 
-### View Experiments
+### Enabling MLflow Tracking
 ```bash
-# Launch MLflow UI
-mlflow ui --backend-store-uri ./output/mlruns
+# Train with MLflow tracking
+uv run python bert_cli.py train \
+    --train data/titanic/train.csv \
+    --val data/titanic/val.csv \
+    --experiment titanic_experiment \
+    --mlflow
 
-# Or use the training script
-uv run python train_titanic_v2.py --launch_mlflow
+# View experiments
+mlflow ui --backend-store-uri ./output/mlruns
 ```
 
 ### Compare Runs
 - Navigate to http://localhost:5000
-- Select experiment "titanic_modernbert"
+- Select your experiment
 - Compare metrics across runs
 
 ## Development Workflow
@@ -336,19 +313,19 @@ uv run python train_titanic_v2.py --launch_mlflow
 1. **Testing Changes**
    ```bash
    # Quick test with minimal data
-   uv run python mlx_bert_cli.py train --epochs 1 --batch-size 8
+   uv run python bert_cli.py train --epochs 1 --batch-size 8
    ```
 
 2. **Benchmarking**
    ```bash
    # Test performance improvements
-   uv run python mlx_bert_cli.py benchmark --steps 50
+   uv run python bert_cli.py benchmark --steps 50
    ```
 
 3. **Production Training**
    ```bash
    # Use production config
-   uv run python mlx_bert_cli.py train --config configs/production.json
+   uv run python bert_cli.py train --config configs/production.json
    ```
 
 ## Model Variants
@@ -382,61 +359,7 @@ uv run python train_titanic_v2.py --launch_mlflow
 
 ### LoRA Configuration
 
-```bash
-# Train with LoRA adapter
-uv run python -m cli train \
-    --lora-preset balanced \
-    --lora-target "query,value" \
-    --lora-rank 8
-
-# Available presets:
-# - efficient (r=4): Minimal parameters
-# - balanced (r=8): Good trade-off
-# - expressive (r=16): Maximum flexibility
-# - qlora_memory (r=4, 4-bit): Extreme memory savings
-```
-
-### MLflow Integration
-All Kaggle submissions are automatically tracked in MLflow when active:
-- Submission scores logged as metrics
-- Submission files saved as artifacts
-- Competition metadata tracked as parameters
-
-## Advanced Training Features
-
-### Cross-Validation
-```bash
-# K-fold cross-validation
-uv run python -m cli train \
-    --cv-folds 5 \
-    --cv-strategy stratified \
-    --save-oof-predictions
-```
-
-### Ensemble Training
-```bash
-# Train ensemble of models
-uv run python -m cli train \
-    --ensemble-size 3 \
-    --ensemble-method voting \
-    --ensemble-weights "0.5,0.3,0.2"
-```
-
-### Test-Time Augmentation
-```bash
-# Generate predictions with TTA
-uv run python -m cli predict \
-    --tta-rounds 5 \
-    --tta-aggregate mean
-```
-
-### Pseudo-Labeling
-```bash
-# Semi-supervised learning
-uv run python -m cli train \
-    --pseudo-label-data data/unlabeled.csv \
-    --pseudo-label-threshold 0.95
-```
+LoRA (Low-Rank Adaptation) support is planned for efficient fine-tuning with reduced memory usage.
 
 ## Configuration Management
 
@@ -479,9 +402,11 @@ data:
 ## Performance Metrics
 
 Expected performance on M1/M2 Mac:
-- Batch size 32: ~1.5-2.0 seconds/step
-- Batch size 64: ~2.5-3.5 seconds/step
-- Throughput: 15-30 samples/second
+- Batch size 4: ~30-60 seconds/step (not recommended)
+- Batch size 16: ~5-10 seconds/step
+- Batch size 32: ~12-15 seconds/step (recommended)
+- Batch size 64: ~20-30 seconds/step
+- Optimal batch size: 32-64 for best performance/memory trade-off
 
 ## Future Improvements
 
@@ -496,18 +421,26 @@ Expected performance on M1/M2 Mac:
 Enable debug logging:
 ```bash
 export LOGURU_LEVEL=DEBUG
-uv run python mlx_bert_cli.py train --log-level DEBUG
+uv run python bert_cli.py train --log-level DEBUG
 ```
 
 Check MLX device:
 ```bash
-uv run python mlx_bert_cli.py info
+uv run python bert_cli.py info
 ```
 
 ## Important Notes
 
 - Always use `uv run` to execute Python scripts
-- MLX works best with batch sizes that are powers of 2
-- The model uses random initialization (pretrained weights not loaded)
-- Data augmentation significantly improves performance
+- MLX works best with batch sizes that are powers of 2 (16, 32, 64)
+- Training may appear to hang due to loguru buffering - use `--logging-steps 1` to see progress
+- Batch sizes < 16 will result in very slow training on MLX
+- The model uses random initialization (pretrained weights not loaded yet)
+- Pre-tokenization is recommended for better performance
 - MLflow tracking is optional but recommended for experiments
+
+## Development Best Practices
+
+- **Debug Scripts**: Always place temporary debug scripts in `/tmp` to keep the repository clean
+- **Clean Repository**: Strive to leave the repository in a clean, polished state after making changes
+- **Commit Hygiene**: Make focused commits with clear messages that explain the changes

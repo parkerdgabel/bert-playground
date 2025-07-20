@@ -158,85 +158,74 @@ class CheckpointManager:
         checkpoint_path = self.checkpoint_dir / name
         checkpoint_path.mkdir(exist_ok=True)
         
+        # Batch all checkpoint data for efficient saving
+        checkpoint_data = {}
+        
         # Save model weights using MLX tree_flatten
         model_path = checkpoint_path / "model.safetensors"
-        
-        # Use MLX's tree_flatten to flatten the model parameters
         flat_params = dict(tree_flatten(model.parameters()))
         save_file(flat_params, str(model_path))
         
-        # Save model config if available
+        # Prepare all JSON data first, then write in batch
+        json_files = {}
+        
+        # Model config
         if hasattr(model, "config") and model.config is not None:
-            config_path = checkpoint_path / "config.json"
             if hasattr(model.config, "to_dict"):
                 config_dict = model.config.to_dict()
             else:
                 config_dict = model.config.__dict__
-            with open(config_path, "w") as f:
-                json.dump(config_dict, f, indent=2)
+            json_files["config.json"] = config_dict
         
-        # Save optimizer state
+        # Optimizer state
         optimizer_path = checkpoint_path / "optimizer.safetensors"
         if hasattr(optimizer, "state") and optimizer.state:
-            # Use tree_flatten for optimizer state as well
             flat_state = dict(tree_flatten(optimizer.state))
             if flat_state:
                 save_file(flat_state, str(optimizer_path))
         
-        # Save optimizer config separately
-        optimizer_config_path = checkpoint_path / "optimizer_config.json"
-        optimizer_config = {
+        # Optimizer config
+        json_files["optimizer_config.json"] = {
             "learning_rate": float(optimizer.learning_rate),
             "type": optimizer.__class__.__name__,
         }
-        with open(optimizer_config_path, "w") as f:
-            json.dump(optimizer_config, f, indent=2)
         
-        # Save training state
-        state_path = checkpoint_path / "training_state.json"
+        # Training state - simplified serialization
+        state_dict = state.to_dict()
+        # Only convert MLX arrays when necessary
+        for key in ["train_loss", "val_loss", "best_val_loss", "best_val_metric"]:
+            if key in state_dict and hasattr(state_dict[key], 'item'):
+                state_dict[key] = float(state_dict[key].item())
+        json_files["training_state.json"] = state_dict
         
-        # Convert state to dict and ensure all values are JSON serializable
-        def make_json_serializable(obj):
-            """Convert MLX arrays and other non-serializable objects to JSON-serializable format."""
-            if isinstance(obj, mx.array):
-                return obj.item() if obj.size == 1 else obj.tolist()
-            elif isinstance(obj, dict):
-                return {k: make_json_serializable(v) for k, v in obj.items()}
-            elif isinstance(obj, list):
-                return [make_json_serializable(v) for v in obj]
-            elif hasattr(obj, 'item'):
-                return obj.item()
-            else:
-                return obj
+        # Metrics - convert only scalar values
+        metrics_dict = {}
+        for k, v in metrics.items():
+            if hasattr(v, 'item') and hasattr(v, 'size') and v.size == 1:
+                metrics_dict[k] = float(v.item())
+            elif isinstance(v, (int, float, str, bool)):
+                metrics_dict[k] = v
+        json_files["metrics.json"] = metrics_dict
         
-        state_dict = make_json_serializable(state.to_dict())
-        
-        with open(state_path, "w") as f:
-            json.dump(state_dict, f, indent=2)
-        
-        # Save metrics
-        metrics_path = checkpoint_path / "metrics.json"
-        metrics_dict = make_json_serializable(metrics)
-        with open(metrics_path, "w") as f:
-            json.dump(metrics_dict, f, indent=2)
-        
-        # Save checkpoint metadata
-        metadata = {
+        # Checkpoint metadata
+        json_files["metadata.json"] = {
             "name": name,
             "path": str(checkpoint_path),
             "step": state.global_step,
             "epoch": state.epoch,
-            "metrics": metrics,
+            "metrics": metrics_dict,  # Use converted metrics
             "is_best": is_best,
             "timestamp": datetime.now().isoformat(),
         }
         
-        metadata_path = checkpoint_path / "metadata.json"
-        with open(metadata_path, "w") as f:
-            json.dump(metadata, f, indent=2)
+        # Write all JSON files in batch
+        for filename, data in json_files.items():
+            filepath = checkpoint_path / filename
+            with open(filepath, "w") as f:
+                json.dump(data, f, separators=(',', ':'))  # Compact JSON
         
         # Update checkpoint tracking
-        self.checkpoint_metadata[name] = metadata
+        self.checkpoint_metadata[name] = json_files["metadata.json"]
         self._save_metadata()
         
         # Update best checkpoint if needed

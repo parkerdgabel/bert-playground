@@ -18,12 +18,15 @@ data:
   batch_size: 32
   eval_batch_size: 64
   num_workers: 8
-  prefetch_size: 4
+  prefetch_size: 2  # Number of batches to prefetch
   shuffle_train: true
   drop_last: false
   pin_memory: true
   augment_train: true
   augmentation_prob: 0.3
+  # MLX-specific optimizations
+  mlx_prefetch_size: 2  # Enable async prefetching
+  mlx_tokenizer_chunk_size: 100  # Process texts in chunks
 
 training:
   num_epochs: 10
@@ -33,7 +36,7 @@ training:
   eval_strategy: steps
   eval_steps: 500
   eval_delay: 0
-  logging_steps: 100
+  logging_steps: 50  # Reduced from 100 for better monitoring
   log_level: info
   report_to: ["mlflow"]
   save_strategy: best
@@ -60,3 +63,24 @@ environment:
   mlflow_tags:
     environment: production
     framework: mlx
+
+# Callback-specific optimizations
+callbacks:
+  lr_scheduler:
+    verbose: false  # Disable per-step logging
+    update_freq: step
+  progress_bar:
+    update_freq: 10  # Update every 10 batches instead of every batch
+    show_batch_progress: true
+    show_epoch_progress: true
+  mlflow:
+    log_every_n_steps: 50  # Log to MLflow every 50 steps
+    log_model_checkpoints: false  # Only log final/best model
+  metrics_logger:
+    save_format: json
+    plot_freq: epoch  # Only plot at epoch end
+    aggregate_metrics: false
+
+# Memory optimization
+memory_pool:
+  enable_memory_pooling: true  # Reuse arrays to reduce allocations

@@ -99,7 +99,7 @@ class MetricsLogger(Callback):
             "step": state.global_step,
             "epoch": state.epoch,
             "loss": loss,
-            "learning_rate": trainer.optimizer.learning_rate,
+            "learning_rate": float(trainer.optimizer.learning_rate),
             "batch_time": batch_time if self.last_batch_time else 0,
         }
         
@@ -187,8 +187,10 @@ class MetricsLogger(Callback):
         
         # Save summary
         summary_path = self.log_dir / "training_summary.json"
+        # Convert to JSON-serializable format
+        serializable_summary = self._make_json_serializable(summary)
         with open(summary_path, "w") as f:
-            json.dump(summary, f, indent=2)
+            json.dump(serializable_summary, f, indent=2)
         
         # Final save
         self._save_metrics()
@@ -199,6 +201,58 @@ class MetricsLogger(Callback):
         
         logger.info(f"MetricsLogger: saved all metrics to {self.log_dir}")
     
+    def _make_json_serializable(self, obj):
+        """Convert MLX arrays and other non-serializable objects to JSON-serializable format."""
+        import mlx.core as mx
+        import numpy as np
+        
+        # Check if it's an MLX array directly
+        if isinstance(obj, mx.array):
+            try:
+                return obj.item() if obj.size == 1 else obj.tolist()
+            except:
+                return float(obj)
+        # Check if it's a numpy array
+        elif isinstance(obj, np.ndarray):
+            try:
+                return obj.item() if obj.size == 1 else obj.tolist()
+            except:
+                return float(obj)
+        # Check if it's an MLX array by module
+        elif hasattr(obj, '__module__') and obj.__module__ and 'mlx' in obj.__module__:
+            if hasattr(obj, 'item') and hasattr(obj, 'size'):
+                try:
+                    return obj.item() if obj.size == 1 else obj.tolist()
+                except:
+                    return float(obj)
+            else:
+                # For other MLX objects, convert to string
+                return str(obj)
+        elif hasattr(obj, 'item') and hasattr(obj, 'size'):
+            # Handle numpy arrays or similar
+            try:
+                return obj.item() if obj.size == 1 else obj.tolist()
+            except:
+                return float(obj)
+        elif isinstance(obj, dict):
+            return {k: self._make_json_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._make_json_serializable(v) for v in obj]
+        elif isinstance(obj, tuple):
+            return [self._make_json_serializable(v) for v in obj]
+        elif isinstance(obj, (np.integer, np.floating)):
+            # Handle numpy scalar types
+            return obj.item()
+        elif isinstance(obj, np.bool_):
+            return bool(obj)
+        else:
+            # For any other type, try to convert to string if not already serializable
+            try:
+                json.dumps(obj)
+                return obj
+            except:
+                return str(obj)
+
     def _save_metrics(self) -> None:
         """Save metrics to files."""
         # Save as CSV
@@ -222,8 +276,11 @@ class MetricsLogger(Callback):
                 "metrics_history": {k: list(v) for k, v in self.metrics_history.items()},
             }
             
+            # Convert to JSON-serializable format
+            serializable_data = self._make_json_serializable(metrics_data)
+            
             with open(self.log_dir / "metrics.json", "w") as f:
-                json.dump(metrics_data, f, indent=2)
+                json.dump(serializable_data, f, indent=2)
     
     def _update_plots(self, final: bool = False) -> None:
         """Create or update metric plots."""

@@ -390,10 +390,19 @@ def apply_rotary_pos_emb(
         cos = mx.take(cos, position_ids, axis=0)
         sin = mx.take(sin, position_ids, axis=0)
 
-    # Expand dimensions for broadcasting
-    # cos, sin: [seq_len, head_dim] -> [1, 1, seq_len, head_dim]
-    cos = cos[None, None, :, :]
-    sin = sin[None, None, :, :]
+    # Ensure cos and sin have the right number of dimensions for broadcasting
+    if len(cos.shape) == 1:
+        # If cos/sin are 1D (head_dim only), expand to [1, head_dim]
+        cos = cos[None, :]
+        sin = sin[None, :]
+    
+    if len(cos.shape) == 2:
+        # cos, sin: [seq_len, head_dim] -> [1, 1, seq_len, head_dim]
+        cos = cos[None, None, :, :]
+        sin = sin[None, None, :, :]
+    else:
+        # Handle unexpected shapes
+        raise ValueError(f"Unexpected cos shape: {cos.shape}, expected 1D or 2D")
 
     # Apply rotary embeddings
     # q_embed = q * cos + rotate_half(q) * sin

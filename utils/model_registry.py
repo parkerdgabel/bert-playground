@@ -446,7 +446,7 @@ def register_mlx_model(
         "framework": "mlx",
         "model_type": getattr(config, 'model_name', 'modernbert'),
         "dataset": getattr(config, 'experiment_name', 'unknown'),
-        "created_by": "mlx_bert_cli",
+        "created_by": "bert_cli",
         "timestamp": datetime.now().isoformat(),
     }
     

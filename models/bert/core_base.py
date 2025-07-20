@@ -232,8 +232,13 @@ class BertLayer(nn.Module):
             attention_output = attention_outputs[0]
 
             # Feed-forward network
-            intermediate_output = self.intermediate(attention_output)
-            layer_output = self.output(intermediate_output, attention_output)
+            if self.feedforward is not None:
+                # Using unified feedforward layer
+                layer_output = self.feedforward(attention_output)
+            else:
+                # Using classic BERT FFN with separate intermediate and output
+                intermediate_output = self.intermediate(attention_output)
+                layer_output = self.output(intermediate_output, attention_output)
 
             outputs = (layer_output,) + attention_outputs[
                 1:

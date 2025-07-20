@@ -31,7 +31,7 @@ def train_command(
                                            callback=lambda p: validate_path(p, must_exist=True) if p else None),
     
     # Model arguments
-    model_type: str = typer.Option("base", "--model-type", help="Model type: base, cnn_hybrid, or mlx_embeddings"),
+    model_type: str = typer.Option("base", "--model-type", help="Model type: base or mlx_embeddings"),
     model_name: str = typer.Option("answerdotai/ModernBERT-base", "--model", "-m", help="Model name or path"),
     pretrained: Optional[str] = typer.Option(None, "--pretrained", "-p", help="Pretrained model name or path"),
     
@@ -65,12 +65,14 @@ def train_command(
     
     # Data loading options
     max_length: int = typer.Option(256, "--max-length", help="Maximum sequence length"),
-    workers: int = typer.Option(4, "--workers", help="Number of data loading workers"),
-    prefetch_size: int = typer.Option(4, "--prefetch", help="Data prefetch size"),
+    workers: int = typer.Option(0, "--workers", help="Number of data loading workers"),
+    prefetch_size: int = typer.Option(4, "--prefetch", help="Data prefetch size (0 to disable)"),
+    use_pretokenized: bool = typer.Option(False, "--pretokenize", help="Pre-tokenize data for optimal performance"),
     
     # Training control
     seed: int = typer.Option(42, "--seed", "-s", help="Random seed"),
     resume: Optional[Path] = typer.Option(None, "--resume", "-r", help="Resume from checkpoint"),
+    log_level: str = typer.Option("INFO", "--log-level", help="Logging level (DEBUG, INFO, WARNING, ERROR)"),
     early_stopping_patience: int = typer.Option(3, "--early-stopping", 
                                               help="Early stopping patience (0 to disable)"),
     save_steps: int = typer.Option(100, "--save-steps", help="Checkpoint save frequency"),
@@ -85,12 +87,7 @@ def train_command(
     max_batch_size: int = typer.Option(64, "--max-batch-size", 
                                      help="Maximum batch size for dynamic batching"),
     disable_mlflow: bool = typer.Option(False, "--no-mlflow", help="Disable MLflow tracking"),
-    
-    # CNN-specific options
-    cnn_kernel_sizes: str = typer.Option("2,3,4,5", "--cnn-kernels", 
-                                       help="CNN kernel sizes (comma-separated)"),
-    cnn_num_filters: int = typer.Option(128, "--cnn-filters", help="Number of CNN filters"),
-    use_dilated_conv: bool = typer.Option(True, "--dilated/--no-dilated", help="Use dilated convolutions"),
+    use_lora: bool = typer.Option(False, "--use-lora", help="Use LoRA adaptation"),
     
     # Debug options
     profile: bool = typer.Option(False, "--profile", help="Enable performance profiling"),
@@ -121,6 +118,14 @@ def train_command(
     from utils.mlx_patch import apply_mlx_patches
     apply_mlx_patches()
     
+    # Configure logging level
+    import logging
+    from loguru import logger
+    log_level_upper = log_level.upper()
+    logger.remove()  # Remove default handler
+    # Add handler with immediate flushing to avoid buffering issues
+    logger.add(sys.stderr, level=log_level_upper, enqueue=False)
+    
     # Show training configuration header
     console.print("\n[bold blue]MLX Unified Training System[/bold blue]")
     console.print("=" * 60)
@@ -139,24 +144,11 @@ def train_command(
     
     # Import training components
     try:
-        from data import create_kaggle_dataloader
+        from data.factory import create_dataloader, create_dataset
         from models.factory import create_model
-        from models.modernbert_cnn_hybrid import create_cnn_hybrid_model
-        from training.mlx_trainer import MLXTrainer
-        from training.config import (TrainingConfig, EvaluationConfig, CheckpointConfig,
-                                    MonitoringConfig, MLXOptimizationConfig, AdvancedFeatures)
-        from training.rich_display_manager import RichDisplayManager
-        import mlx.optimizers as optim
-        
-        # Import classifier
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "classification", 
-            str(Path(__file__).parent.parent.parent.parent / "models" / "classification.py")
-        )
-        classification_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(classification_module)
-        UnifiedTitanicClassifier = classification_module.TitanicClassifier
+        from training.core.base import BaseTrainer
+        from training.core.config import get_quick_test_config, BaseTrainerConfig
+        from transformers import AutoTokenizer
         
     except ImportError as e:
         print_error(
@@ -174,33 +166,45 @@ def train_command(
     # Create data loaders
     console.print("\n[yellow]Loading data...[/yellow]")
     
+    # Load tokenizer
+    console.print("[yellow]Loading tokenizer...[/yellow]")
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    
+    # Get MLX-specific parameters from config if available
+    mlx_prefetch_size = config_overrides.get("data", {}).get("mlx_prefetch_size", None)
+    mlx_tokenizer_chunk_size = config_overrides.get("data", {}).get("mlx_tokenizer_chunk_size", 100)
+    use_pretokenized_config = config_overrides.get("data", {}).get("use_pretokenized", use_pretokenized)
+    
     # Create training data loader
-    train_loader = create_kaggle_dataloader(
-        dataset_name="titanic",  # TODO: Auto-detect dataset
-        csv_path=str(train_data),
-        tokenizer_name=model_name,
+    train_loader = create_dataloader(
+        data_path=train_data,
         batch_size=batch_size_config,
-        max_length=max_length,
         shuffle=True,
-        shuffle_buffer_size=1000 if augment else 100,
-        prefetch_size=config_overrides.get("prefetch_size", prefetch_size),
-        num_workers=config_overrides.get("num_workers", workers),
-        tokenizer_backend=config_overrides.get("tokenizer_backend", tokenizer_backend),
+        num_workers=workers,
+        prefetch_size=prefetch_size,
+        mlx_prefetch_size=mlx_prefetch_size,
+        mlx_tokenizer_chunk_size=mlx_tokenizer_chunk_size,
+        tokenizer=tokenizer,
+        split="train",
+        use_pretokenized=use_pretokenized_config,
+        max_length=max_length
     )
     
     # Create validation loader if provided
     val_loader = None
     if val_data:
-        val_loader = create_kaggle_dataloader(
-            dataset_name="titanic",
-            csv_path=str(val_data),
-            tokenizer_name=model_name,
+        val_loader = create_dataloader(
+            data_path=val_data,
             batch_size=eval_batch_size,
-            max_length=max_length,
             shuffle=False,
-            prefetch_size=2,
             num_workers=2,
-            tokenizer_backend=config_overrides.get("tokenizer_backend", tokenizer_backend),
+            prefetch_size=prefetch_size,
+            mlx_prefetch_size=mlx_prefetch_size,
+            mlx_tokenizer_chunk_size=mlx_tokenizer_chunk_size,
+            tokenizer=tokenizer,
+            split="val",
+            use_pretokenized=use_pretokenized_config,
+            max_length=max_length
         )
     
     # Display dataset info
@@ -211,60 +215,38 @@ def train_command(
         console.print(f"[green]✓ Loaded ~{val_samples} validation samples ({len(val_loader)} batches)[/green]")
     
     # Build training configuration
-    if config and "memory" in config_overrides:
-        # Full config from YAML
-        training_config = TrainingConfig.from_dict(config_overrides)
-        if run_name:
-            training_config.run_name = run_name
-        training_config.output_dir = str(run_dir)
-        training_config.train_path = str(train_data)
-        training_config.val_path = str(val_data) if val_data else None
-        
-        if hasattr(training_config, 'checkpoint') and training_config.checkpoint:
-            training_config.checkpoint.checkpoint_dir = str(run_dir / "checkpoints")
+    if config and config_overrides:
+        # Full config from YAML - use BaseTrainerConfig
+        training_config = BaseTrainerConfig.from_dict(config_overrides)
+        training_config.environment.run_name = run_name or f"{model_type}_{timestamp}"
+        training_config.environment.output_dir = run_dir
     else:
-        # Build from CLI parameters
-        warmup_steps_final = warmup_steps
-        if warmup_steps_final is None:
-            warmup_steps_final = int(warmup_ratio * len(train_loader) * epochs)
+        # Build minimal config from CLI parameters
+        training_config = get_quick_test_config()
         
-        training_config = TrainingConfig(
-            # Basic parameters
-            learning_rate=config_overrides.get("learning_rate", learning_rate),
-            epochs=config_overrides.get("epochs", epochs),
-            warmup_steps=config_overrides.get("warmup_steps", warmup_steps_final),
-            batch_size=batch_size_config,
-            # Data configuration
-            train_path=str(train_data),
-            val_path=str(val_data) if val_data else None,
-            # Output
-            output_dir=str(run_dir),
-            experiment_name=config_overrides.get("experiment_name", experiment_name),
-            run_name=run_name or f"{model_type}_{timestamp}",
-            # Sub-configurations
-            evaluation=EvaluationConfig(
-                early_stopping_patience=config_overrides.get("early_stopping_patience", early_stopping_patience),
-                eval_steps=config_overrides.get("eval_steps", eval_steps),
-            ),
-            checkpoint=CheckpointConfig(
-                checkpoint_dir=str(run_dir / "checkpoints"),
-                checkpoint_frequency=config_overrides.get("save_steps", save_steps),
-                save_best_only=save_best_only,
-            ),
-            monitoring=MonitoringConfig(
-                enable_mlflow=not disable_mlflow,
-                experiment_name=config_overrides.get("experiment_name", experiment_name),
-                run_name=run_name or f"{model_type}_{timestamp}",
-                enable_rich_console=False,  # We manage our own console
-            ),
-            mlx_optimization=MLXOptimizationConfig(
-                gradient_accumulation_steps=config_overrides.get("gradient_accumulation", gradient_accumulation),
-                max_grad_norm=config_overrides.get("gradient_clip", gradient_clip),
-            ),
-            advanced=AdvancedFeatures(
-                label_smoothing=config_overrides.get("label_smoothing", label_smoothing),
-            ),
-        )
+        # Override with CLI values
+        training_config.optimizer.learning_rate = learning_rate
+        training_config.training.num_epochs = epochs
+        training_config.data.batch_size = batch_size_config
+        training_config.data.eval_batch_size = eval_batch_size
+        training_config.training.eval_steps = eval_steps
+        training_config.training.logging_steps = save_steps
+        training_config.training.save_steps = save_steps
+        training_config.training.early_stopping_patience = early_stopping_patience
+        training_config.training.gradient_accumulation_steps = gradient_accumulation
+        training_config.training.mixed_precision = mixed_precision
+        training_config.optimizer.max_grad_norm = gradient_clip
+        training_config.training.label_smoothing = label_smoothing
+        
+        # Set environment
+        training_config.environment.output_dir = run_dir
+        training_config.environment.experiment_name = experiment_name
+        training_config.environment.run_name = run_name or f"{model_type}_{timestamp}"
+        training_config.environment.seed = seed
+        
+        # Disable MLflow if requested
+        if disable_mlflow:
+            training_config.training.report_to = []
     
     # Display configuration table
     config_table = create_table("Training Configuration", ["Parameter", "Value"])
@@ -273,12 +255,13 @@ def train_command(
     config_table.add_row("Output Directory", str(run_dir))
     config_table.add_row("MLX Embeddings", "Enabled" if use_mlx_embeddings else "Disabled")
     config_table.add_row("Tokenizer Backend", tokenizer_backend)
+    config_table.add_row("Use LoRA", "Enabled" if use_lora else "Disabled")
     config_table.add_row("Batch Size", str(batch_size_config))
-    config_table.add_row("Learning Rate", str(training_config.learning_rate))
-    config_table.add_row("Epochs", str(training_config.epochs))
-    config_table.add_row("Gradient Accumulation", str(training_config.mlx_optimization.gradient_accumulation_steps))
-    config_table.add_row("MLflow", "Enabled" if training_config.monitoring.enable_mlflow else "Disabled")
-    config_table.add_row("Early Stopping", str(training_config.evaluation.early_stopping_patience))
+    config_table.add_row("Learning Rate", str(training_config.optimizer.learning_rate))
+    config_table.add_row("Epochs", str(training_config.training.num_epochs))
+    config_table.add_row("Gradient Accumulation", str(training_config.training.gradient_accumulation_steps))
+    config_table.add_row("MLflow", "Enabled" if "mlflow" in training_config.training.report_to else "Disabled")
+    config_table.add_row("Early Stopping", str(training_config.training.early_stopping_patience))
     console.print(config_table)
     
     # Create model
@@ -304,48 +287,33 @@ def train_command(
                 )
                 model_desc = "Legacy MLX Embeddings ModernBERT"
                 model = bert_model
-        elif model_type == "cnn_hybrid":
-            # Parse CNN kernel sizes
-            kernel_sizes = [int(k.strip()) for k in cnn_kernel_sizes.split(",")]
-            
-            # Create CNN-hybrid model
-            bert_model = create_cnn_hybrid_model(
-                model_name=model_name,
-                num_labels=2,
-                cnn_kernel_sizes=kernel_sizes,
-                cnn_num_filters=cnn_num_filters,
-                use_dilated_conv=use_dilated_conv,
-                use_attention_fusion=True,
-                use_highway=True,
-            )
-            model_desc = "CNN-Enhanced ModernBERT"
-            
-            # For CNN model, override config hidden_size
-            bert_model.config.hidden_size = bert_model.output_hidden_size
-            model = UnifiedTitanicClassifier(bert_model)
         else:
             # Create standard model
-            bert_model = create_model("standard")
-            model = UnifiedTitanicClassifier(bert_model)
-            model_desc = "ModernBERT with TitanicClassifier"
+            if use_lora:
+                # Create model with LoRA
+                from models.factory import create_bert_with_lora
+                bert_model, lora_adapter = create_bert_with_lora(
+                    head_type="binary_classification",
+                    num_labels=2,
+                    lora_preset="balanced",
+                )
+                model = bert_model
+                model_desc = "ModernBERT with LoRA adaptation"
+            else:
+                bert_model = create_model(
+                    "modernbert_with_head",
+                    head_type="binary_classification",
+                    num_labels=2
+                )
+                model = bert_model
+                model_desc = "ModernBERT with TitanicClassifier"
     
     console.print(f"[green]✓ Created {model_desc} model[/green]")
     
-    # Create optimizer
-    optimizer = optim.AdamW(
-        learning_rate=training_config.learning_rate,
-        weight_decay=0.01,
-    )
-    
-    # Create display manager
-    display_manager = RichDisplayManager(console=console)
-    
     # Create trainer
-    trainer = MLXTrainer(
+    trainer = BaseTrainer(
         model=model,
         config=training_config,
-        optimizer=optimizer,
-        display_manager=display_manager,
     )
     
     # Save training config
@@ -357,12 +325,9 @@ def train_command(
         "train_path": str(train_data),
         "val_path": str(val_data) if val_data else None,
         "timestamp": timestamp,
-        "learning_rate": training_config.learning_rate,
-        "epochs": training_config.epochs,
-        "batch_size": training_config.batch_size,
-        "cnn_kernel_sizes": kernel_sizes if model_type == "cnn_hybrid" else None,
-        "cnn_num_filters": cnn_num_filters if model_type == "cnn_hybrid" else None,
-        "use_dilated_conv": use_dilated_conv if model_type == "cnn_hybrid" else None,
+        "learning_rate": training_config.optimizer.learning_rate,
+        "epochs": training_config.training.num_epochs,
+        "batch_size": training_config.data.batch_size,
     }
     
     with open(run_dir / "training_config.json", "w") as f:
@@ -378,6 +343,7 @@ def train_command(
     
     try:
         # Train model
+        logger.info("About to call trainer.train()")
         metrics = trainer.train(train_loader, val_loader)
         
         # Show final results
@@ -385,7 +351,7 @@ def train_command(
         
         # Save final model
         final_model_path = run_dir / "final_model"
-        model.save_pretrained(str(final_model_path))
+        trainer.save_checkpoint(final_model_path)
         print_info(f"Model saved to: {final_model_path}")
         
         # Show next steps
@@ -393,7 +359,7 @@ def train_command(
         console.print(f"1. Generate predictions: [cyan]bert predict --test data/test.csv "
                      f"--checkpoint {final_model_path}[/cyan]")
         
-        if training_config.monitoring.enable_mlflow:
+        if "mlflow" in training_config.training.report_to:
             console.print("2. View MLflow results: [cyan]bert mlflow ui[/cyan]")
         
         console.print("3. Submit to Kaggle: [cyan]bert kaggle submit auto --competition NAME[/cyan]")

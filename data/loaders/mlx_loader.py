@@ -1,21 +1,23 @@
-"""MLX-optimized data loader for Apple Silicon unified memory.
+"""MLX-optimized data loader for Apple Silicon.
 
-This module provides high-performance data loading that leverages
-Apple Silicon's unified memory architecture for zero-copy operations.
+This module provides a high-performance data loader optimized for MLX by:
+- Using direct iteration without complex threading/multiprocessing
+- Leveraging unified memory for zero-copy operations
+- Supporting lazy evaluation
+- Minimizing state management to avoid concurrency issues
 """
 
-import asyncio
-import threading
-import time
-from collections import deque
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+from typing import Dict, Iterator, Optional, Any
+import random
+import threading
+import queue
 
 import mlx.core as mx
 from loguru import logger
 
-from ..core.base import DatasetSpec, KaggleDataset
+from ..core.base import KaggleDataset
+from ..preprocessing.tokenizer_cache import TokenizerCache, PreTokenizedDataset
 
 
 @dataclass
@@ -27,35 +29,31 @@ class MLXLoaderConfig:
     shuffle: bool = True
     drop_last: bool = False
     
-    # Performance optimization
-    num_workers: int = 4
-    prefetch_size: int = 4
-    pin_memory: bool = True
-    persistent_workers: bool = True
-    
     # MLX-specific optimization
     use_unified_memory: bool = True
-    async_device_transfer: bool = True
     lazy_evaluation: bool = True
-    
-    # Caching
-    enable_caching: bool = True
-    cache_size_mb: int = 512
+    prefetch_size: int = 2  # Number of batches to prefetch
+    prefetch_timeout: float = 10.0  # Timeout for prefetch queue
     
     # Tokenization
     max_length: int = 512
     padding: str = "max_length"  # "max_length" or "longest"
     truncation: bool = True
+    tokenizer_chunk_size: int = 100  # Process texts in chunks for better perf
+    
+    # Pre-tokenization
+    use_pretokenized: bool = False  # Use pre-tokenized data if available
+    pretokenized_cache_dir: str = "data/cache/tokenized"  # Cache directory
 
 
 class MLXDataLoader:
     """High-performance data loader optimized for MLX and Apple Silicon.
     
-    This loader maximizes throughput by leveraging:
-    1. Unified memory architecture for zero-copy operations
-    2. Asynchronous prefetching with worker threads
-    3. Intelligent batching and caching strategies
-    4. MLX-native tensor operations
+    Features:
+    - Direct iteration without complex prefetching (avoids threading issues)
+    - Leverages unified memory for zero-copy operations
+    - Supports MLX-native tokenization when available
+    - Efficient batching with minimal overhead
     """
     
     def __init__(
@@ -63,6 +61,7 @@ class MLXDataLoader:
         dataset: KaggleDataset,
         config: Optional[MLXLoaderConfig] = None,
         tokenizer=None,
+        pretokenized_data: Optional[PreTokenizedDataset] = None,
     ):
         """Initialize MLX data loader.
         
@@ -74,38 +73,19 @@ class MLXDataLoader:
         self.dataset = dataset
         self.config = config or MLXLoaderConfig()
         self.tokenizer = tokenizer
+        self.pretokenized_data = pretokenized_data
         
-        # MLX device and stream management
+        # Use pretokenized dataset if available
+        if self.pretokenized_data is not None:
+            self.dataset = self.pretokenized_data
+            logger.info("Using pre-tokenized dataset for zero-copy operations")
+        
+        # MLX device
         self.device = mx.default_device()
-        self.stream = mx.default_stream(self.device)
         
-        # Internal state
-        self._current_epoch = 0
-        self._batch_cache: Dict[int, Dict[str, mx.array]] = {}
-        self._prefetch_queue = deque(maxlen=self.config.prefetch_size)
-        self._worker_pool: Optional[ThreadPoolExecutor] = None
-        self._stop_prefetching = threading.Event()
-        
-        # Performance tracking
-        self._start_time = time.time()
-        self._samples_processed = 0
-        self._batches_processed = 0
-        
-        # Initialize indices for iteration
-        self._initialize_indices()
-        
-        self.logger = logger.bind(component="MLXDataLoader")
-        self.logger.info(
-            f"Initialized MLX loader: batch_size={self.config.batch_size}, "
-            f"workers={self.config.num_workers}, device={self.device}"
-        )
-    
-    def _initialize_indices(self) -> None:
-        """Initialize sample indices for iteration."""
+        # Initialize indices
         self.indices = list(range(len(self.dataset)))
-        
         if self.config.shuffle:
-            import random
             random.shuffle(self.indices)
             
         # Calculate number of batches
@@ -113,85 +93,112 @@ class MLXDataLoader:
             self.num_batches = len(self.indices) // self.config.batch_size
         else:
             self.num_batches = (len(self.indices) + self.config.batch_size - 1) // self.config.batch_size
+            
+        # Prefetching setup
+        self.prefetch_queue = None
+        self._stop_prefetch = None
+        self._prefetch_thread = None
+        
+        logger.info(
+            f"Initialized MLXDataLoader: batch_size={self.config.batch_size}, "
+            f"num_batches={self.num_batches}, device={self.device}, "
+            f"prefetch_size={self.config.prefetch_size}"
+        )
     
     def __len__(self) -> int:
         """Get number of batches."""
         return self.num_batches
     
     def __iter__(self) -> Iterator[Dict[str, mx.array]]:
-        """Iterate over batches."""
-        # Start prefetching if using workers
-        if self.config.num_workers > 0:
-            self._start_prefetching()
+        """Iterate over batches with optional prefetching."""
+        logger.debug(f"Starting iteration over {self.num_batches} batches")
+        
+        # Reshuffle if needed
+        if self.config.shuffle:
+            random.shuffle(self.indices)
             
+        # Use prefetching if enabled
+        if self.config.prefetch_size > 0:
+            yield from self._iter_with_prefetch()
+        else:
+            yield from self._iter_no_prefetch()
+    
+    def _iter_no_prefetch(self) -> Iterator[Dict[str, mx.array]]:
+        """Simple iteration without prefetching."""
+        for batch_idx in range(self.num_batches):
+            logger.debug(f"Processing batch {batch_idx}/{self.num_batches}")
+            
+            # Get batch indices
+            start_idx = batch_idx * self.config.batch_size
+            end_idx = min(start_idx + self.config.batch_size, len(self.indices))
+            batch_indices = self.indices[start_idx:end_idx]
+            
+            # Get samples
+            samples = [self.dataset[idx] for idx in batch_indices]
+            
+            # Collate into batch
+            batch = self._collate_samples(samples)
+            
+            logger.debug(f"Yielding batch {batch_idx} with keys: {list(batch.keys())}")
+            yield batch
+    
+    def _iter_with_prefetch(self) -> Iterator[Dict[str, mx.array]]:
+        """Iteration with asynchronous prefetching."""
+        # Initialize prefetch queue and thread
+        self.prefetch_queue = queue.Queue(maxsize=self.config.prefetch_size)
+        self._stop_prefetch = threading.Event()
+        
+        # Start prefetch thread
+        self._prefetch_thread = threading.Thread(target=self._prefetch_worker)
+        self._prefetch_thread.daemon = True
+        self._prefetch_thread.start()
+        
+        try:
+            for _ in range(self.num_batches):
+                # Get batch from queue with timeout
+                try:
+                    batch = self.prefetch_queue.get(timeout=self.config.prefetch_timeout)
+                    if batch is None:  # Sentinel value
+                        break
+                    yield batch
+                except queue.Empty:
+                    logger.warning("Prefetch queue timeout - data loading may be too slow")
+                    break
+        finally:
+            # Clean up prefetch thread
+            self._stop_prefetch.set()
+            if self._prefetch_thread is not None:
+                self._prefetch_thread.join(timeout=1.0)
+    
+    def _prefetch_worker(self):
+        """Worker thread for prefetching batches."""
         try:
             for batch_idx in range(self.num_batches):
+                if self._stop_prefetch.is_set():
+                    break
+                    
                 # Get batch indices
                 start_idx = batch_idx * self.config.batch_size
                 end_idx = min(start_idx + self.config.batch_size, len(self.indices))
                 batch_indices = self.indices[start_idx:end_idx]
                 
-                # Get batch data
-                if self.config.num_workers > 0:
-                    batch = self._get_prefetched_batch(batch_idx)
-                else:
-                    batch = self._create_batch(batch_indices)
+                # Get samples
+                samples = [self.dataset[idx] for idx in batch_indices]
                 
-                # Track performance
-                self._batches_processed += 1
-                self._samples_processed += len(batch_indices)
+                # Collate into batch
+                batch = self._collate_samples(samples)
                 
-                yield batch
+                # Put in queue (blocks if full)
+                self.prefetch_queue.put(batch)
                 
-        finally:
-            # Stop prefetching
-            if self.config.num_workers > 0:
-                self._stop_prefetching_workers()
-                
-        # Prepare for next epoch
-        self._current_epoch += 1
-        if self.config.shuffle:
-            import random
-            random.shuffle(self.indices)
+            # Add sentinel to indicate completion
+            self.prefetch_queue.put(None)
+        except Exception as e:
+            logger.error(f"Error in prefetch worker: {e}")
+            self.prefetch_queue.put(None)
     
-    def _create_batch(self, indices: List[int]) -> Dict[str, mx.array]:
-        """Create a batch from sample indices.
-        
-        Args:
-            indices: List of sample indices
-            
-        Returns:
-            Dictionary of batched MLX arrays
-        """
-        # Check cache first
-        cache_key = hash(tuple(indices))
-        if self.config.enable_caching and cache_key in self._batch_cache:
-            return self._batch_cache[cache_key]
-            
-        # Get samples
-        samples = []
-        for idx in indices:
-            sample = self.dataset[idx]
-            samples.append(sample)
-            
-        # Convert to batch
-        batch = self._collate_samples(samples)
-        
-        # Cache if enabled
-        if self.config.enable_caching:
-            self._batch_cache[cache_key] = batch
-            
-            # Manage cache size
-            if len(self._batch_cache) > self.config.cache_size_mb:
-                # Remove oldest entries (simple FIFO)
-                keys_to_remove = list(self._batch_cache.keys())[:len(self._batch_cache) // 4]
-                for key in keys_to_remove:
-                    del self._batch_cache[key]
-                    
-        return batch
-    
-    def _collate_samples(self, samples: List[Dict[str, Any]]) -> Dict[str, mx.array]:
-        """Collate a list of samples into a batch with MLX optimization.
+    def _collate_samples(self, samples: list[Dict[str, Any]]) -> Dict[str, mx.array]:
+        """Collate samples into a batch.
         
         Args:
             samples: List of sample dictionaries
@@ -216,21 +223,17 @@ class MLXDataLoader:
                 tokenized = self._tokenize_batch(texts)
                 batch.update(tokenized)
             else:
-                # Tokenizer is required for text data when no pre-tokenized data exists
-                raise ValueError("Tokenizer is required when loading text data without pre-tokenized input_ids. Please provide a tokenizer in the config.")
+                raise ValueError("Tokenizer is required for text data")
         
         # Handle pre-tokenized data
         if has_tokenized_data:
-            input_ids = self._pad_sequences([sample['input_ids'] for sample in samples])
-            batch['input_ids'] = mx.array(input_ids, dtype=mx.int32)
+            batch['input_ids'] = self._pad_sequences([sample['input_ids'] for sample in samples])
             
         if 'attention_mask' in samples[0] and samples[0]['attention_mask'] is not None:
-            attention_masks = self._pad_sequences([sample['attention_mask'] for sample in samples])
-            batch['attention_mask'] = mx.array(attention_masks, dtype=mx.int32)
+            batch['attention_mask'] = self._pad_sequences([sample['attention_mask'] for sample in samples])
             
         if 'token_type_ids' in samples[0] and samples[0]['token_type_ids'] is not None:
-            token_type_ids = self._pad_sequences([sample['token_type_ids'] for sample in samples])
-            batch['token_type_ids'] = mx.array(token_type_ids, dtype=mx.int32)
+            batch['token_type_ids'] = self._pad_sequences([sample['token_type_ids'] for sample in samples])
             
         # Handle labels
         if 'labels' in samples[0]:
@@ -249,8 +252,8 @@ class MLXDataLoader:
             
         return batch
     
-    def _tokenize_batch(self, texts: List[str]) -> Dict[str, mx.array]:
-        """Tokenize a batch of texts.
+    def _tokenize_batch(self, texts: list[str]) -> Dict[str, mx.array]:
+        """Tokenize a batch of texts with optional chunking for better performance.
         
         Args:
             texts: List of text strings
@@ -261,171 +264,95 @@ class MLXDataLoader:
         if not self.tokenizer:
             raise ValueError("Tokenizer required for tokenization")
             
-        # Tokenize
-        encodings = self.tokenizer(
-            texts,
-            padding=self.config.padding,
-            truncation=self.config.truncation,
-            max_length=self.config.max_length,
-            return_tensors="np"  # Get numpy arrays first
-        )
-        
-        # Convert to MLX arrays
-        tokenized = {}
-        for key, values in encodings.items():
-            if key in ['input_ids', 'attention_mask', 'token_type_ids']:
-                tokenized[key] = mx.array(values, dtype=mx.int32)
-                
-        return tokenized
+        # Check if we're using MLX embeddings tokenizer
+        if hasattr(self.tokenizer, 'backend') and self.tokenizer.backend == 'mlx':
+            # Use MLX-native tokenization if available
+            encodings = self.tokenizer(
+                texts,
+                padding=self.config.padding,
+                truncation=self.config.truncation,
+                max_length=self.config.max_length,
+                return_tensors="mlx"  # Return MLX tensors directly
+            )
+            return encodings
+        else:
+            # Process in chunks for better performance with standard tokenizers
+            chunk_size = self.config.tokenizer_chunk_size
+            all_encodings = []
+            
+            for i in range(0, len(texts), chunk_size):
+                chunk = texts[i:i + chunk_size]
+                chunk_encodings = self.tokenizer(
+                    chunk,
+                    padding=self.config.padding,
+                    truncation=self.config.truncation,
+                    max_length=self.config.max_length,
+                    return_tensors="np"
+                )
+                all_encodings.append(chunk_encodings)
+            
+            # Combine chunks
+            import numpy as np
+            combined = {}
+            for key in ['input_ids', 'attention_mask', 'token_type_ids']:
+                if key in all_encodings[0]:
+                    values = [enc[key] for enc in all_encodings]
+                    if len(values) > 1:
+                        combined_values = np.concatenate(values, axis=0)
+                    else:
+                        combined_values = values[0]
+                    
+                    # Convert to MLX array
+                    if hasattr(combined_values, 'numpy'):
+                        combined_values = combined_values.numpy()
+                    combined[key] = mx.array(combined_values, dtype=mx.int32)
+                    
+            return combined
     
-    def _pad_sequences(self, sequences: List[List[int]]) -> List[List[int]]:
-        """Pad sequences to uniform length.
+    def _pad_sequences(self, sequences: list[list[int]]) -> mx.array:
+        """Pad sequences to uniform length using MLX operations.
         
         Args:
             sequences: List of sequences
             
         Returns:
-            Padded sequences
+            Padded sequences as MLX array
         """
         if not sequences:
-            return []
+            return mx.zeros((0, 0), dtype=mx.int32)
             
-        # Determine max length
+        # Convert sequences to MLX arrays
+        mlx_sequences = []
+        max_len = 0
+        
+        for seq in sequences:
+            # Convert to MLX array if needed
+            if not isinstance(seq, mx.array):
+                if hasattr(seq, 'tolist'):
+                    seq = seq.tolist()
+                elif not isinstance(seq, list):
+                    seq = list(seq)
+                seq = mx.array(seq, dtype=mx.int32)
+            mlx_sequences.append(seq)
+            max_len = max(max_len, seq.shape[0])
+        
+        # Limit to configured max length
         if self.config.padding == "max_length":
             max_len = self.config.max_length
-        else:  # "longest"
-            max_len = max(len(seq) for seq in sequences)
+        else:
             max_len = min(max_len, self.config.max_length)
-            
-        # Pad sequences
+        
+        # Pad using MLX operations
         padded = []
-        for seq in sequences:
-            # Convert to list if it's a numpy array
-            if hasattr(seq, 'tolist'):
-                seq = seq.tolist()
-            elif not isinstance(seq, list):
-                seq = list(seq)
-                
-            if len(seq) > max_len:
+        for seq in mlx_sequences:
+            if seq.shape[0] > max_len:
                 # Truncate
                 padded_seq = seq[:max_len]
             else:
-                # Pad
-                padded_seq = seq + [0] * (max_len - len(seq))
+                # Pad with zeros using MLX
+                pad_width = max_len - seq.shape[0]
+                padded_seq = mx.pad(seq, pad_width=[(0, pad_width)], constant_values=0)
             padded.append(padded_seq)
-            
-        return padded
-    
-    def _start_prefetching(self) -> None:
-        """Start prefetching workers."""
-        if self._worker_pool is not None:
-            return
-            
-        self._stop_prefetching.clear()
-        self._worker_pool = ThreadPoolExecutor(max_workers=self.config.num_workers)
         
-        # Submit prefetch tasks
-        for batch_idx in range(min(self.config.prefetch_size, self.num_batches)):
-            future = self._worker_pool.submit(self._prefetch_batch, batch_idx)
-            self._prefetch_queue.append((batch_idx, future))
-            
-        self.logger.debug(f"Started prefetching with {self.config.num_workers} workers")
-    
-    def _prefetch_batch(self, batch_idx: int) -> Dict[str, mx.array]:
-        """Prefetch a single batch.
-        
-        Args:
-            batch_idx: Batch index
-            
-        Returns:
-            Batch data
-        """
-        start_idx = batch_idx * self.config.batch_size
-        end_idx = min(start_idx + self.config.batch_size, len(self.indices))
-        batch_indices = self.indices[start_idx:end_idx]
-        
-        return self._create_batch(batch_indices)
-    
-    def _get_prefetched_batch(self, batch_idx: int) -> Dict[str, mx.array]:
-        """Get a prefetched batch.
-        
-        Args:
-            batch_idx: Batch index
-            
-        Returns:
-            Batch data
-        """
-        # Look for the batch in prefetch queue
-        for i, (cached_idx, future) in enumerate(self._prefetch_queue):
-            if cached_idx == batch_idx:
-                # Get result and remove from queue
-                batch = future.result()
-                del self._prefetch_queue[i]
-                
-                # Submit next batch for prefetching
-                next_batch_idx = batch_idx + self.config.prefetch_size
-                if next_batch_idx < self.num_batches:
-                    next_future = self._worker_pool.submit(self._prefetch_batch, next_batch_idx)
-                    self._prefetch_queue.append((next_batch_idx, next_future))
-                    
-                return batch
-                
-        # Fallback to synchronous creation
-        self.logger.warning(f"Batch {batch_idx} not prefetched, creating synchronously")
-        start_idx = batch_idx * self.config.batch_size
-        end_idx = min(start_idx + self.config.batch_size, len(self.indices))
-        batch_indices = self.indices[start_idx:end_idx]
-        return self._create_batch(batch_indices)
-    
-    def _stop_prefetching_workers(self) -> None:
-        """Stop prefetching workers."""
-        if self._worker_pool is None:
-            return
-            
-        self._stop_prefetching.set()
-        
-        # Cancel pending futures
-        for _, future in self._prefetch_queue:
-            future.cancel()
-            
-        # Shutdown worker pool
-        self._worker_pool.shutdown(wait=True)
-        self._worker_pool = None
-        self._prefetch_queue.clear()
-        
-        self.logger.debug("Stopped prefetching workers")
-    
-    def get_performance_stats(self) -> Dict[str, Any]:
-        """Get performance statistics.
-        
-        Returns:
-            Dictionary with performance metrics
-        """
-        elapsed_time = time.time() - self._start_time
-        
-        return {
-            'batches_processed': self._batches_processed,
-            'samples_processed': self._samples_processed,
-            'elapsed_time': elapsed_time,
-            'batches_per_second': self._batches_processed / elapsed_time if elapsed_time > 0 else 0,
-            'samples_per_second': self._samples_processed / elapsed_time if elapsed_time > 0 else 0,
-            'current_epoch': self._current_epoch,
-            'cache_size': len(self._batch_cache),
-            'device': str(self.device),
-            'config': {
-                'batch_size': self.config.batch_size,
-                'num_workers': self.config.num_workers,
-                'prefetch_size': self.config.prefetch_size,
-                'use_unified_memory': self.config.use_unified_memory,
-            }
-        }
-    
-    def clear_cache(self) -> None:
-        """Clear the batch cache."""
-        self._batch_cache.clear()
-        self.logger.info("Cleared batch cache")
-    
-    def __del__(self):
-        """Cleanup when loader is destroyed."""
-        if hasattr(self, '_worker_pool') and self._worker_pool is not None:
-            self._stop_prefetching_workers()
+        # Stack into batch
+        return mx.stack(padded)

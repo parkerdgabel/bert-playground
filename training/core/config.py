@@ -164,6 +164,10 @@ class DataConfig:
     augment_train: bool = False
     augmentation_prob: float = 0.5
     
+    # MLX-specific optimizations
+    mlx_prefetch_size: Optional[int] = None  # Override prefetch_size for MLX
+    mlx_tokenizer_chunk_size: int = 100  # Chunk size for tokenization
+    
     def __post_init__(self):
         if self.eval_batch_size is None:
             self.eval_batch_size = self.batch_size
@@ -216,12 +220,16 @@ class TrainingConfig:
     label_smoothing: float = 0.0
     dropout_rate: float = 0.1
     
+    # MLX Compilation
+    use_compilation: bool = True  # Enable MLX compilation for performance
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
         config = asdict(self)
-        config["eval_strategy"] = self.eval_strategy.value
-        config["save_strategy"] = self.save_strategy.value
-        config["log_level"] = self.log_level.value
+        # Handle enum fields - check if they're already strings or enum objects
+        config["eval_strategy"] = self.eval_strategy.value if hasattr(self.eval_strategy, 'value') else self.eval_strategy
+        config["save_strategy"] = self.save_strategy.value if hasattr(self.save_strategy, 'value') else self.save_strategy
+        config["log_level"] = self.log_level.value if hasattr(self.log_level, 'value') else self.log_level
         return config
     
     @classmethod
