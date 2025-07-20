@@ -74,9 +74,9 @@ class LearningRateScheduler:
     def __init__(self, optimizer: optim.Optimizer, config: SchedulerConfig):
         self.optimizer = optimizer
         self.config = config
-        self.base_lr = optimizer.learning_rate
+        self.base_lr = float(optimizer.learning_rate)
         self.current_step = 0
-        self.current_lr = self.base_lr
+        self.current_lr = float(self.base_lr)
         
         # Warmup settings
         self.warmup_steps = config.warmup_steps
@@ -89,9 +89,9 @@ class LearningRateScheduler:
         
         # Handle warmup
         if self.current_step <= self.warmup_steps:
-            self.current_lr = self.base_lr * (self.current_step / self.warmup_steps)
+            self.current_lr = float(self.base_lr * (self.current_step / self.warmup_steps))
         else:
-            self.current_lr = self._compute_lr(self.current_step - self.warmup_steps)
+            self.current_lr = float(self._compute_lr(self.current_step - self.warmup_steps))
         
         # Update optimizer learning rate
         self.optimizer.learning_rate = self.current_lr
@@ -199,7 +199,7 @@ class ReduceOnPlateauScheduler(LearningRateScheduler):
         
         # Handle warmup
         if self.current_step <= self.warmup_steps:
-            self.current_lr = self.base_lr * (self.current_step / self.warmup_steps)
+            self.current_lr = float(self.base_lr * (self.current_step / self.warmup_steps))
             self.optimizer.learning_rate = self.current_lr
             return self.current_lr
         

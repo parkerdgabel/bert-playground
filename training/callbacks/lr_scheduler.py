@@ -121,4 +121,5 @@ class LearningRateScheduler(Callback):
         
         # Update state
         if hasattr(state, 'learning_rate'):
-            state.learning_rate = current_lr
+            # Ensure learning rate is converted to Python float
+            state.learning_rate = float(current_lr)

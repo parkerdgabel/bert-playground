@@ -99,7 +99,7 @@ class MetricsLogger(Callback):
             "step": state.global_step,
             "epoch": state.epoch,
             "loss": loss,
-            "learning_rate": trainer.optimizer.learning_rate,
+            "learning_rate": float(trainer.optimizer.learning_rate),
             "batch_time": batch_time if self.last_batch_time else 0,
         }
         
