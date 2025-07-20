@@ -10,6 +10,8 @@ This module provides a high-performance data loader optimized for MLX by:
 from dataclasses import dataclass
 from typing import Dict, Iterator, Optional, Any
 import random
+import threading
+import queue
 
 import mlx.core as mx
 from loguru import logger
@@ -29,11 +31,14 @@ class MLXLoaderConfig:
     # MLX-specific optimization
     use_unified_memory: bool = True
     lazy_evaluation: bool = True
+    prefetch_size: int = 2  # Number of batches to prefetch
+    prefetch_timeout: float = 10.0  # Timeout for prefetch queue
     
     # Tokenization
     max_length: int = 512
     padding: str = "max_length"  # "max_length" or "longest"
     truncation: bool = True
+    tokenizer_chunk_size: int = 100  # Process texts in chunks for better perf
 
 
 class MLXDataLoader:
@@ -77,9 +82,15 @@ class MLXDataLoader:
         else:
             self.num_batches = (len(self.indices) + self.config.batch_size - 1) // self.config.batch_size
             
+        # Prefetching setup
+        self.prefetch_queue = None
+        self._stop_prefetch = None
+        self._prefetch_thread = None
+        
         logger.info(
             f"Initialized MLXDataLoader: batch_size={self.config.batch_size}, "
-            f"num_batches={self.num_batches}, device={self.device}"
+            f"num_batches={self.num_batches}, device={self.device}, "
+            f"prefetch_size={self.config.prefetch_size}"
         )
     
     def __len__(self) -> int:
@@ -87,13 +98,21 @@ class MLXDataLoader:
         return self.num_batches
     
     def __iter__(self) -> Iterator[Dict[str, mx.array]]:
-        """Iterate over batches."""
+        """Iterate over batches with optional prefetching."""
         logger.debug(f"Starting iteration over {self.num_batches} batches")
         
         # Reshuffle if needed
         if self.config.shuffle:
             random.shuffle(self.indices)
             
+        # Use prefetching if enabled
+        if self.config.prefetch_size > 0:
+            yield from self._iter_with_prefetch()
+        else:
+            yield from self._iter_no_prefetch()
+    
+    def _iter_no_prefetch(self) -> Iterator[Dict[str, mx.array]]:
+        """Simple iteration without prefetching."""
         for batch_idx in range(self.num_batches):
             logger.debug(f"Processing batch {batch_idx}/{self.num_batches}")
             
@@ -110,6 +129,61 @@ class MLXDataLoader:
             
             logger.debug(f"Yielding batch {batch_idx} with keys: {list(batch.keys())}")
             yield batch
+    
+    def _iter_with_prefetch(self) -> Iterator[Dict[str, mx.array]]:
+        """Iteration with asynchronous prefetching."""
+        # Initialize prefetch queue and thread
+        self.prefetch_queue = queue.Queue(maxsize=self.config.prefetch_size)
+        self._stop_prefetch = threading.Event()
+        
+        # Start prefetch thread
+        self._prefetch_thread = threading.Thread(target=self._prefetch_worker)
+        self._prefetch_thread.daemon = True
+        self._prefetch_thread.start()
+        
+        try:
+            for _ in range(self.num_batches):
+                # Get batch from queue with timeout
+                try:
+                    batch = self.prefetch_queue.get(timeout=self.config.prefetch_timeout)
+                    if batch is None:  # Sentinel value
+                        break
+                    yield batch
+                except queue.Empty:
+                    logger.warning("Prefetch queue timeout - data loading may be too slow")
+                    break
+        finally:
+            # Clean up prefetch thread
+            self._stop_prefetch.set()
+            if self._prefetch_thread is not None:
+                self._prefetch_thread.join(timeout=1.0)
+    
+    def _prefetch_worker(self):
+        """Worker thread for prefetching batches."""
+        try:
+            for batch_idx in range(self.num_batches):
+                if self._stop_prefetch.is_set():
+                    break
+                    
+                # Get batch indices
+                start_idx = batch_idx * self.config.batch_size
+                end_idx = min(start_idx + self.config.batch_size, len(self.indices))
+                batch_indices = self.indices[start_idx:end_idx]
+                
+                # Get samples
+                samples = [self.dataset[idx] for idx in batch_indices]
+                
+                # Collate into batch
+                batch = self._collate_samples(samples)
+                
+                # Put in queue (blocks if full)
+                self.prefetch_queue.put(batch)
+                
+            # Add sentinel to indicate completion
+            self.prefetch_queue.put(None)
+        except Exception as e:
+            logger.error(f"Error in prefetch worker: {e}")
+            self.prefetch_queue.put(None)
     
     def _collate_samples(self, samples: list[Dict[str, Any]]) -> Dict[str, mx.array]:
         """Collate samples into a batch.
@@ -141,16 +215,13 @@ class MLXDataLoader:
         
         # Handle pre-tokenized data
         if has_tokenized_data:
-            input_ids = self._pad_sequences([sample['input_ids'] for sample in samples])
-            batch['input_ids'] = mx.array(input_ids, dtype=mx.int32)
+            batch['input_ids'] = self._pad_sequences([sample['input_ids'] for sample in samples])
             
         if 'attention_mask' in samples[0] and samples[0]['attention_mask'] is not None:
-            attention_masks = self._pad_sequences([sample['attention_mask'] for sample in samples])
-            batch['attention_mask'] = mx.array(attention_masks, dtype=mx.int32)
+            batch['attention_mask'] = self._pad_sequences([sample['attention_mask'] for sample in samples])
             
         if 'token_type_ids' in samples[0] and samples[0]['token_type_ids'] is not None:
-            token_type_ids = self._pad_sequences([sample['token_type_ids'] for sample in samples])
-            batch['token_type_ids'] = mx.array(token_type_ids, dtype=mx.int32)
+            batch['token_type_ids'] = self._pad_sequences([sample['token_type_ids'] for sample in samples])
             
         # Handle labels
         if 'labels' in samples[0]:
@@ -170,7 +241,7 @@ class MLXDataLoader:
         return batch
     
     def _tokenize_batch(self, texts: list[str]) -> Dict[str, mx.array]:
-        """Tokenize a batch of texts.
+        """Tokenize a batch of texts with optional chunking for better performance.
         
         Args:
             texts: List of text strings
@@ -191,60 +262,85 @@ class MLXDataLoader:
                 max_length=self.config.max_length,
                 return_tensors="mlx"  # Return MLX tensors directly
             )
+            return encodings
         else:
-            # Standard tokenization
-            encodings = self.tokenizer(
-                texts,
-                padding=self.config.padding,
-                truncation=self.config.truncation,
-                max_length=self.config.max_length,
-                return_tensors="np"  # Get numpy arrays first
-            )
+            # Process in chunks for better performance with standard tokenizers
+            chunk_size = self.config.tokenizer_chunk_size
+            all_encodings = []
             
-        # Convert to MLX arrays
-        tokenized = {}
-        for key, values in encodings.items():
-            if key in ['input_ids', 'attention_mask', 'token_type_ids']:
-                if hasattr(values, 'numpy'):  # If it's already a tensor
-                    values = values.numpy()
-                tokenized[key] = mx.array(values, dtype=mx.int32)
-                
-        return tokenized
+            for i in range(0, len(texts), chunk_size):
+                chunk = texts[i:i + chunk_size]
+                chunk_encodings = self.tokenizer(
+                    chunk,
+                    padding=self.config.padding,
+                    truncation=self.config.truncation,
+                    max_length=self.config.max_length,
+                    return_tensors="np"
+                )
+                all_encodings.append(chunk_encodings)
+            
+            # Combine chunks
+            import numpy as np
+            combined = {}
+            for key in ['input_ids', 'attention_mask', 'token_type_ids']:
+                if key in all_encodings[0]:
+                    values = [enc[key] for enc in all_encodings]
+                    if len(values) > 1:
+                        combined_values = np.concatenate(values, axis=0)
+                    else:
+                        combined_values = values[0]
+                    
+                    # Convert to MLX array
+                    if hasattr(combined_values, 'numpy'):
+                        combined_values = combined_values.numpy()
+                    combined[key] = mx.array(combined_values, dtype=mx.int32)
+                    
+            return combined
     
-    def _pad_sequences(self, sequences: list[list[int]]) -> list[list[int]]:
-        """Pad sequences to uniform length.
+    def _pad_sequences(self, sequences: list[list[int]]) -> mx.array:
+        """Pad sequences to uniform length using MLX operations.
         
         Args:
             sequences: List of sequences
             
         Returns:
-            Padded sequences
+            Padded sequences as MLX array
         """
         if not sequences:
-            return []
+            return mx.zeros((0, 0), dtype=mx.int32)
             
-        # Determine max length
+        # Convert sequences to MLX arrays
+        mlx_sequences = []
+        max_len = 0
+        
+        for seq in sequences:
+            # Convert to MLX array if needed
+            if not isinstance(seq, mx.array):
+                if hasattr(seq, 'tolist'):
+                    seq = seq.tolist()
+                elif not isinstance(seq, list):
+                    seq = list(seq)
+                seq = mx.array(seq, dtype=mx.int32)
+            mlx_sequences.append(seq)
+            max_len = max(max_len, seq.shape[0])
+        
+        # Limit to configured max length
         if self.config.padding == "max_length":
             max_len = self.config.max_length
-        else:  # "longest"
-            max_len = max(len(seq) for seq in sequences)
+        else:
             max_len = min(max_len, self.config.max_length)
-            
-        # Pad sequences
+        
+        # Pad using MLX operations
         padded = []
-        for seq in sequences:
-            # Convert to list if needed
-            if hasattr(seq, 'tolist'):
-                seq = seq.tolist()
-            elif not isinstance(seq, list):
-                seq = list(seq)
-                
-            if len(seq) > max_len:
+        for seq in mlx_sequences:
+            if seq.shape[0] > max_len:
                 # Truncate
                 padded_seq = seq[:max_len]
             else:
-                # Pad
-                padded_seq = seq + [0] * (max_len - len(seq))
+                # Pad with zeros using MLX
+                pad_width = max_len - seq.shape[0]
+                padded_seq = mx.pad(seq, pad_width=[(0, pad_width)], constant_values=0)
             padded.append(padded_seq)
-            
-        return padded
+        
+        # Stack into batch
+        return mx.stack(padded)

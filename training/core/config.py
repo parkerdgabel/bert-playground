@@ -164,6 +164,10 @@ class DataConfig:
     augment_train: bool = False
     augmentation_prob: float = 0.5
     
+    # MLX-specific optimizations
+    mlx_prefetch_size: Optional[int] = None  # Override prefetch_size for MLX
+    mlx_tokenizer_chunk_size: int = 100  # Chunk size for tokenization
+    
     def __post_init__(self):
         if self.eval_batch_size is None:
             self.eval_batch_size = self.batch_size

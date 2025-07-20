@@ -18,12 +18,15 @@ data:
   batch_size: 32
   eval_batch_size: 64
   num_workers: 8
-  prefetch_size: 4
+  prefetch_size: 2  # Number of batches to prefetch
   shuffle_train: true
   drop_last: false
   pin_memory: true
   augment_train: true
   augmentation_prob: 0.3
+  # MLX-specific optimizations
+  mlx_prefetch_size: 2  # Enable async prefetching
+  mlx_tokenizer_chunk_size: 100  # Process texts in chunks
 
 training:
   num_epochs: 10

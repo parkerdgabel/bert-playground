@@ -165,6 +165,10 @@ def train_command(
     console.print("[yellow]Loading tokenizer...[/yellow]")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     
+    # Get MLX-specific parameters from config if available
+    mlx_prefetch_size = config_overrides.get("data", {}).get("mlx_prefetch_size", None)
+    mlx_tokenizer_chunk_size = config_overrides.get("data", {}).get("mlx_tokenizer_chunk_size", 100)
+    
     # Create training data loader
     train_loader = create_dataloader(
         data_path=train_data,
@@ -172,6 +176,8 @@ def train_command(
         shuffle=True,
         num_workers=workers,
         prefetch_size=prefetch_size,
+        mlx_prefetch_size=mlx_prefetch_size,
+        mlx_tokenizer_chunk_size=mlx_tokenizer_chunk_size,
         tokenizer=tokenizer,
         split="train"
     )
@@ -185,6 +191,8 @@ def train_command(
             shuffle=False,
             num_workers=2,
             prefetch_size=2,
+            mlx_prefetch_size=mlx_prefetch_size,
+            mlx_tokenizer_chunk_size=mlx_tokenizer_chunk_size,
             tokenizer=tokenizer,
             split="val"
         )

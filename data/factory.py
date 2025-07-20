@@ -238,6 +238,8 @@ def create_dataloader(
     shuffle: bool = True,
     num_workers: int = 0,
     prefetch_size: int = 0,
+    mlx_prefetch_size: Optional[int] = None,
+    mlx_tokenizer_chunk_size: int = 100,
     tokenizer=None,
     tokenizer_backend: str = "auto",
     max_length: int = 512,
@@ -275,6 +277,8 @@ def create_dataloader(
         batch_size=batch_size,
         shuffle=shuffle,
         max_length=max_length,
+        prefetch_size=mlx_prefetch_size or prefetch_size or 0,
+        tokenizer_chunk_size=mlx_tokenizer_chunk_size,
         **{k: v for k, v in kwargs.items() if hasattr(MLXLoaderConfig, k)}
     )
     
@@ -296,6 +300,8 @@ def create_data_pipeline(
     batch_size: int = 32,
     eval_batch_size: Optional[int] = None,
     tokenizer=None,
+    mlx_prefetch_size: Optional[int] = None,
+    mlx_tokenizer_chunk_size: int = 100,
     **kwargs
 ) -> Dict[str, MLXDataLoader]:
     """Create a complete data pipeline with train/val/test loaders.
@@ -326,6 +332,8 @@ def create_data_pipeline(
         shuffle=True,
         split="train",
         tokenizer=tokenizer,
+        mlx_prefetch_size=mlx_prefetch_size,
+        mlx_tokenizer_chunk_size=mlx_tokenizer_chunk_size,
         **kwargs
     )
     
@@ -338,6 +346,8 @@ def create_data_pipeline(
             shuffle=False,
             split="val",
             tokenizer=tokenizer,
+            mlx_prefetch_size=mlx_prefetch_size,
+            mlx_tokenizer_chunk_size=mlx_tokenizer_chunk_size,
             **kwargs
         )
     
@@ -350,6 +360,8 @@ def create_data_pipeline(
             shuffle=False,
             split="test",
             tokenizer=tokenizer,
+            mlx_prefetch_size=mlx_prefetch_size,
+            mlx_tokenizer_chunk_size=mlx_tokenizer_chunk_size,
             **kwargs
         )
     
