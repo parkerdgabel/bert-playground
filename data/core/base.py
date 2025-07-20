@@ -282,7 +282,12 @@ class KaggleDataset(ABC):
                         if v is None:
                             padded_values.append([0] * max_len)
                         else:
-                            padded = v + [0] * (max_len - len(v))
+                            # Convert to list if it's an MLX array
+                            if isinstance(v, mx.array):
+                                v_list = v.tolist()
+                            else:
+                                v_list = list(v)
+                            padded = v_list + [0] * (max_len - len(v_list))
                             padded_values.append(padded)
                     batch[key] = mx.array(padded_values, dtype=mx.int32)
                     

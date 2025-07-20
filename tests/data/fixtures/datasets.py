@@ -392,6 +392,32 @@ class StreamingDataset:
         self.num_features = num_features
         self.seed = seed
         self._position = 0
+        self.transform = kwargs.get('transform', None)
+    
+    def __len__(self) -> int:
+        """Return dataset size."""
+        return self.num_samples
+    
+    def __getitem__(self, idx: int) -> Dict[str, Any]:
+        """Get a single item from the dataset."""
+        if idx >= self.num_samples:
+            raise IndexError(f"Index {idx} out of range for dataset of size {self.num_samples}")
+        
+        mx.random.seed(self.seed + idx)
+        
+        # Generate sample
+        sample = {
+            "input_ids": mx.random.randint(0, 1000, (50,)),
+            "attention_mask": mx.ones((50,), dtype=mx.int32),
+            "labels": mx.array(idx % 2),
+            "features": mx.random.normal((self.num_features,)),
+        }
+        
+        # Apply transform if provided
+        if self.transform:
+            sample = self.transform(sample)
+            
+        return sample
     
     def __iter__(self) -> Iterator[Dict[str, mx.array]]:
         """Iterate through streaming data."""
