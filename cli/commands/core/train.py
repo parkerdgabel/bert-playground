@@ -296,31 +296,23 @@ def train_command(
                     num_labels=2,
                     lora_preset="balanced",
                 )
-                model = UnifiedTitanicClassifier(bert_model)
+                model = bert_model
                 model_desc = "ModernBERT with LoRA adaptation"
             else:
-                bert_model = create_model(model_type)
-                model = UnifiedTitanicClassifier(bert_model)
+                bert_model = create_model(
+                    model_type,
+                    head_type="binary_classification",
+                    num_labels=2
+                )
+                model = bert_model
                 model_desc = "ModernBERT with TitanicClassifier"
     
     console.print(f"[green]✓ Created {model_desc} model[/green]")
     
-    # Create optimizer - import from MLX
-    import mlx.optimizers as optim
-    optimizer = optim.AdamW(
-        learning_rate=training_config.optimizer.learning_rate,
-        weight_decay=0.01,
-    )
-    
-    # Create display manager
-    display_manager = RichDisplayManager(console=console)
-    
     # Create trainer
-    trainer = MLXTrainer(
+    trainer = BaseTrainer(
         model=model,
         config=training_config,
-        optimizer=optimizer,
-        display_manager=display_manager,
     )
     
     # Save training config
@@ -332,9 +324,9 @@ def train_command(
         "train_path": str(train_data),
         "val_path": str(val_data) if val_data else None,
         "timestamp": timestamp,
-        "learning_rate": training_config.learning_rate,
-        "epochs": training_config.epochs,
-        "batch_size": training_config.batch_size,
+        "learning_rate": training_config.optimizer.learning_rate,
+        "epochs": training_config.training.num_epochs,
+        "batch_size": training_config.data.batch_size,
     }
     
     with open(run_dir / "training_config.json", "w") as f:
@@ -357,7 +349,7 @@ def train_command(
         
         # Save final model
         final_model_path = run_dir / "final_model"
-        model.save_pretrained(str(final_model_path))
+        trainer.save_checkpoint(final_model_path)
         print_info(f"Model saved to: {final_model_path}")
         
         # Show next steps
@@ -365,7 +357,7 @@ def train_command(
         console.print(f"1. Generate predictions: [cyan]bert predict --test data/test.csv "
                      f"--checkpoint {final_model_path}[/cyan]")
         
-        if training_config.monitoring.enable_mlflow:
+        if "mlflow" in training_config.training.report_to:
             console.print("2. View MLflow results: [cyan]bert mlflow ui[/cyan]")
         
         console.print("3. Submit to Kaggle: [cyan]bert kaggle submit auto --competition NAME[/cyan]")
