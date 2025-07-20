@@ -139,24 +139,11 @@ def train_command(
     
     # Import training components
     try:
-        from data import create_kaggle_dataloader
+        from data.factory import create_dataloader, create_dataset
         from models.factory import create_model
-        from models.modernbert_cnn_hybrid import create_cnn_hybrid_model
-        from training.mlx_trainer import MLXTrainer
-        from training.config import (TrainingConfig, EvaluationConfig, CheckpointConfig,
-                                    MonitoringConfig, MLXOptimizationConfig, AdvancedFeatures)
-        from training.rich_display_manager import RichDisplayManager
-        import mlx.optimizers as optim
-        
-        # Import classifier
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "classification", 
-            str(Path(__file__).parent.parent.parent.parent / "models" / "classification.py")
-        )
-        classification_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(classification_module)
-        UnifiedTitanicClassifier = classification_module.TitanicClassifier
+        from training.core.base import BaseTrainer
+        from training.core.config import get_quick_test_config
+        from transformers import AutoTokenizer
         
     except ImportError as e:
         print_error(
@@ -174,33 +161,32 @@ def train_command(
     # Create data loaders
     console.print("\n[yellow]Loading data...[/yellow]")
     
+    # Load tokenizer
+    console.print("[yellow]Loading tokenizer...[/yellow]")
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    
     # Create training data loader
-    train_loader = create_kaggle_dataloader(
-        dataset_name="titanic",  # TODO: Auto-detect dataset
-        csv_path=str(train_data),
-        tokenizer_name=model_name,
+    train_loader = create_dataloader(
+        data_path=train_data,
         batch_size=batch_size_config,
-        max_length=max_length,
         shuffle=True,
-        shuffle_buffer_size=1000 if augment else 100,
-        prefetch_size=config_overrides.get("prefetch_size", prefetch_size),
         num_workers=config_overrides.get("num_workers", workers),
-        tokenizer_backend=config_overrides.get("tokenizer_backend", tokenizer_backend),
+        prefetch_size=config_overrides.get("prefetch_size", prefetch_size),
+        tokenizer=tokenizer,
+        split="train"
     )
     
     # Create validation loader if provided
     val_loader = None
     if val_data:
-        val_loader = create_kaggle_dataloader(
-            dataset_name="titanic",
-            csv_path=str(val_data),
-            tokenizer_name=model_name,
+        val_loader = create_dataloader(
+            data_path=val_data,
             batch_size=eval_batch_size,
-            max_length=max_length,
             shuffle=False,
-            prefetch_size=2,
             num_workers=2,
-            tokenizer_backend=config_overrides.get("tokenizer_backend", tokenizer_backend),
+            prefetch_size=2,
+            tokenizer=tokenizer,
+            split="val"
         )
     
     # Display dataset info

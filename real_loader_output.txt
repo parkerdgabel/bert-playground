@@ -1,0 +1,16 @@
+None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
+2025-07-19 18:07:00.293 | INFO     | models.factory:<module>:44 - Kaggle heads not available
+2025-07-19 18:07:00.307 | WARNING  | models.factory:<module>:53 - Dataset analysis not available
+2025-07-19 18:07:00.542 | INFO     | models.bert.core:_build_encoder:470 - Built ModernBERT encoder with 22 layers
+2025-07-19 18:07:00.542 | INFO     | models.bert.core:__init__:436 - Initialized ModernBertCore with config: hidden_size=768, num_layers=22, num_heads=12, max_seq_len=8192, use_rope=True, use_geglu=True, use_alternating_attention=True
+2025-07-19 18:07:00.542 | INFO     | models.factory:create_model:251 - Created ModernBertWithHead model (head_type: binary_classification)
+2025-07-19 18:07:00.545 | INFO     | data.factory:_load_data:106 - Auto-detected text column: Name
+2025-07-19 18:07:00.545 | INFO     | data.factory:_load_data:117 - Auto-detected label column: Survived
+2025-07-19 18:07:00.546 | INFO     | data.core.base:__init__:147 - Initialized CSVDataset for unknown (train) with 891 samples
+2025-07-19 18:07:00.546 | INFO     | data.loaders.mlx_loader:__init__:98 - Initialized MLX loader: batch_size=4, workers=1, device=Device(gpu, 0)
+2025-07-19 18:07:00.548 | INFO     | training.core.config:save:347 - Saved configuration to real_loader_test_output/trainer_config.yaml
+2025-07-19 18:07:00.549 | INFO     | training.core.optimization:create_optimizer:67 - Created adamw optimizer with lr=5e-05
+2025-07-19 18:07:00.549 | INFO     | training.core.base:__init__:86 - Initialized BaseTrainer with config: TrainingConfig(num_epochs=1, max_steps=-1, gradient_accumulation_steps=1, mixed_precision=True, eval_strategy=<EvalStrategy.NO: 'no'>, eval_steps=500, eval_delay=0, logging_steps=1, log_level=<LogLevel.INFO: 'info'>, report_to=[], save_strategy=<CheckpointStrategy.EPOCH: 'epoch'>, save_steps=500, save_total_limit=3, save_best_only=False, best_metric='eval_loss', best_metric_mode='min', early_stopping=False, early_stopping_patience=3, early_stopping_threshold=0.0001, label_smoothing=0.0, dropout_rate=0.1)
+2025-07-19 18:07:00.549 | INFO     | training.core.base:train:295 - Starting training for 1 epochs
+2025-07-19 18:07:00.549 | INFO     | training.core.base:train:296 - Total steps: 223, Steps per epoch: 223
+2025-07-19 18:07:00.550 | DEBUG    | data.loaders.mlx_loader:_start_prefetching:332 - Started prefetching with 1 workers

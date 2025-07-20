@@ -95,28 +95,43 @@ class BaseTrainer:
     def _create_train_step(self) -> Callable:
         """Create the training step function."""
         def loss_fn(model, batch):
+            print("🔍 DEBUG: Starting loss_fn")
             # Forward pass - handle different model calling conventions
             # Remove metadata if present as it's not needed for model forward
             model_inputs = {k: v for k, v in batch.items() 
                           if k not in ['metadata'] and v is not None}
+            print(f"🔍 DEBUG: Model inputs keys: {list(model_inputs.keys())}")
+            print(f"🔍 DEBUG: Model inputs shapes: {[(k, v.shape if hasattr(v, 'shape') else type(v)) for k, v in model_inputs.items()]}")
             
+            print("🔍 DEBUG: Calling model forward pass")
             try:
                 # Try unpacked arguments first (for BERT models)
                 outputs = model(**model_inputs)
-            except TypeError:
+                print("🔍 DEBUG: Model forward pass successful (unpacked args)")
+            except TypeError as e:
+                print(f"🔍 DEBUG: Model forward pass failed with unpacked args: {e}")
                 # Fall back to batch dictionary (for simple test models)
                 outputs = model(batch)
+                print("🔍 DEBUG: Model forward pass successful (batch dict)")
+            
+            print(f"🔍 DEBUG: Model outputs type: {type(outputs)}")
+            if isinstance(outputs, dict):
+                print(f"🔍 DEBUG: Model outputs keys: {list(outputs.keys())}")
             
             # Extract loss (assuming model returns dict with 'loss' key)
             loss = outputs.get("loss")
             if loss is None:
                 raise ValueError("Model must return a dictionary with 'loss' key")
             
+            print(f"🔍 DEBUG: Loss value: {loss}")
+            
             # Apply label smoothing if configured
             if self.config.training.label_smoothing > 0:
                 # This is a simplified version - actual implementation depends on task
                 loss = loss * (1 - self.config.training.label_smoothing)
+                print(f"🔍 DEBUG: Applied label smoothing, new loss: {loss}")
             
+            print("🔍 DEBUG: loss_fn completed successfully")
             return loss, outputs
         
         # Create value and grad function
@@ -124,24 +139,37 @@ class BaseTrainer:
         
         def train_step(batch: Dict[str, mx.array]) -> Tuple[float, Dict[str, mx.array]]:
             """Single training step."""
+            print("🔍 DEBUG: Starting train_step")
+            print(f"🔍 DEBUG: Batch keys: {list(batch.keys())}")
+            print(f"🔍 DEBUG: Batch shapes: {[(k, v.shape if hasattr(v, 'shape') else type(v)) for k, v in batch.items()]}")
+            
+            print("🔍 DEBUG: Calling value_and_grad_fn")
             (loss, outputs), grads = value_and_grad_fn(self.model, batch)
+            print(f"🔍 DEBUG: Got loss: {loss}, outputs keys: {list(outputs.keys()) if isinstance(outputs, dict) else type(outputs)}")
             
             # Gradient clipping
+            print("🔍 DEBUG: Computing gradient stats")
             if self.config.optimizer.max_grad_norm > 0:
                 grads, grad_norm = clip_gradients(grads, self.config.optimizer.max_grad_norm)
             else:
                 grad_norm = compute_gradient_stats(grads)["grad_norm"]
+            print(f"🔍 DEBUG: Grad norm: {grad_norm}")
             
             # Accumulate gradients
+            print("🔍 DEBUG: Accumulating gradients")
             should_update = self.gradient_accumulator.accumulate(grads)
+            print(f"🔍 DEBUG: Should update: {should_update}")
             
             if should_update:
+                print("🔍 DEBUG: Getting accumulated gradients")
                 # Get accumulated gradients
                 accumulated_grads = self.gradient_accumulator.get_gradients()
                 
+                print("🔍 DEBUG: Updating model parameters")
                 # Update model
                 self.optimizer.update(self.model, accumulated_grads)
                 
+                print("🔍 DEBUG: Updating learning rate")
                 # Update learning rate
                 if self.lr_scheduler is not None:
                     current_lr = self.lr_scheduler.step()
@@ -150,10 +178,13 @@ class BaseTrainer:
             else:
                 current_lr = self.optimizer.learning_rate
             
+            print("🔍 DEBUG: Evaluating computation")
             # Ensure computation is executed
             mx.eval(loss, self.model.parameters())
+            print("🔍 DEBUG: Computation evaluated")
             
             # Only convert scalar values to Python scalars
+            print("🔍 DEBUG: Converting metrics")
             metrics = {
                 "grad_norm": grad_norm,
                 "learning_rate": current_lr,
@@ -168,7 +199,12 @@ class BaseTrainer:
                         metrics[k] = v
                     # Skip tensors with multiple elements
             
-            return loss.item(), metrics
+            print(f"🔍 DEBUG: Converting loss to scalar: {loss}")
+            loss_scalar = loss.item()
+            print(f"🔍 DEBUG: Loss scalar: {loss_scalar}")
+            print("🔍 DEBUG: train_step completed successfully")
+            
+            return loss_scalar, metrics
         
         return train_step
     
@@ -227,35 +263,49 @@ class BaseTrainer:
         Returns:
             TrainingResult with final metrics and paths
         """
+        print("🔍 DEBUG: BaseTrainer.train() called")
+        
         # Resume from checkpoint if specified
         if resume_from:
+            print(f"🔍 DEBUG: Loading checkpoint from {resume_from}")
             self._load_checkpoint(resume_from)
             logger.info(f"Resumed from checkpoint: {resume_from}")
         
+        print("🔍 DEBUG: Calculating total steps")
         # Calculate total steps
         steps_per_epoch = len(train_dataloader)
         total_steps = steps_per_epoch * self.config.training.num_epochs
+        print(f"🔍 DEBUG: Steps per epoch: {steps_per_epoch}, Total steps: {total_steps}")
         
+        print("🔍 DEBUG: Updating scheduler config")
         # Update scheduler config if needed
         if self.config.scheduler.num_training_steps is None:
             self.config.scheduler.num_training_steps = total_steps
             if self.lr_scheduler:
                 self.lr_scheduler.config.num_training_steps = total_steps
         
+        print("🔍 DEBUG: Initializing training state")
         # Initialize training
         self.state.training_start_time = time.time()
+        
+        print("🔍 DEBUG: Calling on_train_begin hooks")
         self._call_hooks("on_train_begin", self.state)
+        print("🔍 DEBUG: on_train_begin hooks completed")
         
         logger.info(f"Starting training for {self.config.training.num_epochs} epochs")
         logger.info(f"Total steps: {total_steps}, Steps per epoch: {steps_per_epoch}")
         
+        print("🔍 DEBUG: Starting training loop")
         # Training loop
         for epoch in range(self.state.epoch, self.config.training.num_epochs):
+            print(f"🔍 DEBUG: Starting epoch {epoch}")
             self.state.epoch = epoch
             self.state.epoch_start_time = time.time()
             
+            print(f"🔍 DEBUG: About to call _train_epoch for epoch {epoch}")
             # Train epoch
             train_metrics = self._train_epoch(train_dataloader, epoch)
+            print(f"🔍 DEBUG: _train_epoch completed for epoch {epoch}")
             self.state.train_loss = train_metrics["loss"]
             self.state.train_history.append(train_metrics)
             
@@ -392,30 +442,40 @@ class BaseTrainer:
     
     def _train_epoch(self, dataloader: DataLoader, epoch: int) -> Dict[str, float]:
         """Train for one epoch."""
+        print(f"🔍 DEBUG: _train_epoch called for epoch {epoch}")
+        print("🔍 DEBUG: Calling on_epoch_begin hooks")
         self._call_hooks("on_epoch_begin", self.state)
+        print("🔍 DEBUG: on_epoch_begin hooks completed")
         
         # Initialize metrics
+        print("🔍 DEBUG: Initializing metrics")
         epoch_loss = 0.0
         epoch_metrics = {}
         num_batches = 0
         
-        # Create progress bar
-        pbar = tqdm(
-            dataloader,
-            desc=f"Epoch {epoch}/{self.config.training.num_epochs}",
-            leave=True,
-            dynamic_ncols=True,
-        )
+        print("🔍 DEBUG: Using manual progress tracking instead of tqdm to avoid MLX data loader hang")
+        # Use manual progress tracking instead of tqdm to avoid multiprocessing conflicts
+        total_batches = len(dataloader)
+        print(f"🔍 DEBUG: Starting epoch {epoch}/{self.config.training.num_epochs} ({total_batches} batches)")
         
-        for batch_idx, batch in enumerate(pbar):
+        for batch_idx, batch in enumerate(dataloader):
+            # Manual progress tracking
+            if batch_idx % max(1, total_batches // 10) == 0 or batch_idx == 0:
+                progress_pct = (batch_idx / total_batches) * 100
+                print(f"Epoch {epoch} - Batch {batch_idx}/{total_batches} ({progress_pct:.1f}%)")
+            print(f"🔍 DEBUG: Starting batch {batch_idx}")
             self.state.global_step += 1
             self.state.samples_seen += self.config.data.batch_size
             
+            print("🔍 DEBUG: Calling batch begin hooks")
             # Call batch begin hooks
             self._call_hooks("on_batch_begin", self.state, batch)
+            print("🔍 DEBUG: Batch begin hooks completed")
             
+            print("🔍 DEBUG: About to call _train_step")
             # Training step
             loss, metrics = self._train_step(batch)
+            print(f"🔍 DEBUG: _train_step completed with loss: {loss}")
             
             # Update metrics
             epoch_loss += loss
@@ -425,15 +485,13 @@ class BaseTrainer:
                 epoch_metrics[k] += v
             num_batches += 1
             
+            print("🔍 DEBUG: Calling batch end hooks")
             # Call batch end hooks
             self._call_hooks("on_batch_end", self.state, loss)
+            print("🔍 DEBUG: Batch end hooks completed")
             
-            # Update progress bar
-            pbar.set_postfix({
-                "loss": f"{loss:.4f}",
-                "lr": f"{metrics.get('learning_rate', 0):.2e}",
-                "grad_norm": f"{metrics.get('grad_norm', 0):.2f}",
-            })
+            # Update progress bar (SKIPPED FOR DEBUGGING)
+            print(f"🔍 DEBUG: Batch metrics - loss: {loss:.4f}, lr: {metrics.get('learning_rate', 0):.2e}, grad_norm: {metrics.get('grad_norm', 0):.2f}")
             
             # Evaluate during training if needed
             if (self.config.training.eval_strategy == "steps" and 
