@@ -31,7 +31,7 @@ def train_command(
                                            callback=lambda p: validate_path(p, must_exist=True) if p else None),
     
     # Model arguments
-    model_type: str = typer.Option("base", "--model-type", help="Model type: base, cnn_hybrid, or mlx_embeddings"),
+    model_type: str = typer.Option("base", "--model-type", help="Model type: base or mlx_embeddings"),
     model_name: str = typer.Option("answerdotai/ModernBERT-base", "--model", "-m", help="Model name or path"),
     pretrained: Optional[str] = typer.Option(None, "--pretrained", "-p", help="Pretrained model name or path"),
     
@@ -88,12 +88,6 @@ def train_command(
                                      help="Maximum batch size for dynamic batching"),
     disable_mlflow: bool = typer.Option(False, "--no-mlflow", help="Disable MLflow tracking"),
     use_lora: bool = typer.Option(False, "--use-lora", help="Use LoRA adaptation"),
-    
-    # CNN-specific options
-    cnn_kernel_sizes: str = typer.Option("2,3,4,5", "--cnn-kernels", 
-                                       help="CNN kernel sizes (comma-separated)"),
-    cnn_num_filters: int = typer.Option(128, "--cnn-filters", help="Number of CNN filters"),
-    use_dilated_conv: bool = typer.Option(True, "--dilated/--no-dilated", help="Use dilated convolutions"),
     
     # Debug options
     profile: bool = typer.Option(False, "--profile", help="Enable performance profiling"),
@@ -292,25 +286,6 @@ def train_command(
                 )
                 model_desc = "Legacy MLX Embeddings ModernBERT"
                 model = bert_model
-        elif model_type == "cnn_hybrid":
-            # Parse CNN kernel sizes
-            kernel_sizes = [int(k.strip()) for k in cnn_kernel_sizes.split(",")]
-            
-            # Create CNN-hybrid model
-            bert_model = create_cnn_hybrid_model(
-                model_name=model_name,
-                num_labels=2,
-                cnn_kernel_sizes=kernel_sizes,
-                cnn_num_filters=cnn_num_filters,
-                use_dilated_conv=use_dilated_conv,
-                use_attention_fusion=True,
-                use_highway=True,
-            )
-            model_desc = "CNN-Enhanced ModernBERT"
-            
-            # For CNN model, override config hidden_size
-            bert_model.config.hidden_size = bert_model.output_hidden_size
-            model = UnifiedTitanicClassifier(bert_model)
         else:
             # Create standard model
             if use_lora:
@@ -360,9 +335,6 @@ def train_command(
         "learning_rate": training_config.learning_rate,
         "epochs": training_config.epochs,
         "batch_size": training_config.batch_size,
-        "cnn_kernel_sizes": kernel_sizes if model_type == "cnn_hybrid" else None,
-        "cnn_num_filters": cnn_num_filters if model_type == "cnn_hybrid" else None,
-        "use_dilated_conv": use_dilated_conv if model_type == "cnn_hybrid" else None,
     }
     
     with open(run_dir / "training_config.json", "w") as f:
