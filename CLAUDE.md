@@ -220,12 +220,13 @@ uv run python bert_cli.py train \
 
 ### Issue: Training Appears to Hang
 **Symptom**: Training shows "Starting training..." but no progress updates
-**Solution**: This is usually due to loguru buffering. Training is running but output is buffered.
+**Solution**: This happens when logging frequency is too low. By default, progress is logged every 10 batches.
 ```bash
+# Use --logging-steps to see more frequent updates
+uv run python bert_cli.py train --logging-steps 1 --train data/titanic/train.csv
+
 # Monitor actual progress by checking output files
 ls -la output/run_*/
-# Or use logging-steps 1 to see frequent updates
-uv run python bert_cli.py train --logging-steps 1
 ```
 
 ### Issue: Slow Training with Small Batches

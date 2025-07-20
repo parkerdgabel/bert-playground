@@ -111,16 +111,19 @@ class MLXDataLoader:
     
     def __iter__(self) -> Iterator[Dict[str, mx.array]]:
         """Iterate over batches with optional prefetching."""
-        logger.debug(f"Starting iteration over {self.num_batches} batches")
+        logger.debug(f"MLXDataLoader.__iter__ called: num_batches={self.num_batches}, prefetch_size={self.config.prefetch_size}")
         
         # Reshuffle if needed
         if self.config.shuffle:
+            logger.debug("Shuffling indices")
             random.shuffle(self.indices)
             
         # Use prefetching if enabled
         if self.config.prefetch_size > 0:
+            logger.debug("Using prefetch iteration")
             yield from self._iter_with_prefetch()
         else:
+            logger.debug("Using non-prefetch iteration")
             yield from self._iter_no_prefetch()
     
     def _iter_no_prefetch(self) -> Iterator[Dict[str, mx.array]]:
@@ -172,6 +175,7 @@ class MLXDataLoader:
     
     def _prefetch_worker(self):
         """Worker thread for prefetching batches."""
+        logger.debug("Prefetch worker thread started")
         try:
             for batch_idx in range(self.num_batches):
                 if self._stop_prefetch.is_set():

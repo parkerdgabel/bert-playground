@@ -188,7 +188,9 @@ class BaseTrainer:
         
         def train_step(batch: Dict[str, mx.array]) -> Tuple[float, Dict[str, mx.array]]:
             """Single training step - optimized for MLX lazy evaluation."""
+            logger.debug("Starting train_step")
             (loss, outputs), grads = value_and_grad_fn(self.model, batch)
+            logger.debug(f"Got loss and grads, loss shape: {loss.shape if hasattr(loss, 'shape') else 'scalar'}")
             
             # Gradient clipping (keep lazy)
             if self.config.optimizer.max_grad_norm > 0:
@@ -198,13 +200,16 @@ class BaseTrainer:
             
             # Accumulate gradients
             should_update = self.gradient_accumulator.accumulate(grads)
+            logger.debug(f"Should update: {should_update}")
             
             if should_update:
                 # Get accumulated gradients
                 accumulated_grads = self.gradient_accumulator.get_gradients()
                 
                 # Update model
+                logger.debug("Updating model with optimizer")
                 self.optimizer.update(self.model, accumulated_grads)
+                logger.debug("Model updated")
                 
             # Get current learning rate - MLX schedules update automatically
             # Only convert to float when needed for logging
@@ -520,7 +525,10 @@ class BaseTrainer:
         logger.debug(f"Total batches in epoch: {total_batches}")
         
         logger.debug(f"About to start enumerate loop over dataloader")
-        for batch_idx, batch in enumerate(dataloader):
+        logger.debug(f"Creating dataloader iterator")
+        dataloader_iter = enumerate(dataloader)
+        logger.debug(f"Iterator created, starting loop")
+        for batch_idx, batch in dataloader_iter:
             try:
                 logger.debug(f"Got batch {batch_idx}")
                 logger.debug(f"Batch keys: {batch.keys() if isinstance(batch, dict) else 'Not a dict'}")
@@ -537,10 +545,12 @@ class BaseTrainer:
                 self._call_hooks("on_batch_begin", self.state, batch)
                 
                 # Training step - use compiled version if available
+                logger.debug(f"About to call train step, use_compiled: {self._use_compiled}")
                 if self._use_compiled:
                     loss, metrics = self._compiled_train_step(batch)
                 else:
                     loss, metrics = self._train_step(batch)
+                logger.debug("Train step completed")
             
                 # Update state with current batch metrics (for progress callback)
                 if 'grad_norm' in metrics and metrics['grad_norm'] is not None:
@@ -763,8 +773,11 @@ class BaseTrainer:
     
     def _call_hooks(self, method: str, *args, **kwargs) -> None:
         """Call all registered hooks."""
+        if method == "on_batch_begin":
+            logger.debug(f"Calling hooks for {method}, num callbacks: {len(self.callbacks)}")
         for callback in self.callbacks:
             if hasattr(callback, method):
+                logger.debug(f"Calling {method} on {callback.__class__.__name__}")
                 getattr(callback, method)(self, *args, **kwargs)
     
     def save_checkpoint(self, path: Path) -> None:
