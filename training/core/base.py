@@ -523,8 +523,7 @@ class BaseTrainer:
                 total_metrics[k] += v
             num_batches += 1
             
-            # Update progress bar
-            pbar.set_postfix({"loss": f"{loss:.4f}"})
+            # Progress tracking is handled above, no need for pbar update
         
         # Average metrics
         avg_metrics = {
