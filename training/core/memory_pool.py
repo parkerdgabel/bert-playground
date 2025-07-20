@@ -178,7 +178,14 @@ def create_memory_pools(model: nn.Module, config: Optional[Dict] = None) -> Tupl
         for key, value in params.items():
             if isinstance(value, dict):
                 shapes.update(flatten_params(value, prefix + key + "."))
-            else:
+            elif isinstance(value, list):
+                # Handle lists of parameters (e.g., encoder layers)
+                for i, item in enumerate(value):
+                    if isinstance(item, dict):
+                        shapes.update(flatten_params(item, f"{prefix}{key}.{i}."))
+                    elif hasattr(item, 'shape'):
+                        shapes[f"{prefix}{key}.{i}"] = item.shape
+            elif hasattr(value, 'shape'):
                 shapes[prefix + key] = value.shape
         return shapes
     

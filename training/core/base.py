@@ -63,7 +63,8 @@ class BaseTrainer:
         self.config.save(config_path)
         
         # Initialize components
-        self.optimizer = create_optimizer(self.model, self.config.optimizer)
+        # Optimizer will be created later in train() when we know the total steps
+        self.optimizer = None
         
         # LR scheduler will be initialized in fit() when we know the total steps
         self.lr_scheduler = None
@@ -259,28 +260,27 @@ class BaseTrainer:
         steps_per_epoch = len(train_dataloader)
         total_steps = steps_per_epoch * self.config.training.num_epochs
         
-        # Initialize MLX native learning rate scheduler now that we know total steps
+        # Create learning rate schedule if needed
+        learning_rate = self.config.optimizer.learning_rate
         if self.config.scheduler.type != "none":
             from .optimization import create_mlx_lr_schedule
             
             # Create MLX native schedule
-            schedule_result = create_mlx_lr_schedule(
+            learning_rate = create_mlx_lr_schedule(
                 config=self.config.scheduler,
                 base_lr=self.config.optimizer.learning_rate,
                 num_training_steps=total_steps
             )
-            
-            # Check if it's a constant (MLX array) or a schedule function
-            if isinstance(schedule_result, mx.array):
-                # For constant LR, just set the value
-                self.optimizer.learning_rate = schedule_result
-                self._lr_schedule_fn = None
-            else:
-                # For scheduled LR, set the schedule function
-                self.optimizer.learning_rate = schedule_result
-                self._lr_schedule_fn = schedule_result
+            self._lr_schedule_fn = learning_rate if callable(learning_rate) else None
             
             logger.info(f"Initialized MLX learning rate scheduler with {total_steps} total steps")
+        
+        # Create optimizer with the learning rate (schedule or constant)
+        from .optimization import create_optimizer
+        original_lr = self.config.optimizer.learning_rate
+        self.config.optimizer.learning_rate = learning_rate  # Temporarily set for optimizer creation
+        self.optimizer = create_optimizer(self.model, self.config.optimizer)
+        self.config.optimizer.learning_rate = original_lr  # Restore original value
         
         # Initialize training
         self.state.training_start_time = time.time()

@@ -168,7 +168,9 @@ def _run_single_benchmark(
         )
         
         # Compute loss
-        if hasattr(outputs, "logits"):
+        if isinstance(outputs, dict) and "logits" in outputs:
+            logits = outputs["logits"]
+        elif hasattr(outputs, "logits"):
             logits = outputs.logits
         else:
             logits = outputs
@@ -254,7 +256,9 @@ def _forward_backward_step(model, batch, optimizer):
             attention_mask=batch["attention_mask"],
         )
         
-        if hasattr(outputs, "logits"):
+        if isinstance(outputs, dict) and "logits" in outputs:
+            logits = outputs["logits"]
+        elif hasattr(outputs, "logits"):
             logits = outputs.logits
         else:
             logits = outputs
