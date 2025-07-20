@@ -72,6 +72,7 @@ def train_command(
     # Training control
     seed: int = typer.Option(42, "--seed", "-s", help="Random seed"),
     resume: Optional[Path] = typer.Option(None, "--resume", "-r", help="Resume from checkpoint"),
+    log_level: str = typer.Option("INFO", "--log-level", help="Logging level (DEBUG, INFO, WARNING, ERROR)"),
     early_stopping_patience: int = typer.Option(3, "--early-stopping", 
                                               help="Early stopping patience (0 to disable)"),
     save_steps: int = typer.Option(100, "--save-steps", help="Checkpoint save frequency"),
@@ -122,6 +123,13 @@ def train_command(
     from utils.mlx_patch import apply_mlx_patches
     apply_mlx_patches()
     
+    # Configure logging level
+    import logging
+    from loguru import logger
+    log_level_upper = log_level.upper()
+    logger.remove()  # Remove default handler
+    logger.add(lambda msg: print(msg, end=""), level=log_level_upper)
+    
     # Show training configuration header
     console.print("\n[bold blue]MLX Unified Training System[/bold blue]")
     console.print("=" * 60)
@@ -143,7 +151,7 @@ def train_command(
         from data.factory import create_dataloader, create_dataset
         from models.factory import create_model
         from training.core.base import BaseTrainer
-        from training.core.config import get_quick_test_config
+        from training.core.config import get_quick_test_config, BaseTrainerConfig
         from transformers import AutoTokenizer
         
     except ImportError as e:
@@ -211,60 +219,38 @@ def train_command(
         console.print(f"[green]✓ Loaded ~{val_samples} validation samples ({len(val_loader)} batches)[/green]")
     
     # Build training configuration
-    if config and "memory" in config_overrides:
-        # Full config from YAML
-        training_config = TrainingConfig.from_dict(config_overrides)
-        if run_name:
-            training_config.run_name = run_name
-        training_config.output_dir = str(run_dir)
-        training_config.train_path = str(train_data)
-        training_config.val_path = str(val_data) if val_data else None
-        
-        if hasattr(training_config, 'checkpoint') and training_config.checkpoint:
-            training_config.checkpoint.checkpoint_dir = str(run_dir / "checkpoints")
+    if config and config_overrides:
+        # Full config from YAML - use BaseTrainerConfig
+        training_config = BaseTrainerConfig.from_dict(config_overrides)
+        training_config.environment.run_name = run_name or f"{model_type}_{timestamp}"
+        training_config.environment.output_dir = run_dir
     else:
-        # Build from CLI parameters
-        warmup_steps_final = warmup_steps
-        if warmup_steps_final is None:
-            warmup_steps_final = int(warmup_ratio * len(train_loader) * epochs)
+        # Build minimal config from CLI parameters
+        training_config = get_quick_test_config()
         
-        training_config = TrainingConfig(
-            # Basic parameters
-            learning_rate=config_overrides.get("learning_rate", learning_rate),
-            epochs=config_overrides.get("epochs", epochs),
-            warmup_steps=config_overrides.get("warmup_steps", warmup_steps_final),
-            batch_size=batch_size_config,
-            # Data configuration
-            train_path=str(train_data),
-            val_path=str(val_data) if val_data else None,
-            # Output
-            output_dir=str(run_dir),
-            experiment_name=config_overrides.get("experiment_name", experiment_name),
-            run_name=run_name or f"{model_type}_{timestamp}",
-            # Sub-configurations
-            evaluation=EvaluationConfig(
-                early_stopping_patience=config_overrides.get("early_stopping_patience", early_stopping_patience),
-                eval_steps=config_overrides.get("eval_steps", eval_steps),
-            ),
-            checkpoint=CheckpointConfig(
-                checkpoint_dir=str(run_dir / "checkpoints"),
-                checkpoint_frequency=config_overrides.get("save_steps", save_steps),
-                save_best_only=save_best_only,
-            ),
-            monitoring=MonitoringConfig(
-                enable_mlflow=not disable_mlflow,
-                experiment_name=config_overrides.get("experiment_name", experiment_name),
-                run_name=run_name or f"{model_type}_{timestamp}",
-                enable_rich_console=False,  # We manage our own console
-            ),
-            mlx_optimization=MLXOptimizationConfig(
-                gradient_accumulation_steps=config_overrides.get("gradient_accumulation", gradient_accumulation),
-                max_grad_norm=config_overrides.get("gradient_clip", gradient_clip),
-            ),
-            advanced=AdvancedFeatures(
-                label_smoothing=config_overrides.get("label_smoothing", label_smoothing),
-            ),
-        )
+        # Override with CLI values
+        training_config.optimizer.learning_rate = learning_rate
+        training_config.training.num_epochs = epochs
+        training_config.data.batch_size = batch_size_config
+        training_config.data.eval_batch_size = eval_batch_size
+        training_config.training.eval_steps = eval_steps
+        training_config.training.logging_steps = save_steps
+        training_config.training.save_steps = save_steps
+        training_config.training.early_stopping_patience = early_stopping_patience
+        training_config.training.gradient_accumulation_steps = gradient_accumulation
+        training_config.training.mixed_precision = mixed_precision
+        training_config.optimizer.max_grad_norm = gradient_clip
+        training_config.training.label_smoothing = label_smoothing
+        
+        # Set environment
+        training_config.environment.output_dir = run_dir
+        training_config.environment.experiment_name = experiment_name
+        training_config.environment.run_name = run_name or f"{model_type}_{timestamp}"
+        training_config.environment.seed = seed
+        
+        # Disable MLflow if requested
+        if disable_mlflow:
+            training_config.training.report_to = []
     
     # Display configuration table
     config_table = create_table("Training Configuration", ["Parameter", "Value"])
@@ -274,11 +260,11 @@ def train_command(
     config_table.add_row("MLX Embeddings", "Enabled" if use_mlx_embeddings else "Disabled")
     config_table.add_row("Tokenizer Backend", tokenizer_backend)
     config_table.add_row("Batch Size", str(batch_size_config))
-    config_table.add_row("Learning Rate", str(training_config.learning_rate))
-    config_table.add_row("Epochs", str(training_config.epochs))
-    config_table.add_row("Gradient Accumulation", str(training_config.mlx_optimization.gradient_accumulation_steps))
-    config_table.add_row("MLflow", "Enabled" if training_config.monitoring.enable_mlflow else "Disabled")
-    config_table.add_row("Early Stopping", str(training_config.evaluation.early_stopping_patience))
+    config_table.add_row("Learning Rate", str(training_config.optimizer.learning_rate))
+    config_table.add_row("Epochs", str(training_config.training.num_epochs))
+    config_table.add_row("Gradient Accumulation", str(training_config.training.gradient_accumulation_steps))
+    config_table.add_row("MLflow", "Enabled" if "mlflow" in training_config.training.report_to else "Disabled")
+    config_table.add_row("Early Stopping", str(training_config.training.early_stopping_patience))
     console.print(config_table)
     
     # Create model
@@ -325,15 +311,16 @@ def train_command(
             model = UnifiedTitanicClassifier(bert_model)
         else:
             # Create standard model
-            bert_model = create_model("standard")
+            bert_model = create_model(model_type)
             model = UnifiedTitanicClassifier(bert_model)
             model_desc = "ModernBERT with TitanicClassifier"
     
     console.print(f"[green]✓ Created {model_desc} model[/green]")
     
-    # Create optimizer
+    # Create optimizer - import from MLX
+    import mlx.optimizers as optim
     optimizer = optim.AdamW(
-        learning_rate=training_config.learning_rate,
+        learning_rate=training_config.optimizer.learning_rate,
         weight_decay=0.01,
     )
     

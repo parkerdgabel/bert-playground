@@ -64,7 +64,7 @@ class TokenizerCache:
     
     def _get_cache_path(self, cache_key: str) -> Path:
         """Get the cache file path for a given cache key."""
-        return self.cache_dir / f"{cache_key}.mlx"
+        return self.cache_dir / f"{cache_key}.safetensors"
     
     def tokenize_and_cache(
         self,
@@ -131,17 +131,20 @@ class TokenizerCache:
         # Save to cache
         self.save_to_cache(tokenized_data, cache_path)
         
-        logger.info(f"Cached pre-tokenized data to: {cache_path}")
-        logger.info(f"Cache size: {cache_path.stat().st_size / 1024 / 1024:.2f} MB")
+        if cache_path.exists():
+            logger.info(f"Cached pre-tokenized data to: {cache_path}")
+            logger.info(f"Cache size: {cache_path.stat().st_size / 1024 / 1024:.2f} MB")
+        else:
+            logger.error(f"Failed to cache data to: {cache_path}")
         
         return tokenized_data
     
     def save_to_cache(self, data: Dict[str, mx.array], cache_path: Path):
         """Save pre-tokenized data to cache.
         
-        Uses MLX's native save format for efficient loading.
+        Uses safetensors format for efficient loading.
         """
-        # Save as safetensors format for MLX compatibility
+        # Save using MLX's native safetensors format
         mx.save_safetensors(str(cache_path), data)
         
         # Also save metadata
@@ -169,7 +172,7 @@ class TokenizerCache:
                 metadata = json.load(f)
             logger.debug(f"Loading cache with metadata: {metadata}")
         
-        # Load MLX arrays
+        # Load safetensors file - returns dict of arrays
         data = mx.load(str(cache_path))
         
         return data
@@ -178,7 +181,7 @@ class TokenizerCache:
         """Get information about all cached datasets."""
         cache_info = {}
         
-        for cache_file in self.cache_dir.glob("*.mlx"):
+        for cache_file in self.cache_dir.glob("*.safetensors"):
             metadata_file = cache_file.with_suffix(".json")
             if metadata_file.exists():
                 with open(metadata_file, "r") as f:
@@ -194,7 +197,7 @@ class TokenizerCache:
     
     def clear_cache(self):
         """Clear all cached tokenized data."""
-        for cache_file in self.cache_dir.glob("*.mlx"):
+        for cache_file in self.cache_dir.glob("*.safetensors"):
             cache_file.unlink()
             metadata_file = cache_file.with_suffix(".json")
             if metadata_file.exists():
