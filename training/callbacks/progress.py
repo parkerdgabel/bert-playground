@@ -98,7 +98,7 @@ class ProgressBar(Callback):
                 disable=False,
             )
     
-    def on_batch_end(self, trainer: Trainer, state: TrainingState, loss: float) -> None:
+    def on_batch_end(self, trainer: Trainer, state: TrainingState, loss) -> None:
         """Update batch progress bar."""
         self.batch_count += 1
         
@@ -106,15 +106,26 @@ class ProgressBar(Callback):
             # Update progress
             self.batch_pbar.update(self.update_freq)
             
+            # Convert loss only for display
+            if hasattr(loss, 'item'):
+                loss_val = float(loss.item())
+            else:
+                loss_val = float(loss)
+            
             # Update postfix with metrics
             metrics = {
-                "loss": f"{loss:.4f}",
+                "loss": f"{loss_val:.4f}",
                 "lr": f"{trainer.optimizer.learning_rate:.2e}",
             }
             
             # Add gradient norm if available
-            if hasattr(state, 'grad_norm'):
-                metrics["grad_norm"] = f"{state.grad_norm:.2f}"
+            if hasattr(state, 'grad_norm') and state.grad_norm is not None:
+                # Convert grad_norm only for display
+                if hasattr(state.grad_norm, 'item'):
+                    grad_norm_val = float(state.grad_norm.item())
+                else:
+                    grad_norm_val = float(state.grad_norm)
+                metrics["grad_norm"] = f"{grad_norm_val:.2f}"
             
             self.batch_pbar.set_postfix(metrics)
     

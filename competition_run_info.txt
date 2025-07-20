@@ -1,9 +1,9 @@
-Competition Run Information (OPTIMIZED)
-========================================
+Competition Run Information (FINAL OPTIMIZED)
+==============================================
 
-Process ID: 88478
-Start Time: 2025-07-19 22:35:09
-Log File: competition_modernbert_lora_optimized_20250719_223509.log
+Process ID: 18879
+Start Time: 2025-07-19 22:47:57
+Log File: competition_modernbert_lora_final_20250719_224757.log
 
 Model Configuration:
 - Model: ModernBERT
@@ -13,19 +13,20 @@ Model Configuration:
 - Learning Rate: 5e-4
 - Epochs: 10
 - Seed: 42
-- Optimizations: Native MLX gradient clipping
 
-Output Directory: output/competition_run_optimized_20250719_223509
+Optimizations Applied:
+- Native MLX gradient clipping (~2x faster)
+- Deferred evaluation (preserve lazy evaluation)
+- Minimal .item() calls (only for logging)
+- Scalar conversion fixes
+
+Output Directory: output/competition_run_20250719_224757
 
 To monitor progress:
-  tail -f competition_modernbert_lora_optimized_20250719_223509.log
+  tail -f competition_modernbert_lora_final_20250719_224757.log
 
 To check if running:
-  ps -p 88478
+  ps -p 18879
 
 To stop training:
-  kill 88478
-
-Performance Improvements:
-- Gradient clipping: ~2x faster
-- Step time reduced from ~11s to ~12s per step
+  kill 18879
