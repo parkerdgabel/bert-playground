@@ -3,6 +3,7 @@ Kaggle-specific trainer implementation with competition optimizations.
 """
 
 import os
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 import numpy as np
@@ -15,6 +16,10 @@ from ..core.base import BaseTrainer
 from ..core.protocols import DataLoader, Model, TrainingResult
 from .config import KaggleTrainerConfig, CompetitionType
 from .callbacks import KaggleSubmissionCallback, CompetitionMetrics
+from .bert_strategies import (
+    BERTTrainingStrategy, MultiStageBERTTrainer, 
+    create_bert_training_strategy, TrainingStage
+)
 
 
 class KaggleTrainer(BaseTrainer):
@@ -35,6 +40,7 @@ class KaggleTrainer(BaseTrainer):
         model: Model,
         config: KaggleTrainerConfig,
         test_dataloader: Optional[DataLoader] = None,
+        enable_bert_strategies: bool = True,
     ):
         """
         Initialize Kaggle trainer.
@@ -78,6 +84,18 @@ class KaggleTrainer(BaseTrainer):
         
         # Create submission directory
         self.config.kaggle.submission_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Initialize BERT strategies if enabled
+        self.enable_bert_strategies = enable_bert_strategies
+        self.bert_trainer = None
+        if enable_bert_strategies and self._is_bert_model():
+            self.bert_strategy = create_bert_training_strategy(
+                model_type=self._get_model_type(),
+                task_type=self._get_task_type(),
+                total_epochs=config.training.num_epochs
+            )
+            self.bert_trainer = MultiStageBERTTrainer(model, self.bert_strategy)
+            logger.info("Initialized BERT multi-stage training strategies")
     
     def train(
         self,
@@ -105,7 +123,11 @@ class KaggleTrainer(BaseTrainer):
         else:
             logger.info("Starting standard training with Kaggle optimizations")
             # Call parent train method with Kaggle callbacks already set
-            result = super().train(train_dataloader, val_dataloader, resume_from)
+            if self.bert_trainer:
+                # Use BERT-aware training
+                result = self._train_with_bert_strategies(train_dataloader, val_dataloader, resume_from)
+            else:
+                result = super().train(train_dataloader, val_dataloader, resume_from)
             
             # Generate predictions if test data is available
             if self.test_dataloader is not None:
@@ -430,3 +452,93 @@ class KaggleTrainer(BaseTrainer):
         test_path = self.config.kaggle.submission_dir / "test_predictions.npy"
         np.save(test_path, self.test_predictions)
         logger.info(f"Saved test predictions to {test_path}")
+    
+    def _is_bert_model(self) -> bool:
+        """Check if the model is a BERT variant."""
+        model_class_name = self.model.__class__.__name__.lower()
+        return any(bert_type in model_class_name for bert_type in ["bert", "roberta", "deberta"])
+    
+    def _get_model_type(self) -> str:
+        """Get the type of BERT model."""
+        model_class_name = self.model.__class__.__name__.lower()
+        if "modernbert" in model_class_name:
+            return "modernbert"
+        elif "roberta" in model_class_name:
+            return "roberta"
+        elif "deberta" in model_class_name:
+            return "deberta"
+        else:
+            return "bert"
+    
+    def _get_task_type(self) -> str:
+        """Get the task type from competition configuration."""
+        comp_type = self.config.kaggle.competition_type
+        if comp_type in [CompetitionType.BINARY_CLASSIFICATION, 
+                         CompetitionType.MULTICLASS_CLASSIFICATION,
+                         CompetitionType.MULTILABEL_CLASSIFICATION]:
+            return "classification"
+        elif comp_type in [CompetitionType.REGRESSION, 
+                          CompetitionType.ORDINAL_REGRESSION]:
+            return "regression"
+        else:
+            return "other"
+    
+    def _train_with_bert_strategies(self, train_dataloader: DataLoader, 
+                                   val_dataloader: Optional[DataLoader] = None,
+                                   resume_from: Optional[Path] = None) -> TrainingResult:
+        """
+        Train with BERT-specific strategies including multi-stage training.
+        
+        This method hooks into the parent train method at key points to
+        implement stage transitions.
+        """
+        logger.info("Starting BERT multi-stage training")
+        
+        # Store original train method
+        original_train_epoch = self._train_epoch
+        
+        # Store current epoch for stage tracking
+        self._bert_current_epoch = 0
+        
+        # Setup initial stage
+        from dataclasses import replace
+        original_optimizer_config = replace(self.config.optimizer)
+        initial_optimizer = self.bert_trainer.setup_stage(
+            TrainingStage.FROZEN_BERT,
+            original_optimizer_config
+        )
+        
+        # Store original optimizer
+        original_optimizer = self.optimizer if hasattr(self, 'optimizer') else None
+        self.optimizer = initial_optimizer
+        
+        # Override _train_epoch to add stage transitions
+        def bert_aware_train_epoch(dataloader, epoch):
+            # Check for stage transition
+            if self.bert_trainer.should_transition_stage(epoch):
+                new_optimizer = self.bert_trainer.setup_stage(
+                    self.bert_trainer.get_current_stage(epoch),
+                    original_optimizer_config
+                )
+                self.optimizer = new_optimizer
+                
+                stage_info = self.bert_trainer.get_stage_info()
+                logger.info(f"Stage transition at epoch {epoch}: {stage_info['stage']}")
+                logger.info(f"Trainable params: {stage_info['trainable_layers']}/{stage_info['total_layers']}")
+            
+            # Call original train epoch
+            return original_train_epoch(dataloader, epoch)
+        
+        # Temporarily replace train_epoch
+        self._train_epoch = bert_aware_train_epoch
+        
+        try:
+            # Call parent train method
+            result = super().train(train_dataloader, val_dataloader, resume_from)
+        finally:
+            # Restore original methods
+            self._train_epoch = original_train_epoch
+            if original_optimizer:
+                self.optimizer = original_optimizer
+        
+        return result
