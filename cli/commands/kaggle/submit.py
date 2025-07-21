@@ -93,7 +93,7 @@ def submit_command(
         # Submit to Kaggle
         with console.status("[yellow]Submitting to Kaggle...[/yellow]"):
             kaggle.submit_predictions(
-                competition=competition,
+                competition_id=competition,
                 submission_file=submission_file,
                 message=message
             )
@@ -273,7 +273,7 @@ def auto_submit_command(
         
         with console.status("[yellow]Submitting to Kaggle...[/yellow]"):
             kaggle.submit_predictions(
-                competition=competition,
+                competition_id=competition,
                 submission_file=submission_file,
                 message=message
             )

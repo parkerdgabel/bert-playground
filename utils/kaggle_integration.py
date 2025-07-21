@@ -147,8 +147,13 @@ class KaggleIntegration:
             submission_time = time.time() - start_time
             
             # Get submission status
-            submissions = self.api.competitions_submissions_list(competition_id)
-            latest = submissions[0] if submissions else None
+            try:
+                submissions = self.api.competition_submissions_cli(competition_id)
+                latest = submissions[0] if submissions else None
+            except Exception as e:
+                logger.warning(f"Could not get submission status: {e}")
+                submissions = []
+                latest = None
             
             submission_info = {
                 'competition': competition_id,
@@ -203,7 +208,14 @@ class KaggleIntegration:
                                competition_id: str,
                                limit: int = 100) -> pd.DataFrame:
         """Get submission history for a competition."""
-        submissions = self.api.competitions_submissions_list(competition_id)
+        try:
+            submissions = self.api.competition_submissions_cli(competition_id)
+        except Exception as e:
+            logger.warning(f"Could not get submission history: {e}")
+            submissions = []
+        
+        if submissions is None:
+            submissions = []
         
         sub_data = []
         for sub in submissions[:limit]:

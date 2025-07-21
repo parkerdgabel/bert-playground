@@ -62,11 +62,14 @@ def history_command(
         
         # Get submission history
         with console.status("[yellow]Fetching submission history...[/yellow]"):
-            submissions = kaggle.get_submission_history(competition, limit=limit)
+            submissions_df = kaggle.get_submissions_history(competition, limit=limit)
         
-        if not submissions:
+        if submissions_df.empty:
             print_info("No submissions found for this competition.")
             return
+        
+        # Convert DataFrame to list of dictionaries for easier processing
+        submissions = submissions_df.to_dict('records')
         
         # Create submissions table
         columns = ["#", "Date", "Description", "Status"]
@@ -156,7 +159,7 @@ def history_command(
         console.print(hist_table)
         
         # Show statistics
-        console.print(f"\n[cyan]Total Submissions: {len(submissions)}[/cyan]")
+        console.print(f"\n[cyan]Total Submissions: {len(submissions_df)}[/cyan]")
         
         if show_scores and best_public > float('-inf'):
             console.print(f"[cyan]Best Public Score: {best_public}[/cyan]")
@@ -183,7 +186,7 @@ def history_command(
             report_data = {
                 "competition": competition,
                 "generated": datetime.now().isoformat(),
-                "total_submissions": len(submissions),
+                "total_submissions": len(submissions_df),
                 "submissions": submissions[:limit],
                 "statistics": {
                     "best_public_score": best_public if best_public > float('-inf') else None,
