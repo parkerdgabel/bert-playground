@@ -1,0 +1,30 @@
+# Best Model Only Competition Config
+training:
+  num_epochs: 15
+  eval_strategy: 'epoch'
+  save_strategy: 'best'
+  save_best_only: true  # Only save best model
+  best_metric: 'eval_accuracy'
+  best_metric_mode: 'max'
+  early_stopping: true
+  early_stopping_patience: 3
+  mixed_precision: true
+  logging_steps: 10
+
+data:
+  batch_size: 32
+  num_workers: 4
+  prefetch_size: 4
+
+optimizer:
+  type: adamw
+  learning_rate: 0.0001
+  weight_decay: 0.01
+  
+scheduler:
+  type: cosine
+  warmup_ratio: 0.1
+
+environment:
+  output_dir: output/competition_best_model_run
+
