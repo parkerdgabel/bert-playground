@@ -45,25 +45,27 @@ class TestAugmentationWithDatasets:
         
         # Create augmenter
         config = AugmentationConfig.from_mode(AugmentationMode.LIGHT)
-        augmenter = TabularAugmenter(config, feature_metadata, seed=42)
+        augmenter = TabularAugmenter(config, feature_metadata)
         
         # Create dataset with augmentation
         dataset = create_dataset(
             data_path=str(data_file),
-            target_column="target",
+            label_column="target",
             augmenter=augmenter,
         )
         
-        # Enable training mode
-        dataset.set_training_mode(True)
-        
-        # Get samples and verify augmentation
+        # Get samples and verify structure
         sample1 = dataset[0]
-        sample2 = dataset[0]  # Same index but should be augmented differently
+        sample2 = dataset[0]
         
-        # At least some values should differ due to augmentation
-        assert "feature1" in sample1
-        assert "feature2" in sample1
+        # Check that dataset returns correct format for BERT
+        assert "text" in sample1
+        assert "labels" in sample1
+        assert "metadata" in sample1
+        
+        # The text should contain our features
+        assert "feature1" in sample1["text"]
+        assert "feature2" in sample1["text"]
 
     def test_dataset_with_text_conversion(self, tmp_path):
         """Test dataset with text conversion augmentation."""

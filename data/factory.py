@@ -270,9 +270,11 @@ def create_dataset(
     data_path = Path(data_path)
 
     if dataset_type == "csv":
-        # Create augmenter if needed for text conversion
-        augmenter = None
-        if text_column is None and competition_name:
+        # Check if augmenter is provided in kwargs
+        augmenter = kwargs.pop("augmenter", None)
+        
+        # Create augmenter if needed for text conversion and not provided
+        if augmenter is None and text_column is None and competition_name:
             # Check if we have a specific augmenter for this competition
             registry = get_registry()
             if (

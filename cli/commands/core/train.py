@@ -274,13 +274,10 @@ def train_command(
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     # Get MLX-specific parameters from config if available
-    mlx_prefetch_size = config_overrides.get("data", {}).get("mlx_prefetch_size", None)
-    mlx_tokenizer_chunk_size = config_overrides.get("data", {}).get(
-        "mlx_tokenizer_chunk_size", 100
-    )
-    use_pretokenized_config = config_overrides.get("data", {}).get(
-        "use_pretokenized", use_pretokenized
-    )
+    data_config = config_overrides.get("data") or {}
+    mlx_prefetch_size = data_config.get("mlx_prefetch_size", None)
+    mlx_tokenizer_chunk_size = data_config.get("mlx_tokenizer_chunk_size", 100)
+    use_pretokenized_config = data_config.get("use_pretokenized", use_pretokenized)
 
     # Check if compilation is enabled and disable prefetch if so
     # This prevents a deadlock between compiled functions and prefetch threads
