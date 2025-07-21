@@ -4,13 +4,13 @@ This module provides the foundational classes and interfaces for handling
 Kaggle datasets with MLX optimization and BERT integration.
 """
 
-from .base import KaggleDataset, DatasetSpec, CompetitionType
+from .base import CompetitionType, DatasetSpec, KaggleDataset
 from .metadata import CompetitionMetadata, DatasetAnalyzer
 from .registry import DatasetRegistry
 
 __all__ = [
     "KaggleDataset",
-    "DatasetSpec", 
+    "DatasetSpec",
     "CompetitionType",
     "CompetitionMetadata",
     "DatasetAnalyzer",

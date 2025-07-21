@@ -12,7 +12,6 @@ from .config import ClassificationConfig, HeadConfig
 from .utils.losses import (
     FocalLoss,
     LabelSmoothingLoss,
-    binary_cross_entropy_loss,
     cross_entropy_loss,
     multilabel_bce_loss,
 )
@@ -79,7 +78,9 @@ class BinaryClassificationHead(BaseHead):
 
         return {
             "logits": logits,  # [batch_size, 2]
-            "probabilities": probs[:, 1],  # [batch_size] - probability of positive class
+            "probabilities": probs[
+                :, 1
+            ],  # [batch_size] - probability of positive class
             "probabilities_2class": probs,  # [batch_size, 2]
             "predictions": predictions,  # [batch_size]
         }

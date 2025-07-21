@@ -2,16 +2,15 @@
 Pytest configuration and shared fixtures for model module tests.
 """
 
-import pytest
-import tempfile
-import shutil
-from pathlib import Path
-from typing import Optional, Dict, Any, List, Tuple
-import mlx.core as mx
-import mlx.nn as nn
-
 # Add project root to path
 import sys
+import tempfile
+from pathlib import Path
+
+import mlx.core as mx
+import mlx.nn as nn
+import pytest
+
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from models.bert.config import BertConfig
@@ -150,34 +149,36 @@ def lora_config():
 # Mock model implementations
 class MockBertModel(nn.Module):
     """Mock BERT model for testing."""
-    
+
     def __init__(self, config: BertConfig):
         super().__init__()
         self.config = config
         self.embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
         self.encoder = nn.Sequential(
-            *[nn.Linear(config.hidden_size, config.hidden_size) 
-              for _ in range(config.num_hidden_layers)]
+            *[
+                nn.Linear(config.hidden_size, config.hidden_size)
+                for _ in range(config.num_hidden_layers)
+            ]
         )
         self.pooler = nn.Linear(config.hidden_size, config.hidden_size)
-    
+
     def __call__(
-        self, 
+        self,
         input_ids: mx.array,
-        attention_mask: Optional[mx.array] = None,
-        token_type_ids: Optional[mx.array] = None,
-    ) -> Dict[str, mx.array]:
+        attention_mask: mx.array | None = None,
+        token_type_ids: mx.array | None = None,
+    ) -> dict[str, mx.array]:
         """Forward pass."""
         # Get embeddings
         hidden_states = self.embeddings(input_ids)
-        
+
         # Pass through encoder
         for layer in self.encoder:
             hidden_states = layer(hidden_states)
-        
+
         # Pool
         pooled = self.pooler(hidden_states[:, 0])
-        
+
         return {
             "last_hidden_state": hidden_states,
             "pooler_output": pooled,
@@ -186,14 +187,14 @@ class MockBertModel(nn.Module):
 
 class MockClassificationHead(nn.Module):
     """Mock classification head for testing."""
-    
+
     def __init__(self, config: ClassificationConfig):
         super().__init__()
         self.config = config
         self.dense = nn.Linear(config.input_size, config.input_size)
         self.dropout = nn.Dropout(config.dropout_prob)
         self.classifier = nn.Linear(config.input_size, config.num_classes)
-    
+
     def __call__(self, hidden_states: mx.array) -> mx.array:
         """Forward pass."""
         # Pool based on config
@@ -201,22 +202,27 @@ class MockClassificationHead(nn.Module):
             pooled = hidden_states[:, 0]
         else:
             pooled = mx.mean(hidden_states, axis=1)
-        
+
         # Classification layers
         pooled = self.dense(pooled)
         pooled = nn.tanh(pooled)
         pooled = self.dropout(pooled)
         logits = self.classifier(pooled)
-        
+
         return logits
 
 
 # Import data generation functions
 from tests.models.fixtures.data import (
-    create_embeddings as _create_embeddings,
     create_attention_mask as _create_attention_mask,
+)
+from tests.models.fixtures.data import (
+    create_embeddings as _create_embeddings,
+)
+from tests.models.fixtures.data import (
     create_position_ids as _create_position_ids,
 )
+
 
 # Data generation fixtures
 @pytest.fixture
@@ -224,26 +230,30 @@ def create_embeddings():
     """Create embeddings for testing."""
     return _create_embeddings
 
-@pytest.fixture  
+
+@pytest.fixture
 def create_position_ids():
     """Create position IDs for testing."""
     return _create_position_ids
+
 
 @pytest.fixture
 def create_test_batch():
     """Create test batch for model testing."""
     from tests.models.fixtures.data import create_test_batch as _create_test_batch
+
     return _create_test_batch
 
 
 @pytest.fixture
 def create_random_inputs():
     """Create random inputs for testing."""
+
     def _create(
         batch_size: int = 4,
         seq_length: int = 128,
         vocab_size: int = 30522,
-    ) -> Dict[str, mx.array]:
+    ) -> dict[str, mx.array]:
         """Generate random inputs."""
         return {
             "input_ids": mx.random.randint(0, vocab_size, (batch_size, seq_length)),
@@ -251,6 +261,7 @@ def create_random_inputs():
             "token_type_ids": mx.zeros((batch_size, seq_length), dtype=mx.int32),
             "labels": mx.random.randint(0, 2, (batch_size,)),
         }
+
     return _create
 
 
@@ -264,39 +275,42 @@ def create_attention_mask():
 @pytest.fixture
 def assert_models_equal():
     """Utility for comparing two models."""
+
     def _assert(model1: nn.Module, model2: nn.Module, rtol: float = 1e-5):
         """Assert two models have equal parameters."""
         params1 = model1.parameters()
         params2 = model2.parameters()
-        
+
         # Flatten parameters
         flat1 = list(params1.items()) if isinstance(params1, dict) else list(params1)
         flat2 = list(params2.items()) if isinstance(params2, dict) else list(params2)
-        
+
         assert len(flat1) == len(flat2), "Models have different number of parameters"
-        
-        for (k1, v1), (k2, v2) in zip(flat1, flat2):
+
+        for (k1, v1), (k2, v2) in zip(flat1, flat2, strict=False):
             assert k1 == k2, f"Parameter names don't match: {k1} vs {k2}"
             assert mx.allclose(v1, v2, rtol=rtol), f"Parameter {k1} values don't match"
-    
+
     return _assert
 
 
 @pytest.fixture
 def assert_outputs_close():
     """Utility for comparing model outputs."""
+
     def _assert(
-        outputs1: Dict[str, mx.array], 
-        outputs2: Dict[str, mx.array],
+        outputs1: dict[str, mx.array],
+        outputs2: dict[str, mx.array],
         rtol: float = 1e-5,
     ):
         """Assert two output dicts are close."""
         assert set(outputs1.keys()) == set(outputs2.keys()), "Output keys don't match"
-        
+
         for key in outputs1:
-            assert mx.allclose(outputs1[key], outputs2[key], rtol=rtol), \
+            assert mx.allclose(outputs1[key], outputs2[key], rtol=rtol), (
                 f"Output {key} values don't match"
-    
+            )
+
     return _assert
 
 
@@ -304,24 +318,27 @@ def assert_outputs_close():
 @pytest.fixture
 def check_gradients():
     """Utility for checking gradient flow."""
-    def _check(model: nn.Module, loss_fn, batch: Dict[str, mx.array]) -> bool:
+
+    def _check(model: nn.Module, loss_fn, batch: dict[str, mx.array]) -> bool:
         """Check if gradients flow through model."""
         # Compute loss and gradients
         loss, grads = mx.value_and_grad(loss_fn)(model, batch)
-        
+
         # Check loss is valid
         assert mx.isfinite(loss), "Loss is not finite"
-        
+
         # Check gradients exist and are finite
         flat_grads = list(grads.items()) if isinstance(grads, dict) else list(grads)
         assert len(flat_grads) > 0, "No gradients computed"
-        
+
         for name, grad in flat_grads:
             assert grad is not None, f"Gradient for {name} is None"
-            assert mx.all(mx.isfinite(grad)), f"Gradient for {name} contains non-finite values"
-        
+            assert mx.all(mx.isfinite(grad)), (
+                f"Gradient for {name} contains non-finite values"
+            )
+
         return True
-    
+
     return _check
 
 
@@ -329,26 +346,27 @@ def check_gradients():
 @pytest.fixture
 def memory_profiler():
     """Utility for profiling memory usage."""
+
     class MemoryProfiler:
         def __init__(self):
             self.initial_memory = None
             self.peak_memory = None
-        
+
         def __enter__(self):
             mx.metal.clear_cache()
             self.initial_memory = mx.metal.get_active_memory()
             return self
-        
+
         def __exit__(self, *args):
             self.peak_memory = mx.metal.get_peak_memory()
             mx.metal.clear_cache()
-        
+
         def get_memory_used(self) -> int:
             """Get memory used during profiling."""
             if self.peak_memory is None or self.initial_memory is None:
                 return 0
             return self.peak_memory - self.initial_memory
-    
+
     return MemoryProfiler
 
 
@@ -356,20 +374,21 @@ def memory_profiler():
 @pytest.fixture
 def benchmark_model():
     """Utility for benchmarking model performance."""
+
     def _benchmark(
         model: nn.Module,
-        batch: Dict[str, mx.array],
+        batch: dict[str, mx.array],
         num_iterations: int = 10,
         warmup: int = 3,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Benchmark model forward pass."""
         import time
-        
+
         # Warmup
         for _ in range(warmup):
             _ = model(**batch)
             mx.eval(model.parameters())
-        
+
         # Time iterations
         times = []
         for _ in range(num_iterations):
@@ -377,46 +396,46 @@ def benchmark_model():
             _ = model(**batch)
             mx.eval(model.parameters())
             times.append(time.time() - start)
-        
+
         return {
             "mean_time": sum(times) / len(times),
             "min_time": min(times),
             "max_time": max(times),
         }
-    
+
     return _benchmark
 
 
 # Error models for testing
 class BrokenModel(nn.Module):
     """Model that raises errors for testing error handling."""
-    
+
     def __init__(self, error_type: str = "forward"):
         super().__init__()
         self.error_type = error_type
         self.linear = nn.Linear(10, 10)
-    
+
     def __call__(self, *args, **kwargs):
         if self.error_type == "forward":
             raise RuntimeError("Forward pass failed")
         return self.linear(mx.zeros((1, 10)))
-    
+
     def save(self, path: Path):
         if self.error_type == "save":
-            raise IOError("Save failed")
-    
+            raise OSError("Save failed")
+
     def load(self, path: Path):
         if self.error_type == "load":
-            raise IOError("Load failed")
+            raise OSError("Load failed")
 
 
 class NaNModel(nn.Module):
     """Model that produces NaN values for testing."""
-    
+
     def __init__(self):
         super().__init__()
         self.linear = nn.Linear(10, 10)
-    
+
     def __call__(self, x: mx.array) -> mx.array:
         # Force NaN by dividing by zero
         return self.linear(x) / 0.0
@@ -483,6 +502,6 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(pytest.mark.integration)
         elif "e2e" in str(item.fspath):
             item.add_marker(pytest.mark.e2e)
-        
+
         # Add MLX marker to all tests
         item.add_marker(pytest.mark.mlx)

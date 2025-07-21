@@ -245,11 +245,11 @@ class LoRAAdapter:
         # MLX's named_modules correctly generates names like "bert.encoder_layers.0.dense"
         # We can use MLX's built-in module update functionality
         modules_dict = dict(self.model.named_modules())
-        
+
         # Verify the module exists
         if name not in modules_dict:
             raise ValueError(f"Module {name} not found in model")
-        
+
         # Update the module using MLX's module update
         self.model.update({name: new_module})
 
@@ -260,18 +260,18 @@ class LoRAAdapter:
             # Skip the model itself
             if name == "":
                 continue
-                
+
             # Check if module contains LoRA parameters
             is_lora_module = any(
                 hasattr(module, lora_attr)
                 for lora_attr in ["lora_A", "lora_B", "lora_bias", "magnitude"]
             )
-            
+
             # Check if module is in modules to save
             in_modules_to_save = any(
                 module_name in name for module_name in self.config.modules_to_save
             )
-            
+
             # Freeze non-LoRA modules
             if not is_lora_module and not in_modules_to_save:
                 # Only freeze if it's a leaf module (no children)

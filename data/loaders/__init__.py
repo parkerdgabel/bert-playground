@@ -4,13 +4,13 @@ This module provides high-performance data loading capabilities
 optimized for Apple Silicon unified memory architecture.
 """
 
+from .memory import UnifiedMemoryManager
 from .mlx_loader import MLXDataLoader, MLXLoaderConfig
 from .streaming import StreamingPipeline
-from .memory import UnifiedMemoryManager
 
 __all__ = [
     "MLXDataLoader",
     "MLXLoaderConfig",
-    "StreamingPipeline", 
+    "StreamingPipeline",
     "UnifiedMemoryManager",
 ]

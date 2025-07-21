@@ -9,10 +9,10 @@ app = typer.Typer(
 )
 
 # Import commands
-from .serve import serve_command
-from .registry import registry_command
 from .evaluate import evaluate_command
 from .export import export_command
+from .registry import registry_command
+from .serve import serve_command
 
 # Register commands
 app.command(name="serve")(serve_command)

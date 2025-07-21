@@ -1,10 +1,11 @@
+import json
 import sys
-from pathlib import Path
 from datetime import datetime
-from typing import Optional, Dict, Any
+from pathlib import Path
+from typing import Any
+
 from loguru import logger
 from rich.console import Console
-import json
 
 # Rich console for better terminal output
 console = Console()
@@ -19,7 +20,7 @@ class LoggingConfig:
         log_level: str = "INFO",
         log_to_file: bool = True,
         log_to_console: bool = True,
-        experiment_name: Optional[str] = None,
+        experiment_name: str | None = None,
     ):
         self.log_dir = Path(log_dir)
         self.log_level = log_level
@@ -85,7 +86,7 @@ class LoggingConfig:
             )
 
     @staticmethod
-    def log_metrics(metrics: Dict[str, Any], step: Optional[int] = None):
+    def log_metrics(metrics: dict[str, Any], step: int | None = None):
         """Log metrics in a structured format."""
         log_data = {"timestamp": datetime.now().isoformat(), "metrics": metrics}
         if step is not None:
@@ -94,21 +95,21 @@ class LoggingConfig:
         logger.bind(metrics=True).info(json.dumps(log_data))
 
     @staticmethod
-    def log_hyperparameters(params: Dict[str, Any]):
+    def log_hyperparameters(params: dict[str, Any]):
         """Log hyperparameters at the start of training."""
         logger.info("Hyperparameters:")
         for key, value in params.items():
             logger.info(f"  {key}: {value}")
 
     @staticmethod
-    def log_model_info(model_info: Dict[str, Any]):
+    def log_model_info(model_info: dict[str, Any]):
         """Log model architecture information."""
         logger.info("Model Information:")
         for key, value in model_info.items():
             logger.info(f"  {key}: {value}")
 
     @staticmethod
-    def log_data_info(data_info: Dict[str, Any]):
+    def log_data_info(data_info: dict[str, Any]):
         """Log dataset information."""
         logger.info("Dataset Information:")
         for key, value in data_info.items():
@@ -118,7 +119,7 @@ class LoggingConfig:
 class ExperimentLogger:
     """Context manager for experiment logging."""
 
-    def __init__(self, experiment_name: str, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, experiment_name: str, config: dict[str, Any] | None = None):
         self.experiment_name = experiment_name
         self.config = config or {}
         self.start_time = None
@@ -155,7 +156,7 @@ class ExperimentLogger:
 
 # Convenience functions
 def setup_logging(
-    experiment_name: Optional[str] = None,
+    experiment_name: str | None = None,
     log_level: str = "INFO",
     log_dir: str = "./logs",
 ) -> LoggingConfig:
@@ -171,7 +172,7 @@ def get_logger(name: str = __name__):
 
 
 # Progress bar utilities
-def log_progress(iterable, desc: str, total: Optional[int] = None):
+def log_progress(iterable, desc: str, total: int | None = None):
     """Create a rich progress bar for iterations."""
     from rich.progress import track
 

@@ -1,13 +1,11 @@
 """Configuration fixtures for data module testing."""
 
-from pathlib import Path
-from typing import Dict, Any, Optional, List
 import json
+from pathlib import Path
+from typing import Any
 
+from data.core.base import CompetitionType, DatasetSpec
 from data.loaders.mlx_loader import MLXLoaderConfig
-from data.core.metadata import CompetitionMetadata
-from data.core.base import DatasetSpec, CompetitionType
-from data.templates.engine import TemplateConfig
 
 
 def create_loader_config(
@@ -16,7 +14,7 @@ def create_loader_config(
     drop_last: bool = False,
     num_workers: int = 0,
     prefetch_size: int = 2,
-    **kwargs
+    **kwargs,
 ) -> MLXLoaderConfig:
     """Create data loader configuration with sensible defaults."""
     config_dict = {
@@ -29,12 +27,12 @@ def create_loader_config(
         "pin_memory": kwargs.get("pin_memory", False),
         "persistent_workers": kwargs.get("persistent_workers", False),
     }
-    
+
     # Add any additional kwargs
     for key, value in kwargs.items():
         if key not in config_dict:
             config_dict[key] = value
-    
+
     return MLXLoaderConfig(**config_dict)
 
 
@@ -43,31 +41,38 @@ def create_streaming_config(
     buffer_size: int = 1000,
     prefetch: int = 4,
     shuffle: bool = True,
-    **kwargs
+    **kwargs,
 ):
     """Create streaming data configuration."""
     from data.loaders.streaming import StreamingConfig
-    
+
     # Map common parameters
     config_kwargs = {
         "batch_size": batch_size,
         "buffer_size": buffer_size,
         "prefetch_batches": prefetch,
     }
-    
+
     # Add any additional kwargs that StreamingConfig accepts
     valid_params = {
-        "chunk_size", "max_queue_size", "num_producer_threads", 
-        "num_consumer_threads", "num_workers", "max_memory_mb", 
-        "enable_memory_monitoring", "memory_cleanup_threshold",
-        "enable_async_processing", "stream_timeout_seconds",
-        "target_throughput", "adaptive_batching"
+        "chunk_size",
+        "max_queue_size",
+        "num_producer_threads",
+        "num_consumer_threads",
+        "num_workers",
+        "max_memory_mb",
+        "enable_memory_monitoring",
+        "memory_cleanup_threshold",
+        "enable_async_processing",
+        "stream_timeout_seconds",
+        "target_throughput",
+        "adaptive_batching",
     }
-    
+
     for key, value in kwargs.items():
         if key in valid_params:
             config_kwargs[key] = value
-    
+
     return StreamingConfig(**config_kwargs)
 
 
@@ -75,15 +80,17 @@ def create_memory_config(
     memory_limit: int = 1_000_000_000,  # 1GB
     cache_size: int = 100,
     batch_size: int = 16,
-    **kwargs
-) -> Dict[str, Any]:
+    **kwargs,
+) -> dict[str, Any]:
     """Create memory-optimized configuration."""
     return {
         "batch_size": batch_size,
         "memory_limit": memory_limit,
         "cache_size": cache_size,
         "pin_memory": kwargs.get("pin_memory", False),
-        "num_workers": kwargs.get("num_workers", 0),  # Single process for memory control
+        "num_workers": kwargs.get(
+            "num_workers", 0
+        ),  # Single process for memory control
         "prefetch_factor": kwargs.get("prefetch_factor", 2),
         "persistent_workers": False,  # Disable to save memory
         "drop_last": kwargs.get("drop_last", True),  # Drop incomplete batches
@@ -112,7 +119,7 @@ def create_dataset_spec(
     task_type: str = "classification",
     num_samples: int = 1000,
     num_features: int = 10,
-    **kwargs
+    **kwargs,
 ) -> DatasetSpec:
     """Create dataset specification."""
     # Map task type string to CompetitionType enum
@@ -124,26 +131,26 @@ def create_dataset_spec(
         "time_series": CompetitionType.TIME_SERIES,
     }
     competition_type = competition_type_map.get(task_type, CompetitionType.UNKNOWN)
-    
+
     # Create feature columns - use provided ones or generate defaults
     if "numerical_columns" in kwargs:
         numerical_columns = kwargs["numerical_columns"]
     else:
         num_numeric = kwargs.get("num_numeric_features", num_features)
         numerical_columns = [f"numeric_{i}" for i in range(num_numeric)]
-    
+
     if "categorical_columns" in kwargs:
         categorical_columns = kwargs["categorical_columns"]
     else:
         num_categorical = kwargs.get("num_categorical_features", 0)
         categorical_columns = [f"categorical_{i}" for i in range(num_categorical)]
-    
+
     if "text_columns" in kwargs:
         text_columns = kwargs["text_columns"]
     else:
         num_text = kwargs.get("num_text_features", 0)
         text_columns = [f"text_{i}" for i in range(num_text)]
-    
+
     spec = DatasetSpec(
         competition_name=name,
         dataset_path=kwargs.get("dataset_path", Path("/tmp/test_data")),
@@ -154,21 +161,21 @@ def create_dataset_spec(
         text_columns=text_columns,
         categorical_columns=categorical_columns,
         numerical_columns=numerical_columns,
-        num_classes=kwargs.get("num_classes", 2 if "classification" in task_type else None),
+        num_classes=kwargs.get(
+            "num_classes", 2 if "classification" in task_type else None
+        ),
     )
-    
+
     return spec
 
 
 def create_kaggle_config(
-    competition_name: str = "titanic",
-    data_dir: Optional[Path] = None,
-    **kwargs
-) -> Dict[str, Any]:
+    competition_name: str = "titanic", data_dir: Path | None = None, **kwargs
+) -> dict[str, Any]:
     """Create Kaggle-specific configuration."""
     if data_dir is None:
         data_dir = Path("/tmp/kaggle_data")
-    
+
     return {
         "competition_name": competition_name,
         "data_dir": str(data_dir),
@@ -184,34 +191,16 @@ def create_kaggle_config(
     }
 
 
-def create_template_config(
-    template_type: str = "default",
-    max_length: int = 512,
-    include_feature_names: bool = True,
-    **kwargs
-) -> TemplateConfig:
-    """Create template engine configuration."""
-    return TemplateConfig(
-        template_type=template_type,
-        max_length=max_length,
-        include_feature_names=include_feature_names,
-        separator=kwargs.get("separator", ", "),
-        missing_value_token=kwargs.get("missing_value_token", "[MISSING]"),
-        numeric_precision=kwargs.get("numeric_precision", 2),
-        categorical_unknown_token=kwargs.get("categorical_unknown_token", "[UNK]"),
-        text_preprocessing=kwargs.get("text_preprocessing", ["lowercase", "strip"]),
-    )
-
 
 def create_augmentation_config(
-    augmentation_types: Optional[List[str]] = None,
+    augmentation_types: list[str] | None = None,
     augmentation_prob: float = 0.5,
-    **kwargs
-) -> Dict[str, Any]:
+    **kwargs,
+) -> dict[str, Any]:
     """Create data augmentation configuration."""
     if augmentation_types is None:
         augmentation_types = ["synonym", "deletion", "swap"]
-    
+
     return {
         "augmentation_types": augmentation_types,
         "augmentation_prob": augmentation_prob,
@@ -225,15 +214,15 @@ def create_augmentation_config(
 
 
 def create_cache_config(
-    cache_dir: Optional[Path] = None,
+    cache_dir: Path | None = None,
     cache_size_limit: int = 10_000_000_000,  # 10GB
     eviction_policy: str = "lru",
-    **kwargs
-) -> Dict[str, Any]:
+    **kwargs,
+) -> dict[str, Any]:
     """Create cache configuration."""
     if cache_dir is None:
         cache_dir = Path("/tmp/data_cache")
-    
+
     return {
         "cache_dir": str(cache_dir),
         "cache_size_limit": cache_size_limit,
@@ -250,8 +239,8 @@ def create_preprocessing_config(
     normalize_numeric: bool = True,
     encode_categorical: str = "onehot",
     handle_missing: str = "mean",
-    **kwargs
-) -> Dict[str, Any]:
+    **kwargs,
+) -> dict[str, Any]:
     """Create preprocessing configuration."""
     return {
         "normalize_numeric": normalize_numeric,
@@ -269,7 +258,7 @@ def create_preprocessing_config(
     }
 
 
-def create_loader_config_variations() -> Dict[str, MLXLoaderConfig]:
+def create_loader_config_variations() -> dict[str, MLXLoaderConfig]:
     """Create various loader configuration variations for testing."""
     return {
         "default": create_loader_config(),
@@ -283,7 +272,7 @@ def create_loader_config_variations() -> Dict[str, MLXLoaderConfig]:
     }
 
 
-def create_invalid_config() -> Dict[str, Any]:
+def create_invalid_config() -> dict[str, Any]:
     """Create invalid configuration for error testing."""
     return {
         "batch_size": -1,  # Invalid negative batch size
@@ -294,7 +283,7 @@ def create_invalid_config() -> Dict[str, Any]:
     }
 
 
-def create_edge_case_configs() -> Dict[str, Any]:
+def create_edge_case_configs() -> dict[str, Any]:
     """Create edge case configurations for testing."""
     return {
         "single_sample_batch": create_loader_config(batch_size=1, drop_last=False),
@@ -310,14 +299,14 @@ def create_edge_case_configs() -> Dict[str, Any]:
 def save_config_to_file(config: Any, file_path: Path, format: str = "json"):
     """Save configuration to file for testing."""
     file_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     if hasattr(config, "to_dict"):
         config_dict = config.to_dict()
     elif hasattr(config, "__dict__"):
         config_dict = config.__dict__
     else:
         config_dict = dict(config)
-    
+
     if format == "json":
         with open(file_path, "w") as f:
             json.dump(config_dict, f, indent=2)
@@ -341,7 +330,7 @@ def create_mlx_loader_config(
     max_length: int = 512,
     padding: str = "max_length",
     truncation: bool = True,
-    **kwargs
+    **kwargs,
 ) -> MLXLoaderConfig:
     """Create MLX data loader configuration."""
     # Filter out parameters that MLXLoaderConfig doesn't support
@@ -356,20 +345,20 @@ def create_mlx_loader_config(
         "padding": padding,
         "truncation": truncation,
     }
-    
+
     # Add any additional parameters from kwargs that MLXLoaderConfig supports
     for key, value in kwargs.items():
         if hasattr(MLXLoaderConfig, key):
             mlx_params[key] = value
-    
+
     return MLXLoaderConfig(**mlx_params)
 
 
-def load_config_from_file(file_path: Path, config_class: Optional[type] = None) -> Any:
+def load_config_from_file(file_path: Path, config_class: type | None = None) -> Any:
     """Load configuration from file."""
-    with open(file_path, "r") as f:
+    with open(file_path) as f:
         config_dict = json.load(f)
-    
+
     if config_class:
         return config_class(**config_dict)
     else:

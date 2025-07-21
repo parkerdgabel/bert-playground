@@ -5,7 +5,6 @@ following the clean design patterns from the BERT module.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any
 
 import mlx.core as mx
 import mlx.nn as nn
@@ -189,48 +188,55 @@ class BaseHead(nn.Module, ABC):
         pass
 
 
-def get_default_config_for_head_type(head_type: str, input_size: int, output_size: int = None) -> HeadConfig:
+def get_default_config_for_head_type(
+    head_type: str, input_size: int, output_size: int = None
+) -> HeadConfig:
     """Get default configuration for a head type.
-    
+
     Args:
         head_type: Type of head (binary_classification, multiclass_classification, etc.)
         input_size: Size of input features
         output_size: Size of output (required for some head types)
-        
+
     Returns:
         HeadConfig instance with default settings for the head type
-        
+
     Raises:
         ValueError: If head type is unknown or required parameters are missing
     """
     head_type = head_type.lower()
-    
+
     # Import config factory functions
     from .config import (
+        get_base_config,
         get_binary_classification_config,
         get_multiclass_classification_config,
         get_multilabel_classification_config,
         get_regression_config,
-        get_base_config,
     )
-    
+
     if head_type in ["binary", "binary_classification"]:
         return get_binary_classification_config(input_size)
-    
+
     elif head_type in ["multiclass", "multiclass_classification"]:
         if output_size is None:
             raise ValueError("output_size (num_classes) required for multiclass head")
         return get_multiclass_classification_config(input_size, output_size)
-    
+
     elif head_type in ["multilabel", "multilabel_classification"]:
         if output_size is None:
             raise ValueError("output_size (num_labels) required for multilabel head")
         return get_multilabel_classification_config(input_size, output_size)
-    
-    elif head_type in ["regression", "standard_regression", "ordinal_regression", "quantile_regression"]:
+
+    elif head_type in [
+        "regression",
+        "standard_regression",
+        "ordinal_regression",
+        "quantile_regression",
+    ]:
         output_size = output_size or 1  # Default to single output for regression
         return get_regression_config(input_size, output_size)
-    
+
     else:
         # Fall back to base config
         return get_base_config(input_size, output_size or 1)

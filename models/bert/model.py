@@ -142,36 +142,41 @@ class BertWithHead(nn.Module):
         model_path = Path(model_path)
 
         # Check if this is a flat checkpoint (from training) or nested (from save_pretrained)
-        is_flat_checkpoint = (model_path / "model.safetensors").exists() and not (model_path / "bert").exists()
-        
+        is_flat_checkpoint = (model_path / "model.safetensors").exists() and not (
+            model_path / "bert"
+        ).exists()
+
         if is_flat_checkpoint:
             # Handle flat checkpoint structure from training
             logger.info(f"Loading flat checkpoint from {model_path}")
-            
+
             # Load config.json which contains BERT configuration
             with open(model_path / "config.json") as f:
                 bert_config_dict = json.load(f)
-            
+
             # Load weights first to determine actual vocab size
             from safetensors.mlx import load_file
-            from mlx.utils import tree_flatten, tree_unflatten
-            
+
             weights = load_file(str(model_path / "model.safetensors"))
-            
+
             # Check actual vocab size from embeddings weight shape
             embed_key = "bert.embeddings.word_embeddings.weight"
             if embed_key in weights:
                 actual_vocab_size = weights[embed_key].shape[0]
                 bert_config_dict["vocab_size"] = actual_vocab_size
-                logger.info(f"Adjusted vocab_size to {actual_vocab_size} based on weight dimensions")
-            
+                logger.info(
+                    f"Adjusted vocab_size to {actual_vocab_size} based on weight dimensions"
+                )
+
             # Check actual max position embeddings from position embeddings weight shape
             pos_embed_key = "bert.embeddings.position_embeddings.weight"
             if pos_embed_key in weights:
                 actual_max_pos = weights[pos_embed_key].shape[0]
                 bert_config_dict["max_position_embeddings"] = actual_max_pos
-                logger.info(f"Adjusted max_position_embeddings to {actual_max_pos} based on weight dimensions")
-            
+                logger.info(
+                    f"Adjusted max_position_embeddings to {actual_max_pos} based on weight dimensions"
+                )
+
             # Try to load model metadata if it exists
             model_metadata_path = model_path / "model_metadata.json"
             if model_metadata_path.exists():
@@ -183,12 +188,12 @@ class BertWithHead(nn.Module):
                 # Default values
                 bert_type = "ModernBertCore"
                 head_type = "binary_classification"
-            
+
             # Create BERT model with proper config
-            from .core import ModernBertCore, BertCore
             from .config import BertConfig
+            from .core import BertCore, ModernBertCore
             from .modernbert_config import ModernBertConfig
-            
+
             if bert_type == "ModernBertCore":
                 # Create ModernBertConfig from dict
                 bert_config = ModernBertConfig(**bert_config_dict)
@@ -197,27 +202,27 @@ class BertWithHead(nn.Module):
                 # Create BertConfig from dict
                 bert_config = BertConfig(**bert_config_dict)
                 bert = BertCore(bert_config)
-            
+
             # Create head with default config for binary classification
             from ..heads import create_head
-            
+
             # For Titanic, we know it's binary classification with 2 labels
             head = create_head(
                 head_type=head_type,
                 input_size=bert_config.hidden_size,
                 output_size=2,  # Binary classification
-                dropout_prob=0.1
+                dropout_prob=0.1,
             )
-            
+
             # Create BertWithHead model
             model = cls(bert=bert, head=head)
-            
+
             # Apply weights to model (already loaded above)
             model.load_weights(list(weights.items()))
-            
+
             logger.info(f"Loaded flat checkpoint BertWithHead model from {model_path}")
             return model
-            
+
         else:
             # Handle nested structure (from save_pretrained)
             # Load metadata

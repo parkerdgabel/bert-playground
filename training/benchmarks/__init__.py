@@ -2,8 +2,8 @@
 Performance benchmarking utilities for training optimization.
 """
 
-from .performance_monitor import PerformanceMonitor, BenchmarkResults
 from .memory_tracker import MemoryTracker
+from .performance_monitor import BenchmarkResults, PerformanceMonitor
 
 __all__ = [
     "PerformanceMonitor",

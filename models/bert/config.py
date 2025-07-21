@@ -85,7 +85,15 @@ class BertConfig:
     @classmethod
     def from_dict(cls, config_dict):
         """Create config from dictionary."""
-        return cls(**config_dict)
+        # Get the expected fields from our dataclass
+        import inspect
+        sig = inspect.signature(cls.__init__)
+        expected_fields = set(sig.parameters.keys()) - {'self'}
+        
+        # Only keep fields that our config expects
+        filtered_dict = {k: v for k, v in config_dict.items() 
+                        if k in expected_fields}
+        return cls(**filtered_dict)
 
     @classmethod
     def from_hf_config(cls, hf_config_dict: dict[str, Any]) -> "BertConfig":

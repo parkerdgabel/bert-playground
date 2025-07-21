@@ -2,13 +2,13 @@
 Kaggle-specific training components optimized for competitions.
 """
 
-from .trainer import KaggleTrainer
-from .config import KaggleTrainerConfig, CompetitionProfile, get_competition_config
 from .callbacks import (
+    CompetitionMetrics,
     KaggleSubmissionCallback,
     LeaderboardTracker,
-    CompetitionMetrics,
 )
+from .config import CompetitionProfile, KaggleTrainerConfig, get_competition_config
+from .trainer import KaggleTrainer
 
 __all__ = [
     "KaggleTrainer",

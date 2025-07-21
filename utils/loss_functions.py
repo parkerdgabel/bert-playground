@@ -5,7 +5,6 @@ Optimized for MLX framework.
 
 import mlx.core as mx
 import mlx.nn as nn
-from typing import Optional, Union
 from loguru import logger
 
 
@@ -67,7 +66,7 @@ def focal_loss(
 def weighted_cross_entropy(
     logits: mx.array,
     labels: mx.array,
-    class_weights: Optional[mx.array] = None,
+    class_weights: mx.array | None = None,
     reduction: str = "mean",
 ) -> mx.array:
     """
@@ -308,7 +307,7 @@ class AdaptiveLoss:
         initial_gamma: float = 0.0,
         final_gamma: float = 2.0,
         warmup_steps: int = 1000,
-        class_weights: Optional[mx.array] = None,
+        class_weights: mx.array | None = None,
     ):
         self.initial_alpha = initial_alpha
         self.final_alpha = final_alpha
@@ -350,9 +349,7 @@ class AdaptiveLoss:
         self.current_step = 0
 
 
-def get_loss_function(
-    loss_type: str = "focal", **kwargs
-) -> Union[callable, AdaptiveLoss]:
+def get_loss_function(loss_type: str = "focal", **kwargs) -> callable | AdaptiveLoss:
     """
     Factory function to get the appropriate loss function.
 
