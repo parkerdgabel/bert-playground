@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mlx-bert"
+name = "k-bert"
 version = "0.1.0"
 description = "State-of-the-art BERT implementation for Apple Silicon using MLX, designed for Kaggle competitions"
 readme = "README.md"
@@ -64,8 +64,9 @@ Documentation = "https://github.com/parkergabel/mlx-bert/blob/main/README.md"
 "Bug Tracker" = "https://github.com/parkergabel/mlx-bert/issues"
 
 [project.scripts]
-mlx-bert = "cli:main"
-bert = "cli:main"  # Alias for convenience
+k-bert = "cli:main"
+kbert = "cli:main"  # Alias without hyphen
+bert = "cli:main"  # Short alias for convenience
 
 [project.optional-dependencies]
 dev = [
