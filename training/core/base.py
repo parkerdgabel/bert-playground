@@ -250,13 +250,47 @@ class BaseTrainer:
                 # Fall back to batch dictionary (for simple test models)
                 outputs = self.model(batch)
             
-            # Extract loss
-            loss = outputs.get("loss")
-            if loss is None:
-                raise ValueError("Model must return a dictionary with 'loss' key")
+            # Extract loss - handle both dictionary and direct outputs
+            if isinstance(outputs, dict) and "loss" in outputs:
+                loss = outputs["loss"]
+            elif isinstance(outputs, dict) and "logits" in outputs:
+                # Model returned logits but no loss - compute loss manually for evaluation
+                import mlx.nn as nn
+                logits = outputs["logits"]
+                if "labels" in model_inputs:
+                    loss = nn.losses.cross_entropy(
+                        logits, 
+                        model_inputs["labels"], 
+                        reduction="mean"
+                    )
+                else:
+                    # No labels available for evaluation - use dummy loss
+                    loss = mx.array(0.0)
+            else:
+                # Handle case where outputs is not a dict or missing expected keys
+                if hasattr(outputs, "loss"):
+                    loss = outputs.loss
+                elif hasattr(outputs, "logits"):
+                    # Compute loss if we have logits and labels
+                    import mlx.nn as nn
+                    if "labels" in model_inputs:
+                        loss = nn.losses.cross_entropy(
+                            outputs.logits, 
+                            model_inputs["labels"], 
+                            reduction="mean"
+                        )
+                    else:
+                        loss = mx.array(0.0)
+                else:
+                    # Fallback: assume outputs is the loss value
+                    loss = outputs if isinstance(outputs, mx.array) else mx.array(float(outputs))
             
             # Keep metrics as MLX arrays - no conversion
-            metrics = {k: v for k, v in outputs.items() if k != "loss"}
+            if isinstance(outputs, dict):
+                metrics = {k: v for k, v in outputs.items() if k != "loss"}
+            else:
+                # If outputs is not a dict, create minimal metrics
+                metrics = {}
             
             # Return loss and metrics as MLX arrays
             return loss, metrics

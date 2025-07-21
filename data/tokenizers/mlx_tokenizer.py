@@ -211,3 +211,8 @@ class MLXTokenizer:
         if hasattr(self._tokenizer, 'sep_token_id'):
             return self._tokenizer.sep_token_id
         return 102  # Default BERT SEP token
+        
+    @property
+    def name_or_path(self) -> str:
+        """Get tokenizer name or path for compatibility."""
+        return self.tokenizer_name
