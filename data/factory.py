@@ -142,6 +142,13 @@ class CSVDataset(KaggleDataset):
                     self.spec.target_column = col
                     logger.info(f"Auto-detected label column: {self.label_column}")
                     break
+        
+        # Store labels array for CV if available
+        if self.label_column and self.label_column in self._data.columns:
+            self._labels = self._data[self.label_column].values
+            logger.info(f"Loaded {len(self._labels)} labels from '{self.label_column}'")
+        
+        logger.info(f"Loaded {len(self._data)} samples from {self.csv_path.name}")
 
     def _validate_data(self) -> None:
         """Validate the loaded data."""
@@ -222,6 +229,11 @@ class CSVDataset(KaggleDataset):
                 break
 
         return sample
+    
+    @property
+    def labels(self):
+        """Get labels array for cross-validation."""
+        return self._labels
 
     def _simple_text_conversion(self, row_dict: dict[str, Any]) -> str:
         """Simple key-value text conversion."""

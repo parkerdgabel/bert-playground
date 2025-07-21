@@ -114,14 +114,15 @@ class TokenizerCache:
         )
 
         # Convert to MLX arrays for unified memory and optimal performance
+        # Use int32 dtype for MLX compilation compatibility
         tokenized_data = {
-            "input_ids": mx.array(encoded["input_ids"]),
-            "attention_mask": mx.array(encoded["attention_mask"]),
+            "input_ids": mx.array(encoded["input_ids"], dtype=mx.int32),
+            "attention_mask": mx.array(encoded["attention_mask"], dtype=mx.int32),
         }
 
         # Add token_type_ids if available
         if "token_type_ids" in encoded:
-            tokenized_data["token_type_ids"] = mx.array(encoded["token_type_ids"])
+            tokenized_data["token_type_ids"] = mx.array(encoded["token_type_ids"], dtype=mx.int32)
 
         # Add labels if provided
         if labels is not None:

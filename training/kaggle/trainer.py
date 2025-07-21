@@ -47,6 +47,7 @@ class KaggleTrainer(BaseTrainer):
         config: KaggleTrainerConfig,
         test_dataloader: DataLoader | None = None,
         enable_bert_strategies: bool = True,
+        tokenizer=None,
     ):
         """
         Initialize Kaggle trainer.
@@ -55,6 +56,8 @@ class KaggleTrainer(BaseTrainer):
             model: Model to train
             config: Kaggle trainer configuration
             test_dataloader: Test data loader for predictions
+            enable_bert_strategies: Enable BERT-specific strategies
+            tokenizer: Tokenizer for text augmentation
         """
         # Add Kaggle-specific callbacks
         callbacks = []
@@ -116,11 +119,20 @@ class KaggleTrainer(BaseTrainer):
                 self.bert_ensemble = BERTEnsembleModel(self.bert_ensemble_config)
                 logger.info("Initialized BERT ensemble framework")
 
-            # Text augmentation
-            self.text_augmenter = BERTTextAugmenter()
-            self.tabular_augmenter = TabularBERTAugmenter()
-            self.tta_augmenter = BERTTestTimeAugmentation()
-            logger.info("Initialized BERT augmentation engines")
+            # Text augmentation (only initialize if tokenizer is provided)
+            if tokenizer:
+                self.text_augmenter = BERTTextAugmenter(tokenizer)
+                self.tta_augmenter = BERTTestTimeAugmentation(self.text_augmenter)
+                logger.info("Initialized BERT augmentation engines")
+            else:
+                self.text_augmenter = None
+                self.tta_augmenter = None
+                logger.warning("No tokenizer provided - text augmentation disabled")
+            
+            # Tabular augmenter doesn't need tokenizer but needs config
+            from data.augmentation.config import AugmentationConfig
+            augmentation_config = AugmentationConfig()
+            self.tabular_augmenter = TabularToTextAugmenter(config=augmentation_config)
 
             # Pseudo-labeling configuration
             self.pseudo_labeling_config = PseudoLabelingConfig(

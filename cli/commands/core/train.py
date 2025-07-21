@@ -492,6 +492,7 @@ def train_command(
             model=model,
             config=training_config,
             test_dataloader=test_loader,
+            tokenizer=tokenizer,
         )
         logger.info("Using KaggleTrainer with cross-validation")
     else:
