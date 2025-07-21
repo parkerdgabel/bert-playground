@@ -223,6 +223,19 @@ def train_command(
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = output_dir / f"run_{timestamp}"
     run_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Add file handler for logging to run directory
+    from utils.logging_utils import add_file_logger
+    
+    log_file = run_dir / "training.log"
+    add_file_logger(
+        file_path=log_file,
+        level=log_level_upper,
+        rotation="500 MB",
+        retention="30 days",
+        compression="zip"
+    )
+    logger.info(f"Logging to: {log_file}")
 
     # Import training components
     try:
@@ -528,6 +541,7 @@ def train_command(
         # Show next steps
         # Print concise next steps
         logger.info(f"Next: bert predict --test data/test.csv --checkpoint {final_model_path}")
+        logger.info(f"Logs saved to: {log_file}")
 
     except KeyboardInterrupt:
         logger.error("Training interrupted by user")

@@ -2,6 +2,7 @@
 
 import os
 import sys
+from pathlib import Path
 from typing import Optional
 
 from loguru import logger
@@ -249,6 +250,41 @@ def log_epoch_metrics(epoch: int, train_loss: float, val_loss: Optional[float] =
     logger.info(" | ".join(parts))
 
 
+def add_file_logger(
+    file_path: str | Path,
+    level: str = "INFO",
+    format: Optional[str] = None,
+    rotation: str = "500 MB",
+    retention: str = "30 days",
+    compression: str = "zip",
+) -> None:
+    """
+    Add a file logger handler to save logs to a file.
+    
+    Args:
+        file_path: Path to the log file
+        level: Logging level for the file handler
+        format: Custom log format (uses default if None)
+        rotation: When to rotate the log file (e.g., "500 MB", "1 day")
+        retention: How long to keep old logs (e.g., "30 days", "10 files")
+        compression: Compression method for rotated logs ("zip", "gz", "bz2", "xz", "tar", "tar.gz", "tar.bz2", "tar.xz")
+    """
+    if format is None:
+        format = "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{line} - {message}"
+    
+    logger.add(
+        file_path,
+        level=level,
+        format=format,
+        rotation=rotation,
+        retention=retention,
+        compression=compression,
+        enqueue=True,  # Always use enqueue for file handlers to prevent I/O blocking
+        backtrace=True,  # Include backtrace in file logs
+        diagnose=True,   # Include variable values in tracebacks
+    )
+
+
 # Export commonly used functions
 __all__ = [
     "configure_logging",
@@ -263,4 +299,5 @@ __all__ = [
     "configure_module_levels",
     "log_training_start",
     "log_epoch_metrics",
+    "add_file_logger",
 ]
