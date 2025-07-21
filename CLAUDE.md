@@ -56,7 +56,7 @@ uv run python bert_cli.py train \
 # Generate predictions
 uv run python bert_cli.py predict \
     --test data/titanic/test.csv \
-    --checkpoint output/run_*/best_model_accuracy \
+    --checkpoint output/run_*/checkpoints/final \
     --output submission.csv
 
 # Benchmark performance
@@ -185,6 +185,10 @@ bert-playground/
    - Best speedup with larger models and batch sizes
    - Test with `bert benchmark --test-compilation`
    - Compilation automatically handles dropout and random state
+7. **LoRA Training**: Use LoRA adapters for efficient fine-tuning
+   - Significantly reduces memory usage and training time
+   - Compiled evaluation is automatically disabled for LoRA to handle train/eval mode switches
+   - LoRA configs are available in `configs/` directory
 
 ## Checkpoint Management
 
@@ -219,15 +223,21 @@ uv run python bert_cli.py train \
 ## Common Issues and Solutions
 
 ### Issue: Training Appears to Hang
-**Symptom**: Training shows "Starting training..." but no progress updates
-**Solution**: This happens when logging frequency is too low. By default, progress is logged every 10 batches.
+**Symptom**: Training shows "Starting training..." but no progress updates, or hangs at "Epoch 0 - Batch 0/X"
+**Root Cause**: MLX lazy evaluation can build up large computation graphs without immediate evaluation
+**Solution**: This issue has been fixed by adding `mx.eval()` calls after gradient computation. Additional debugging options:
 ```bash
 # Use --logging-steps to see more frequent updates
 uv run python bert_cli.py train --logging-steps 1 --train data/titanic/train.csv
 
 # Monitor actual progress by checking output files
 ls -la output/run_*/
+
+# If compilation issues persist, disable compilation
+uv run python bert_cli.py train --config configs/no_compile.yaml
 ```
+
+**Note**: The training hang issue was resolved in recent updates by ensuring gradients are evaluated immediately after computation, preventing lazy evaluation buildup. See `docs/training_hang_fix.md` for detailed technical analysis.
 
 ### Issue: Slow Training with Small Batches
 **Symptom**: Very slow training with batch sizes < 16
@@ -265,6 +275,20 @@ uv run python bert_cli.py train \
     --train data/titanic/train.csv \
     --val data/titanic/val.csv
 ```
+
+### Issue: Predict Command Fails to Load Model
+**Symptom**: "No config.json found" or "ValueError: No config.json found in checkpoint"
+**Root Cause**: The predict command was looking for incorrect config file names and using wrong loading patterns
+**Solution**: This issue has been fixed with auto-detection of model architecture and correct checkpoint loading
+```bash
+# Predict command now works correctly with any checkpoint
+uv run python bert_cli.py predict \
+    --test data/titanic/test.csv \
+    --checkpoint output/run_*/checkpoints/final \
+    --output predictions.csv
+```
+
+**Note**: The predict command now automatically detects classic BERT vs ModernBERT architecture from weight keys and uses the correct MLX loading patterns.
 
 ## Pre-tokenization Support
 
@@ -375,7 +399,11 @@ LoRA (Low-Rank Adaptation) support is planned for efficient fine-tuning with red
 - `development`: Balanced for development
 - `production`: Optimized production settings
 - `kaggle`: Competition-optimized
-- `memory_efficient`: Minimal memory usage
+- `titanic_competition`: Competition-specific settings for Titanic
+- `titanic_lora`: LoRA-optimized training for Titanic
+- `no_compile`: Disable compilation for debugging
+- `competition_best_only`: Save only best model to reduce storage
+- `test`: Minimal configuration for testing
 
 ### Custom Configuration
 ```yaml
@@ -434,7 +462,9 @@ uv run python bert_cli.py info
 
 - Always use `uv run` to execute Python scripts
 - MLX works best with batch sizes that are powers of 2 (16, 32, 64)
-- Training may appear to hang due to loguru buffering - use `--logging-steps 1` to see progress
+- **Training hang issue resolved**: Recent fixes prevent MLX lazy evaluation buildup
+- **Predict command fixed**: Now correctly loads checkpoints and auto-detects model architecture
+- **LoRA improvements**: Compiled evaluation automatically disabled for proper train/eval mode handling
 - Batch sizes < 16 will result in very slow training on MLX
 - The model uses random initialization (pretrained weights not loaded yet)
 - Pre-tokenization is recommended for better performance
