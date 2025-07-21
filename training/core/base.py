@@ -636,83 +636,83 @@ class BaseTrainer:
                     else:
                         loss, metrics = self._train_step(batch)
 
-                # CRITICAL FIX: Force evaluation after gradient computation to prevent graph buildup
-                # This prevents MLX lazy evaluation from accumulating large computation graphs
-                # which cause hanging during gradient computation with complex models like ModernBERT
-                # See: https://github.com/ml-explore/mlx/issues/451 for MLX gradient computation performance issues
-                mx.eval(loss, self.model.parameters(), self.optimizer.state)
+                    # CRITICAL FIX: Force evaluation after gradient computation to prevent graph buildup
+                    # This prevents MLX lazy evaluation from accumulating large computation graphs
+                    # which cause hanging during gradient computation with complex models like ModernBERT
+                    # See: https://github.com/ml-explore/mlx/issues/451 for MLX gradient computation performance issues
+                    mx.eval(loss, self.model.parameters(), self.optimizer.state)
 
-                # Update state with current batch metrics (for progress callback)
-                if "grad_norm" in metrics and metrics["grad_norm"] is not None:
-                    # Convert to float for state storage (used by progress callbacks)
-                    if hasattr(metrics["grad_norm"], "item"):
-                        self.state.grad_norm = float(metrics["grad_norm"].item())
+                    # Update state with current batch metrics (for progress callback)
+                    if "grad_norm" in metrics and metrics["grad_norm"] is not None:
+                        # Convert to float for state storage (used by progress callbacks)
+                        if hasattr(metrics["grad_norm"], "item"):
+                            self.state.grad_norm = float(metrics["grad_norm"].item())
+                        else:
+                            self.state.grad_norm = float(metrics["grad_norm"])
+
+                    # Accumulate loss (keep as MLX array for now)
+                    if epoch_loss == 0.0:
+                        epoch_loss = loss
                     else:
-                        self.state.grad_norm = float(metrics["grad_norm"])
+                        epoch_loss = epoch_loss + loss
 
-                # Accumulate loss (keep as MLX array for now)
-                if epoch_loss == 0.0:
-                    epoch_loss = loss
-                else:
-                    epoch_loss = epoch_loss + loss
+                    # Accumulate metrics lazily
+                    for k, v in metrics.items():
+                        if k == "loss" or v is None:
+                            continue
 
-                # Accumulate metrics lazily
-                for k, v in metrics.items():
-                    if k == "loss" or v is None:
-                        continue
+                        # Skip non-scalar metrics (like logits)
+                        if hasattr(v, "shape") and v.size > 1:
+                            continue
 
-                    # Skip non-scalar metrics (like logits)
-                    if hasattr(v, "shape") and v.size > 1:
-                        continue
+                        if k not in epoch_metrics:
+                            epoch_metrics[k] = v
+                        else:
+                            epoch_metrics[k] = epoch_metrics[k] + v
 
-                    if k not in epoch_metrics:
-                        epoch_metrics[k] = v
-                    else:
-                        epoch_metrics[k] = epoch_metrics[k] + v
+                    num_batches += 1
 
-                num_batches += 1
+                    # Call batch end hooks with MLX array
+                    self._call_hooks("on_batch_end", self.state, loss)
 
-                # Call batch end hooks with MLX array
-                self._call_hooks("on_batch_end", self.state, loss)
-
-                # Update progress tracker with metrics
-                loss_val = float(loss.item()) if hasattr(loss, "item") else float(loss)
-                tracker.update(
-                    1,
-                    loss=loss_val,
-                    lr=metrics.get('learning_rate', 0)
-                )
-                
-                # Log detailed metrics occasionally
-                if batch_idx % self.config.training.logging_steps == 0:
-                    step_log.info(
-                        "Training step",
+                    # Update progress tracker with metrics
+                    loss_val = float(loss.item()) if hasattr(loss, "item") else float(loss)
+                    tracker.update(
+                        1,
                         loss=loss_val,
-                        lr=metrics.get('learning_rate', 0),
-                        grad_norm=metrics.get('grad_norm', 0) if 'grad_norm' in metrics else None
+                        lr=metrics.get('learning_rate', 0)
                     )
-
-                # Evaluate during training if needed
-                if (
-                    self.config.training.eval_strategy == "steps"
-                    and self.state.global_step % self.config.training.eval_steps == 0
-                ):
-                    if (
-                        hasattr(self, "_val_dataloader")
-                        and self._val_dataloader is not None
-                    ):
-                        val_metrics = self.evaluate(self._val_dataloader)
-                        self.state.val_loss = val_metrics.get(
-                            "eval_loss", val_metrics.get("loss", 0.0)
+                    
+                    # Log detailed metrics occasionally
+                    if batch_idx % self.config.training.logging_steps == 0:
+                        step_log.info(
+                            "Training step",
+                            loss=loss_val,
+                            lr=metrics.get('learning_rate', 0),
+                            grad_norm=metrics.get('grad_norm', 0) if 'grad_norm' in metrics else None
                         )
-                        self.state.metrics.update(val_metrics)
 
-                # Save checkpoint if needed
-                if (
-                    self.config.training.save_strategy == "steps"
-                    and self.state.global_step % self.config.training.save_steps == 0
-                ):
-                    self._save_checkpoint(is_best=False)
+                    # Evaluate during training if needed
+                    if (
+                        self.config.training.eval_strategy == "steps"
+                        and self.state.global_step % self.config.training.eval_steps == 0
+                    ):
+                        if (
+                            hasattr(self, "_val_dataloader")
+                            and self._val_dataloader is not None
+                        ):
+                            val_metrics = self.evaluate(self._val_dataloader)
+                            self.state.val_loss = val_metrics.get(
+                                "eval_loss", val_metrics.get("loss", 0.0)
+                            )
+                            self.state.metrics.update(val_metrics)
+
+                    # Save checkpoint if needed
+                    if (
+                        self.config.training.save_strategy == "steps"
+                        and self.state.global_step % self.config.training.save_steps == 0
+                    ):
+                        self._save_checkpoint(is_best=False)
             except Exception as e:
                 logger.error(f"Error in batch {batch_idx}: {e}")
                 import traceback
