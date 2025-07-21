@@ -41,7 +41,7 @@ try:
     KAGGLE_HEADS_AVAILABLE = True
 except ImportError:
     KAGGLE_HEADS_AVAILABLE = False
-    logger.info("Kaggle heads not available")
+    logger.debug("Kaggle heads not available")
 
 # Import dataset analysis for automatic optimization
 try:
@@ -50,7 +50,7 @@ try:
     DATASET_ANALYSIS_AVAILABLE = True
 except ImportError:
     DATASET_ANALYSIS_AVAILABLE = False
-    logger.warning("Dataset analysis not available")
+    logger.debug("Dataset analysis not available")
 
 # Import LoRA components
 from .lora import (

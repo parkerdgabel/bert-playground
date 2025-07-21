@@ -44,7 +44,7 @@ class ModelRegistry:
         Returns:
             Registered ModelVersion object
         """
-        logger.info(f"Registering model {name} from {model_uri}")
+        logger.debug(f"Registering model {name} from {model_uri}")
 
         # Register the model
         model_version = mlflow.register_model(
@@ -71,9 +71,7 @@ class ModelRegistry:
                 description=description,
             )
 
-        logger.info(
-            f"Successfully registered model {name} version {model_version.version}"
-        )
+        logger.info(f"Registered model {name} v{model_version.version}")
         return model_version
 
     def transition_model_stage(
@@ -101,7 +99,7 @@ class ModelRegistry:
                 raise ValueError(f"No versions found for model {name}")
             version = max(v.version for v in versions)
 
-        logger.info(f"Transitioning {name} v{version} to {stage}")
+        logger.debug(f"Transitioning {name} v{version} to {stage}")
 
         # Archive existing models in target stage if requested
         if archive_existing and stage in ["Staging", "Production"]:
@@ -109,7 +107,7 @@ class ModelRegistry:
                 f"name='{name}' and current_stage='{stage}'"
             )
             for model in existing:
-                logger.info(f"Archiving {name} v{model.version} from {stage}")
+                logger.debug(f"Archiving {name} v{model.version}")
                 self.client.transition_model_version_stage(
                     name=name,
                     version=model.version,
@@ -125,7 +123,11 @@ class ModelRegistry:
             archive_existing_versions=False,
         )
 
-        logger.info(f"Successfully transitioned {name} v{version} to {stage}")
+        # Only log important transitions at INFO level
+        if stage in ["Production", "Staging"]:
+            logger.info(f"Model {name} v{version} promoted to {stage}")
+        else:
+            logger.debug(f"Model {name} v{version} transitioned to {stage}")
         return model_version
 
     def set_model_alias(
@@ -148,7 +150,7 @@ class ModelRegistry:
                 raise ValueError(f"No versions found for model {name}")
             version = max(v.version for v in versions)
 
-        logger.info(f"Setting alias '{alias}' for {name} v{version}")
+        logger.debug(f"Setting alias '{alias}' for {name} v{version}")
 
         try:
             self.client.set_registered_model_alias(
@@ -156,7 +158,7 @@ class ModelRegistry:
                 alias=alias,
                 version=version,
             )
-            logger.info(f"Successfully set alias '{alias}'")
+            logger.debug(f"Set alias '{alias}'")
         except Exception as e:
             logger.warning(f"Could not set alias (may not be supported): {e}")
 
@@ -214,7 +216,7 @@ class ModelRegistry:
 
         version1, version2 = versions
 
-        logger.info(f"Comparing {name} v{version1} vs v{version2}")
+        logger.debug(f"Comparing {name} v{version1} vs v{version2}")
 
         # Get model versions
         mv1 = self.client.get_model_version(name=name, version=version1)
@@ -391,7 +393,7 @@ class ModelRegistry:
 
         logger.warning(f"Deleting {name} v{version}")
         self.client.delete_model_version(name=name, version=version)
-        logger.info(f"Successfully deleted {name} v{version}")
+        logger.debug(f"Deleted {name} v{version}")
 
     def delete_registered_model(self, name: str) -> None:
         """Delete a registered model and all its versions.
@@ -401,7 +403,7 @@ class ModelRegistry:
         """
         logger.warning(f"Deleting registered model {name}")
         self.client.delete_registered_model(name=name)
-        logger.info(f"Successfully deleted model {name}")
+        logger.debug(f"Deleted model {name}")
 
 
 def register_mlx_model(

@@ -79,7 +79,7 @@ class MLXDataLoader:
         # Use pretokenized dataset if available
         if self.pretokenized_data is not None:
             self.dataset = self.pretokenized_data
-            logger.info("Using pre-tokenized dataset for zero-copy operations")
+            logger.debug("Using pre-tokenized dataset")
 
         # MLX device
         self.device = mx.default_device()
@@ -102,10 +102,9 @@ class MLXDataLoader:
         self._stop_prefetch = None
         self._prefetch_thread = None
 
-        logger.info(
-            f"Initialized MLXDataLoader: batch_size={self.config.batch_size}, "
-            f"num_batches={self.num_batches}, device={self.device}, "
-            f"prefetch_size={self.config.prefetch_size}"
+        logger.debug(
+            f"MLXDataLoader initialized: {self.num_batches} batches, "
+            f"batch_size={self.config.batch_size}"
         )
 
     def __len__(self) -> int:
@@ -114,28 +113,19 @@ class MLXDataLoader:
 
     def __iter__(self) -> Iterator[dict[str, mx.array]]:
         """Iterate over batches with optional prefetching."""
-        logger.debug(
-            f"MLXDataLoader.__iter__ called: num_batches={self.num_batches}, prefetch_size={self.config.prefetch_size}"
-        )
-
         # Reshuffle if needed
         if self.config.shuffle:
-            logger.debug("Shuffling indices")
             random.shuffle(self.indices)
 
         # Use prefetching if enabled
         if self.config.prefetch_size > 0:
-            logger.debug("Using prefetch iteration")
             yield from self._iter_with_prefetch()
         else:
-            logger.debug("Using non-prefetch iteration")
             yield from self._iter_no_prefetch()
 
     def _iter_no_prefetch(self) -> Iterator[dict[str, mx.array]]:
         """Simple iteration without prefetching."""
         for batch_idx in range(self.num_batches):
-            logger.debug(f"Processing batch {batch_idx}/{self.num_batches}")
-
             # Get batch indices
             start_idx = batch_idx * self.config.batch_size
             end_idx = min(start_idx + self.config.batch_size, len(self.indices))
@@ -156,7 +146,6 @@ class MLXDataLoader:
                 if arrays_to_eval:
                     mx.eval(*arrays_to_eval)
 
-            logger.debug(f"Yielding batch {batch_idx} with keys: {list(batch.keys())}")
             yield batch
 
     def _iter_with_prefetch(self) -> Iterator[dict[str, mx.array]]:
@@ -181,9 +170,7 @@ class MLXDataLoader:
                         break
                     yield batch
                 except queue.Empty:
-                    logger.warning(
-                        "Prefetch queue timeout - data loading may be too slow"
-                    )
+                    logger.warning("Data loading timeout - consider reducing batch size or disabling prefetch")
                     break
         finally:
             # Clean up prefetch thread
@@ -193,7 +180,6 @@ class MLXDataLoader:
 
     def _prefetch_worker(self):
         """Worker thread for prefetching batches."""
-        logger.debug("Prefetch worker thread started")
         try:
             for batch_idx in range(self.num_batches):
                 if self._stop_prefetch.is_set():

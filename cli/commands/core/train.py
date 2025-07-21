@@ -208,9 +208,8 @@ def train_command(
     # Add handler with immediate flushing to avoid buffering issues
     logger.add(sys.stderr, level=log_level_upper, enqueue=False)
 
-    # Show training configuration header
-    logger.info("\nMLX Unified Training System")
-    logger.info("=" * 60)
+    # Show concise header
+    logger.info("MLX Training Started")
 
     # Load configuration if provided
     config_overrides = {}
@@ -218,7 +217,7 @@ def train_command(
         from utils.config_loader import ConfigLoader
 
         config_overrides = ConfigLoader.load(config)
-        logger.info(f"✓ Loaded configuration from {config}")
+        logger.debug(f"Loaded config: {config}")
 
     # Create output directory with timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -255,10 +254,10 @@ def train_command(
     eval_batch_size = min(batch_size_config * 2, max_batch_size_config)
 
     # Create data loaders
-    logger.info("Loading data...")
+    # Loading data
 
     # Load tokenizer
-    logger.info("Loading tokenizer...")
+    # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     # Get MLX-specific parameters from config if available
@@ -277,9 +276,7 @@ def train_command(
     )  # Default is True
     if use_compilation and (mlx_prefetch_size is None):
         # If compilation is enabled and prefetch wasn't explicitly set, disable it
-        logger.warning(
-            "Compilation is enabled - disabling prefetch to prevent deadlock"
-        )
+        logger.debug("Disabling prefetch due to compilation")
         prefetch_size = 0
         mlx_prefetch_size = 0
 
@@ -317,14 +314,7 @@ def train_command(
 
     # Display dataset info
     train_samples = len(train_loader) * batch_size_config
-    logger.info(
-        f"✓ Loaded ~{train_samples} training samples ({len(train_loader)} batches)"
-    )
-    if val_loader:
-        val_samples = len(val_loader) * eval_batch_size
-        logger.info(
-            f"✓ Loaded ~{val_samples} validation samples ({len(val_loader)} batches)"
-        )
+    logger.info(f"Data: {len(train_loader)} train batches" + (f", {len(val_loader)} val batches" if val_loader else ""))
 
     # Build training configuration
     if kaggle:
@@ -395,29 +385,11 @@ def train_command(
         if disable_mlflow:
             training_config.training.report_to = []
 
-    # Display configuration
-    logger.info("\nTraining Configuration:")
-    logger.info(f"  Model: {model_name}")
-    logger.info(f"  Model Type: {model_type}")
-    logger.info(f"  Output Directory: {run_dir}")
-    logger.info(f"  MLX Embeddings: {'Enabled' if use_mlx_embeddings else 'Disabled'}")
-    logger.info(f"  Tokenizer Backend: {tokenizer_backend}")
-    logger.info(f"  Use LoRA: {'Enabled' if use_lora else 'Disabled'}")
-    logger.info(f"  Batch Size: {batch_size_config}")
-    logger.info(f"  Learning Rate: {training_config.optimizer.learning_rate}")
-    logger.info(f"  Epochs: {training_config.training.num_epochs}")
-    logger.info(
-        f"  Gradient Accumulation: {training_config.training.gradient_accumulation_steps}"
-    )
-    logger.info(
-        f"  MLflow: {'Enabled' if 'mlflow' in training_config.training.report_to else 'Disabled'}"
-    )
-    logger.info(
-        f"  Early Stopping: {training_config.training.early_stopping_patience}\n"
-    )
+    # Display essential configuration
+    logger.info(f"Model: {model_name} | Epochs: {training_config.training.num_epochs} | Batch: {batch_size_config} | LR: {training_config.optimizer.learning_rate}")
 
     # Create model
-    logger.info("Creating model...")
+    # Create model
     if use_mlx_embeddings:
         # Create MLX embeddings model
         try:
@@ -464,7 +436,7 @@ def train_command(
             model = bert_model
             model_desc = "ModernBERT with TitanicClassifier"
 
-    logger.info(f"✓ Created {model_desc} model")
+    logger.debug(f"Created {model_desc}")
 
     # Create trainer
     if kaggle:
@@ -484,9 +456,7 @@ def train_command(
                 num_workers=workers,
                 prefetch_size=prefetch_size,
             )
-            logger.info(
-                f"✓ Loaded test data for predictions: {len(test_dataset)} samples"
-            )
+            logger.debug(f"Test data: {len(test_dataset)} samples")
 
         trainer = KaggleTrainer(
             model=model,
@@ -494,7 +464,7 @@ def train_command(
             test_dataloader=test_loader,
             tokenizer=tokenizer,
         )
-        logger.info("Using KaggleTrainer with cross-validation")
+        logger.debug("Using KaggleTrainer")
     else:
         trainer = BaseTrainer(
             model=model,
@@ -520,16 +490,16 @@ def train_command(
 
     # Resume if checkpoint provided
     if resume:
-        logger.info(f"Resuming from checkpoint: {resume}")
+        logger.info(f"Resuming from: {resume}")
         trainer.load_checkpoint(resume)
 
     # Start training
-    logger.info("\nStarting training...")
+    # Start training
 
     try:
         # Train model
         if kaggle:
-            logger.info("Starting KaggleTrainer training")
+            # KaggleTrainer training
             # KaggleTrainer.train handles CV internally if configured
             result = trainer.train(train_loader, val_loader)
             metrics = result  # Get metrics from training result
@@ -544,27 +514,20 @@ def train_command(
                     f"Test predictions generated. Check {trainer.config.kaggle.submission_dir} for submission file."
                 )
         else:
-            logger.info("About to call trainer.train()")
+            # Standard training
             metrics = trainer.train(train_loader, val_loader)
 
         # Show final results
-        logger.info("✓ Training completed successfully!")
+        # Training completed
 
         # Save final model
         final_model_path = run_dir / "final_model"
         trainer.save_checkpoint(final_model_path)
-        logger.info(f"Model saved to: {final_model_path}")
+        logger.info(f"✓ Training complete. Model: {final_model_path}")
 
         # Show next steps
-        logger.info("\nNext steps:")
-        logger.info(
-            f"1. Generate predictions: bert predict --test data/test.csv --checkpoint {final_model_path}"
-        )
-
-        if "mlflow" in training_config.training.report_to:
-            logger.info("2. View MLflow results: bert mlflow ui")
-
-        logger.info("3. Submit to Kaggle: bert kaggle submit auto --competition NAME")
+        # Print concise next steps
+        logger.info(f"Next: bert predict --test data/test.csv --checkpoint {final_model_path}")
 
     except KeyboardInterrupt:
         logger.error("Training interrupted by user")

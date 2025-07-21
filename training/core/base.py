@@ -100,7 +100,7 @@ class BaseTrainer:
         )
         self._is_better = self._create_metric_comparator()
 
-        logger.info(f"Initialized BaseTrainer with config: {self.config.training}")
+        logger.info("Initialized BaseTrainer")
 
     def _setup_compilation(self):
         """Setup MLX compilation for training if available and beneficial."""
@@ -119,7 +119,7 @@ class BaseTrainer:
 
             # Check if we should compile this model
             if not should_compile_model(self.model, self.config):
-                logger.info("Model/config not suitable for compilation")
+                logger.debug("Model/config not suitable for compilation")
                 return
 
             # Check if explicitly disabled
@@ -127,7 +127,7 @@ class BaseTrainer:
                 hasattr(self.config.training, "use_compilation")
                 and not self.config.training.use_compilation
             ):
-                logger.info("Compilation disabled by config")
+                logger.debug("Compilation disabled by config")
                 return
 
             logger.info("Setting up MLX compilation for training")
@@ -137,7 +137,7 @@ class BaseTrainer:
             self._should_compile = True
 
         except ImportError:
-            logger.info("MLX compilation module not available")
+            logger.debug("MLX compilation module not available")
         except Exception as e:
             logger.warning(f"Failed to setup compilation: {e}")
 
@@ -191,11 +191,7 @@ class BaseTrainer:
 
         def train_step(batch: dict[str, mx.array]) -> tuple[float, dict[str, mx.array]]:
             """Single training step - optimized for MLX lazy evaluation."""
-            logger.debug("Starting train_step")
             (loss, outputs), grads = value_and_grad_fn(self.model, batch)
-            logger.debug(
-                f"Got loss and grads, loss shape: {loss.shape if hasattr(loss, 'shape') else 'scalar'}"
-            )
 
             # Critical: Force evaluation of gradients to prevent hanging
             # This ensures the computation graph is evaluated immediately
@@ -212,16 +208,13 @@ class BaseTrainer:
 
             # Accumulate gradients
             should_update = self.gradient_accumulator.accumulate(grads)
-            logger.debug(f"Should update: {should_update}")
 
             if should_update:
                 # Get accumulated gradients
                 accumulated_grads = self.gradient_accumulator.get_gradients()
 
                 # Update model
-                logger.debug("Updating model with optimizer")
                 self.optimizer.update(self.model, accumulated_grads)
-                logger.debug("Model updated")
 
             # Get current learning rate - MLX schedules update automatically
             # Only convert to float when needed for logging
@@ -404,24 +397,12 @@ class BaseTrainer:
         logger.info(f"Total steps: {total_steps}, Steps per epoch: {steps_per_epoch}")
 
         # Ensure output is flushed
-        # Note: Commented out due to hanging issue with loguru
-        # import sys
-        # logger.debug("About to flush stdout/stderr")
-        # sys.stdout.flush()
-        # sys.stderr.flush()
-        # logger.debug("Flushed stdout/stderr")
-
         # Training loop
-        logger.debug(
-            f"About to start training loop for {self.config.training.num_epochs} epochs"
-        )
         for epoch in range(self.state.epoch, self.config.training.num_epochs):
-            logger.debug(f"Starting epoch {epoch}")
             self.state.epoch = epoch
             self.state.epoch_start_time = time.time()
 
             # Train epoch
-            logger.debug(f"About to call _train_epoch for epoch {epoch}")
             train_metrics = self._train_epoch(train_dataloader, epoch)
             self.state.train_loss = train_metrics["loss"]
             self.state.train_history.append(train_metrics)
@@ -571,14 +552,12 @@ class BaseTrainer:
         with open(result_path, "w") as f:
             json.dump(result_dict, f, indent=2)
 
-        logger.info(f"Training completed in {training_time:.2f} seconds")
-        logger.info(f"Final model saved to: {final_path}")
+        logger.info(f"Training completed in {training_time:.2f}s - Model saved to: {final_path}")
 
         return result
 
     def _train_epoch(self, dataloader: DataLoader, epoch: int) -> dict[str, float]:
         """Train for one epoch."""
-        logger.debug(f"Entered _train_epoch for epoch {epoch}")
         self._call_hooks("on_epoch_begin", self.state)
 
         # Initialize metrics
@@ -588,18 +567,9 @@ class BaseTrainer:
 
         # Get total batches for progress tracking
         total_batches = len(dataloader)
-        logger.debug(f"Total batches in epoch: {total_batches}")
 
-        logger.debug("About to start enumerate loop over dataloader")
-        logger.debug("Creating dataloader iterator")
-        dataloader_iter = enumerate(dataloader)
-        logger.debug("Iterator created, starting loop")
-        for batch_idx, batch in dataloader_iter:
+        for batch_idx, batch in enumerate(dataloader):
             try:
-                logger.debug(f"Got batch {batch_idx}")
-                logger.debug(
-                    f"Batch keys: {batch.keys() if isinstance(batch, dict) else 'Not a dict'}"
-                )
 
                 # Manual progress tracking
                 if batch_idx % max(1, total_batches // 10) == 0 or batch_idx == 0:
@@ -628,8 +598,6 @@ class BaseTrainer:
                 # which cause hanging during gradient computation with complex models like ModernBERT
                 # See: https://github.com/ml-explore/mlx/issues/451 for MLX gradient computation performance issues
                 mx.eval(loss, self.model.parameters(), self.optimizer.state)
-
-                logger.debug("Train step completed")
 
                 # Update state with current batch metrics (for progress callback)
                 if "grad_norm" in metrics and metrics["grad_norm"] is not None:
@@ -746,12 +714,9 @@ class BaseTrainer:
         total_batches = len(dataloader)
 
         for batch_idx, batch in enumerate(dataloader):
-            # Progress tracking
-            if batch_idx % max(1, total_batches // 10) == 0 or batch_idx == 0:
-                progress_pct = (batch_idx / total_batches) * 100
-                logger.info(
-                    f"Evaluating - Batch {batch_idx}/{total_batches} ({progress_pct:.1f}%)"
-                )
+            # Progress tracking - only log occasionally
+            if batch_idx == 0:
+                logger.info(f"Evaluating on {total_batches} batches...")
             # Evaluation step - don't use compiled version for now due to train/eval mode issues
             # TODO: Fix compiled evaluation to handle train/eval mode changes properly
             loss, metrics = self._eval_step(batch)
