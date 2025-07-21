@@ -249,6 +249,16 @@ class PreTokenizedDataset:
         return {k: v[indices] for k, v in self.data.items()}
 
     @property
+    def labels(self):
+        """Get labels array for cross-validation (if available)."""
+        # Return labels if they exist in the data, else None
+        if "labels" in self.data:
+            # Convert MLX array to numpy for sklearn compatibility
+            import numpy as np
+            return np.array(self.data["labels"])
+        return None
+
+    @property
     def shape_info(self) -> dict[str, tuple[int, ...]]:
         """Get shape information for all arrays."""
         return {k: tuple(v.shape) for k, v in self.data.items()}

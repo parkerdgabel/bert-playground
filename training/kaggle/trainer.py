@@ -275,22 +275,25 @@ class KaggleTrainer(BaseTrainer):
             fold_predictions = self.predict(fold_val_loader)
 
             # Store OOF predictions
+            # Convert numpy indices to MLX array for proper indexing
+            val_idx_mx = mx.array(val_idx, dtype=mx.int32)
+            
             if (
                 self.config.kaggle.competition_type
                 == CompetitionType.BINARY_CLASSIFICATION
             ):
                 # Convert logits to probabilities
                 fold_probs = mx.sigmoid(fold_predictions[:, 1])
-                self.oof_predictions[val_idx] = fold_probs
+                self.oof_predictions[val_idx_mx] = fold_probs
             elif (
                 self.config.kaggle.competition_type
                 == CompetitionType.MULTICLASS_CLASSIFICATION
             ):
                 # Convert logits to probabilities
                 fold_probs = mx.softmax(fold_predictions, axis=-1)
-                self.oof_predictions[val_idx] = fold_probs
+                self.oof_predictions[val_idx_mx] = fold_probs
             else:
-                self.oof_predictions[val_idx] = fold_predictions.squeeze()
+                self.oof_predictions[val_idx_mx] = fold_predictions.squeeze()
 
             # Calculate fold score
             fold_score = result.best_val_metric
