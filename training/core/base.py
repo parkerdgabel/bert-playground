@@ -14,6 +14,16 @@ from loguru import logger
 logger.remove()
 logger.add(sys.stderr, level="INFO")
 
+# Import advanced logging features
+from utils.logging_utils import (
+    bind_training_context,
+    log_timing,
+    lazy_debug,
+    MetricsLogger,
+    ProgressTracker,
+    catch_and_log
+)
+
 from .config import BaseTrainerConfig
 from .memory_pool import create_memory_pools
 from .optimization import GradientAccumulator, clip_gradients, create_optimizer
@@ -99,6 +109,12 @@ class BaseTrainer:
             else float("-inf")
         )
         self._is_better = self._create_metric_comparator()
+        
+        # Initialize metrics logger for structured output
+        self.metrics_logger = None
+        if config.environment.output_dir:
+            metrics_path = config.environment.output_dir / "metrics.jsonl"
+            self.metrics_logger = MetricsLogger(sink_path=metrics_path)
 
         logger.info("Initialized BaseTrainer")
 
@@ -401,11 +417,16 @@ class BaseTrainer:
         for epoch in range(self.state.epoch, self.config.training.num_epochs):
             self.state.epoch = epoch
             self.state.epoch_start_time = time.time()
+            
+            # Create epoch logger with context
+            epoch_log = bind_training_context(epoch=epoch, phase="train")
+            epoch_log.info("Starting epoch")
 
-            # Train epoch
-            train_metrics = self._train_epoch(train_dataloader, epoch)
-            self.state.train_loss = train_metrics["loss"]
-            self.state.train_history.append(train_metrics)
+            # Train epoch with timing
+            with log_timing(f"epoch_{epoch}_training", epoch=epoch):
+                train_metrics = self._train_epoch(train_dataloader, epoch)
+                self.state.train_loss = train_metrics["loss"]
+                self.state.train_history.append(train_metrics)
 
             # Evaluate if needed
             should_evaluate = val_dataloader is not None and (
@@ -414,12 +435,22 @@ class BaseTrainer:
             )
 
             if should_evaluate:
-                val_metrics = self.evaluate(val_dataloader)
-                self.state.val_loss = val_metrics.get(
-                    "eval_loss", val_metrics.get("loss", 0.0)
-                )
-                self.state.val_history.append(val_metrics)
-                self.state.metrics.update(val_metrics)
+                with log_timing("validation", epoch=epoch):
+                    val_metrics = self.evaluate(val_dataloader)
+                    self.state.val_loss = val_metrics.get(
+                        "eval_loss", val_metrics.get("loss", 0.0)
+                    )
+                    self.state.val_history.append(val_metrics)
+                    self.state.metrics.update(val_metrics)
+                    
+                    # Log validation metrics with MetricsLogger
+                    if self.metrics_logger:
+                        self.metrics_logger.log_metrics(
+                            val_metrics,
+                            step=self.state.global_step,
+                            epoch=epoch,
+                            phase="validation"
+                        )
 
                 # Check for best model
                 metric_name = self.config.training.best_metric
@@ -567,31 +598,43 @@ class BaseTrainer:
 
         # Get total batches for progress tracking
         total_batches = len(dataloader)
+        
+        # Create epoch logger
+        epoch_log = bind_training_context(epoch=epoch, phase="train")
 
-        for batch_idx, batch in enumerate(dataloader):
-            try:
+        # Use ProgressTracker for structured progress logging
+        with ProgressTracker(
+            total_batches,
+            f"Epoch {epoch} training",
+            log_frequency=10,  # Log every 10%
+            epoch=epoch
+        ) as tracker:
+            for batch_idx, batch in enumerate(dataloader):
+                try:
+                    self.state.global_step += 1
+                    self.state.samples_seen += self.config.data.batch_size
 
-                # Manual progress tracking
-                if batch_idx % max(1, total_batches // 10) == 0 or batch_idx == 0:
-                    progress_pct = (batch_idx / total_batches) * 100
-                    logger.info(
-                        f"Epoch {epoch} - Batch {batch_idx}/{total_batches} ({progress_pct:.1f}%)"
+                    # Call batch begin hooks
+                    self._call_hooks("on_batch_begin", self.state, batch)
+
+                    # Training step with context
+                    step_log = bind_training_context(
+                        epoch=epoch,
+                        step=batch_idx,
+                        phase="train"
                     )
-
-                self.state.global_step += 1
-                self.state.samples_seen += self.config.data.batch_size
-
-                # Call batch begin hooks
-                self._call_hooks("on_batch_begin", self.state, batch)
-
-                # Training step - use compiled version if available
-                logger.debug(
-                    f"About to call train step, use_compiled: {self._use_compiled}"
-                )
-                if self._use_compiled:
-                    loss, metrics = self._compiled_train_step(batch)
-                else:
-                    loss, metrics = self._train_step(batch)
+                    
+                    # Log compilation status once
+                    if batch_idx == 0:
+                        lazy_debug(
+                            "Compilation status",
+                            lambda: {"use_compiled": self._use_compiled}
+                        )
+                    
+                    if self._use_compiled:
+                        loss, metrics = self._compiled_train_step(batch)
+                    else:
+                        loss, metrics = self._train_step(batch)
 
                 # CRITICAL FIX: Force evaluation after gradient computation to prevent graph buildup
                 # This prevents MLX lazy evaluation from accumulating large computation graphs
@@ -632,14 +675,21 @@ class BaseTrainer:
                 # Call batch end hooks with MLX array
                 self._call_hooks("on_batch_end", self.state, loss)
 
-                # Log batch metrics occasionally - only convert for logging
+                # Update progress tracker with metrics
+                loss_val = float(loss.item()) if hasattr(loss, "item") else float(loss)
+                tracker.update(
+                    1,
+                    loss=loss_val,
+                    lr=metrics.get('learning_rate', 0)
+                )
+                
+                # Log detailed metrics occasionally
                 if batch_idx % self.config.training.logging_steps == 0:
-                    # Force evaluation only for logging
-                    loss_val = (
-                        float(loss.item()) if hasattr(loss, "item") else float(loss)
-                    )
-                    logger.info(
-                        f"Step {self.state.global_step} - Loss: {loss_val:.4f}, LR: {metrics.get('learning_rate', 0):.2e}"
+                    step_log.info(
+                        "Training step",
+                        loss=loss_val,
+                        lr=metrics.get('learning_rate', 0),
+                        grad_norm=metrics.get('grad_norm', 0) if 'grad_norm' in metrics else None
                     )
 
                 # Evaluate during training if needed
@@ -690,6 +740,7 @@ class BaseTrainer:
 
         return avg_metrics
 
+    @catch_and_log(Exception, "Evaluation failed", reraise=True)
     def evaluate(self, dataloader: DataLoader) -> dict[str, float]:
         """
         Evaluate the model on a dataset.
@@ -712,14 +763,24 @@ class BaseTrainer:
 
         # Evaluation loop
         total_batches = len(dataloader)
+        
+        # Create evaluation logger
+        eval_log = bind_training_context(
+            epoch=self.state.epoch,
+            phase="eval"
+        )
+        eval_log.info(f"Starting evaluation on {total_batches} batches")
 
-        for batch_idx, batch in enumerate(dataloader):
-            # Progress tracking - only log occasionally
-            if batch_idx == 0:
-                logger.info(f"Evaluating on {total_batches} batches...")
-            # Evaluation step - don't use compiled version for now due to train/eval mode issues
-            # TODO: Fix compiled evaluation to handle train/eval mode changes properly
-            loss, metrics = self._eval_step(batch)
+        with ProgressTracker(
+            total_batches,
+            "Evaluation",
+            log_frequency=20,  # Log every 20%
+            phase="eval"
+        ) as tracker:
+            for batch_idx, batch in enumerate(dataloader):
+                # Evaluation step - don't use compiled version for now due to train/eval mode issues
+                # TODO: Fix compiled evaluation to handle train/eval mode changes properly
+                loss, metrics = self._eval_step(batch)
 
             # Accumulate metrics lazily
             if total_loss == 0.0:
