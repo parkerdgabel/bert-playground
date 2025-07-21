@@ -146,6 +146,7 @@ def _show_mlx_info(console):
 
 def _show_models_info(console):
     """Show available models information."""
+    logger.debug("Showing models information")
     console.print("\n[bold blue]Available Models[/bold blue]")
     console.print("=" * 60)
 
@@ -180,6 +181,7 @@ def _show_models_info(console):
 
 def _show_datasets_info(console):
     """Show configured datasets information."""
+    logger.debug("Showing datasets information")
     console.print("\n[bold blue]Configured Datasets[/bold blue]")
     console.print("=" * 60)
 
