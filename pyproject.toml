@@ -3,11 +3,35 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "bert-playground"
+name = "mlx-bert"
 version = "0.1.0"
-description = "MLX-based ModernBERT implementation for Kaggle competitions"
+description = "State-of-the-art BERT implementation for Apple Silicon using MLX, designed for Kaggle competitions"
 readme = "README.md"
-requires-python = ">=3.10,<3.11"
+requires-python = ">=3.10"
+authors = [
+    {name = "Parker Gabel", email = "parker@example.com"},
+]
+maintainers = [
+    {name = "Parker Gabel", email = "parker@example.com"},
+]
+license = {text = "MIT"}
+keywords = ["bert", "mlx", "kaggle", "machine-learning", "nlp", "apple-silicon", "modernbert"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console", 
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS :: MacOS X",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     "mlx>=0.22.0,<0.25.0", # Revert to version that works with dependencies
     "mlx-data>=0.0.7",
@@ -33,9 +57,15 @@ dependencies = [
     "pyyaml>=6.0.2",
 ]
 
+[project.urls]
+Homepage = "https://github.com/parkergabel/mlx-bert"
+Repository = "https://github.com/parkergabel/mlx-bert"
+Documentation = "https://github.com/parkergabel/mlx-bert/blob/main/README.md"
+"Bug Tracker" = "https://github.com/parkergabel/mlx-bert/issues"
+
 [project.scripts]
-bert = "cli:main"
 mlx-bert = "cli:main"
+bert = "cli:main"  # Alias for convenience
 
 [project.optional-dependencies]
 dev = [
