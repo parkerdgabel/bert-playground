@@ -47,6 +47,11 @@ def train_command(
     config: Optional[Path] = typer.Option(None, "--config", "-c", help="Configuration file",
                                         callback=lambda p: validate_path(p, must_exist=True, extensions=['.yaml', '.yml', '.json']) if p else None),
     
+    # Kaggle arguments
+    kaggle: bool = typer.Option(False, "--kaggle", help="Use KaggleTrainer for competition optimization"),
+    competition: Optional[str] = typer.Option(None, "--competition", help="Kaggle competition name (e.g., titanic)"),
+    cv_folds: int = typer.Option(5, "--cv-folds", help="Number of CV folds for KaggleTrainer"),
+    
     # Output arguments
     output_dir: Path = typer.Option("output", "--output", "-o", help="Output directory"),
     experiment_name: Optional[str] = typer.Option("mlx_unified", "--experiment", help="MLflow experiment name"),
@@ -145,6 +150,8 @@ def train_command(
         from models.factory import create_model
         from training.core.base import BaseTrainer
         from training.core.config import get_quick_test_config, BaseTrainerConfig
+        from training.kaggle.trainer import KaggleTrainer
+        from training.kaggle.config import KaggleTrainerConfig, get_competition_config, CompetitionProfile, CompetitionType, KaggleConfig
         from transformers import AutoTokenizer
         
     except ImportError as e:
@@ -220,7 +227,40 @@ def train_command(
         logger.info(f"✓ Loaded ~{val_samples} validation samples ({len(val_loader)} batches)")
     
     # Build training configuration
-    if config and config_overrides:
+    if kaggle:
+        # Use KaggleTrainer configuration
+        if competition and competition.lower() == "titanic":
+            training_config = get_competition_config(CompetitionProfile.TITANIC)
+            # Override CV folds from CLI
+            training_config.kaggle.cv_folds = cv_folds
+        else:
+            # Create custom Kaggle config
+            training_config = KaggleTrainerConfig(
+                kaggle=KaggleConfig(
+                    competition_name=competition or "titanic",
+                    competition_type=CompetitionType.BINARY_CLASSIFICATION,
+                    cv_folds=cv_folds,
+                    enable_api=True,
+                    auto_submit=False,  # Manual submission for now
+                )
+            )
+        
+        # Apply any config overrides
+        if config and config_overrides:
+            # Merge with YAML config
+            for key, value in config_overrides.items():
+                if hasattr(training_config, key) and key != 'kaggle':
+                    setattr(training_config, key, value)
+        
+        training_config.environment.run_name = run_name or f"kaggle_{competition}_{timestamp}"
+        training_config.environment.output_dir = run_dir
+        
+        # Override training parameters with CLI values
+        training_config.training.num_epochs = epochs
+        training_config.training.gradient_accumulation_steps = gradient_accumulation
+        training_config.data.batch_size = batch_size
+        training_config.optimizer.learning_rate = learning_rate
+    elif config and config_overrides:
         # Full config from YAML - use BaseTrainerConfig
         training_config = BaseTrainerConfig.from_dict(config_overrides)
         training_config.environment.run_name = run_name or f"{model_type}_{timestamp}"
@@ -315,10 +355,36 @@ def train_command(
     logger.info(f"✓ Created {model_desc} model")
     
     # Create trainer
-    trainer = BaseTrainer(
-        model=model,
-        config=training_config,
-    )
+    if kaggle:
+        # Load test data for KaggleTrainer
+        test_loader = None
+        if test_data:
+            test_dataset = create_dataset(
+                data_path=test_data,
+                tokenizer=tokenizer,
+                max_length=max_length,
+                split="test"
+            )
+            test_loader = create_dataloader(
+                dataset=test_dataset,
+                batch_size=eval_batch_size,
+                shuffle=False,
+                num_workers=workers,
+                prefetch_size=prefetch_size
+            )
+            logger.info(f"✓ Loaded test data for predictions: {len(test_dataset)} samples")
+        
+        trainer = KaggleTrainer(
+            model=model,
+            config=training_config,
+            test_dataloader=test_loader,
+        )
+        logger.info("Using KaggleTrainer with cross-validation")
+    else:
+        trainer = BaseTrainer(
+            model=model,
+            config=training_config,
+        )
     
     # Save training config
     full_config = {
@@ -347,8 +413,18 @@ def train_command(
     
     try:
         # Train model
-        logger.info("About to call trainer.train()")
-        metrics = trainer.train(train_loader, val_loader)
+        if kaggle:
+            logger.info("Starting KaggleTrainer training")
+            # KaggleTrainer.train handles CV internally if configured
+            result = trainer.train(train_loader, val_loader)
+            metrics = result  # Get metrics from training result
+            
+            # KaggleTrainer automatically generates submission if test_dataloader was provided
+            if test_loader and hasattr(trainer, 'test_predictions') and trainer.test_predictions is not None:
+                logger.info(f"Test predictions generated. Check {trainer.config.kaggle.submission_dir} for submission file.")
+        else:
+            logger.info("About to call trainer.train()")
+            metrics = trainer.train(train_loader, val_loader)
         
         # Show final results
         logger.info("✓ Training completed successfully!")

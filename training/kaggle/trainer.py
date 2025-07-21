@@ -45,20 +45,23 @@ class KaggleTrainer(BaseTrainer):
             test_dataloader: Test data loader for predictions
         """
         # Add Kaggle-specific callbacks
-        callbacks = [
-            CompetitionMetrics(
-                metric_name=config.kaggle.competition_metric,
-                maximize=config.kaggle.maximize_metric,
-            ),
-        ]
+        callbacks = []
         
-        if config.kaggle.enable_api and config.kaggle.auto_submit:
-            callbacks.append(
-                KaggleSubmissionCallback(
-                    competition_name=config.kaggle.competition_name,
-                    submission_message=config.kaggle.submission_message,
-                )
-            )
+        # TODO: Re-enable when callbacks are properly implemented
+        # callbacks = [
+        #     CompetitionMetrics(
+        #         metric_name=config.kaggle.competition_metric,
+        #         maximize=config.kaggle.maximize_metric,
+        #     ),
+        # ]
+        
+        # if config.kaggle.enable_api and config.kaggle.auto_submit:
+        #     callbacks.append(
+        #         KaggleSubmissionCallback(
+        #             competition_name=config.kaggle.competition_name,
+        #             submission_message=config.kaggle.submission_message,
+        #         )
+        #     )
         
         super().__init__(model, config, callbacks)
         
@@ -75,6 +78,46 @@ class KaggleTrainer(BaseTrainer):
         
         # Create submission directory
         self.config.kaggle.submission_dir.mkdir(parents=True, exist_ok=True)
+    
+    def train(
+        self,
+        train_dataloader: DataLoader,
+        val_dataloader: Optional[DataLoader] = None,
+        resume_from: Optional[Path] = None,
+    ) -> TrainingResult:
+        """
+        Train with Kaggle optimizations.
+        
+        If CV is enabled, runs cross-validation training.
+        Otherwise, runs standard training with Kaggle-specific features.
+        
+        Args:
+            train_dataloader: Training data loader
+            val_dataloader: Validation data loader (optional)
+            resume_from: Path to resume from (optional)
+            
+        Returns:
+            Training result with metrics
+        """
+        if self.config.kaggle.cv_folds > 1:
+            logger.info(f"Starting {self.config.kaggle.cv_folds}-fold cross-validation training")
+            return self.train_with_cv(train_dataloader, val_dataloader)
+        else:
+            logger.info("Starting standard training with Kaggle optimizations")
+            # Call parent train method with Kaggle callbacks already set
+            result = super().train(train_dataloader, val_dataloader, resume_from)
+            
+            # Generate predictions if test data is available
+            if self.test_dataloader is not None:
+                logger.info("Generating test predictions")
+                self.test_predictions = self.predict(self.test_dataloader)
+                
+                # Create submission file
+                submission_name = f"submission_{self.config.environment.run_name}"
+                submission_path = self.create_submission(submission_name=submission_name)
+                logger.info(f"Submission saved to: {submission_path}")
+            
+            return result
     
     def train_with_cv(
         self,

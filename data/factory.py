@@ -29,6 +29,7 @@ class CSVDataset(KaggleDataset):
         text_column: Optional[str] = None,
         label_column: Optional[str] = None,
         text_converter: Optional[Any] = None,
+        tokenizer: Optional[Any] = None,  # Handle tokenizer separately
         **kwargs
     ):
         """Initialize CSV dataset.
@@ -39,18 +40,25 @@ class CSVDataset(KaggleDataset):
             text_column: Column containing text data
             label_column: Column containing labels
             text_converter: Optional text converter for tabular data
+            tokenizer: Optional tokenizer (stored but not passed to parent)
             **kwargs: Additional arguments for parent class
         """
         self.csv_path = Path(csv_path)
         self.text_column = text_column
         self.label_column = label_column
         self.text_converter = text_converter
+        self.tokenizer = tokenizer  # Store tokenizer
         
         # Create default spec if not provided
         if spec is None:
             spec = self._create_default_spec()
+        
+        # Filter out parameters that KaggleDataset expects
+        split = kwargs.pop('split', 'train')
+        transform = kwargs.pop('transform', None)
+        cache_dir = kwargs.pop('cache_dir', None)
             
-        super().__init__(spec, **kwargs)
+        super().__init__(spec, split=split, transform=transform, cache_dir=cache_dir)
     
     def _create_default_spec(self) -> DatasetSpec:
         """Create a default dataset specification."""
