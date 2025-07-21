@@ -171,6 +171,15 @@ def train_command(
     mlx_tokenizer_chunk_size = config_overrides.get("data", {}).get("mlx_tokenizer_chunk_size", 100)
     use_pretokenized_config = config_overrides.get("data", {}).get("use_pretokenized", use_pretokenized)
     
+    # Check if compilation is enabled and disable prefetch if so
+    # This prevents a deadlock between compiled functions and prefetch threads
+    use_compilation = config_overrides.get("training", {}).get("use_compilation", True)  # Default is True
+    if use_compilation and (mlx_prefetch_size is None):
+        # If compilation is enabled and prefetch wasn't explicitly set, disable it
+        logger.warning("Compilation is enabled - disabling prefetch to prevent deadlock")
+        prefetch_size = 0
+        mlx_prefetch_size = 0
+    
     # Create training data loader
     train_loader = create_dataloader(
         data_path=train_data,

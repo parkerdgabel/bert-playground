@@ -189,9 +189,9 @@ def _clip_gradients_compiled(grads: Dict[str, Any], max_norm: float) -> Dict[str
     """
     # Compute global norm
     total_norm_sq = 0.0
-    # Use tree_flatten from mlx.utils - returns a flat list
+    # Use tree_flatten from mlx.utils - returns a list of (path, value) tuples
     flat_grads = tree_flatten(grads)
-    for g in flat_grads:
+    for path, g in flat_grads:
         if g is not None:
             total_norm_sq = total_norm_sq + mx.sum(g * g)
     
