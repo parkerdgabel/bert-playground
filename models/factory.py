@@ -557,41 +557,75 @@ def create_model_from_checkpoint(checkpoint_path: str | Path) -> nn.Module:
     """
     checkpoint_path = Path(checkpoint_path)
 
-    # Load config
-    config_path = checkpoint_path / "config.json"
-    if not config_path.exists():
-        raise ValueError(f"No config.json found in {checkpoint_path}")
-
-    with open(config_path) as f:
-        config_dict = json.load(f)
-
-    # Determine model type from config
-    # Check if this is a BertWithHead model by looking for head metadata
-    metadata_path = checkpoint_path / "model_metadata.json"
-    if metadata_path.exists():
-        with open(metadata_path) as f:
-            metadata = json.load(f)
-        if metadata.get("model_type") == "BertWithHead":
-            # Load as BertWithHead
-            from .bert.model import BertWithHead
-
-            return BertWithHead.from_pretrained(checkpoint_path)
-
-    # Default to bert_core
-    model_type = "bert_core"
-
-    # Create model
-    model = create_model(model_type, config_dict)
-
-    # Load weights
-    weights_path = checkpoint_path / "model.safetensors"
-    if weights_path.exists():
-        from safetensors.mlx import load_model
-
-        load_model(model, str(weights_path))
-        logger.info(f"Loaded weights from {weights_path}")
+    # Look for metadata.json instead of config.json
+    metadata_path = checkpoint_path / "metadata.json"
+    
+    # Try to find training configuration in parent directories
+    training_config_path = None
+    current_path = checkpoint_path
+    for _ in range(3):  # Search up to 3 levels up
+        current_path = current_path.parent
+        potential_config = current_path / "training_config.json"
+        if potential_config.exists():
+            training_config_path = potential_config
+            break
+    
+    # Load training config if available
+    if training_config_path:
+        with open(training_config_path) as f:
+            training_config = json.load(f)
+        logger.info(f"Found training config at {training_config_path}")
     else:
-        logger.warning(f"No weights found at {weights_path}")
+        # Use defaults
+        training_config = {
+            "model": "answerdotai/ModernBERT-base",
+            "model_type": "base"
+        }
+        logger.warning("No training config found, using defaults")
+
+    # Check if we have training state for more model info
+    training_state_path = checkpoint_path / "training_state.json"
+    if training_state_path.exists():
+        with open(training_state_path) as f:
+            training_state = json.load(f)
+        logger.info(f"Found training state at {training_state_path}")
+    else:
+        training_state = {}
+
+    # Load weights first to infer model architecture
+    weights_path = checkpoint_path / "model.safetensors"
+    if not weights_path.exists():
+        raise ValueError(f"No model.safetensors found in {checkpoint_path}")
+    
+    import mlx.core as mx
+    weights = mx.load(str(weights_path))
+    weight_keys = list(weights.keys())
+    
+    # Infer model type from weight keys
+    if any("encoder_layers" in key for key in weight_keys):
+        # Classic BERT architecture
+        model_type = "bert_with_head"
+        logger.info("Detected classic BERT architecture from weight keys")
+    elif any("layers" in key for key in weight_keys):
+        # ModernBERT architecture
+        model_type = "modernbert_with_head"
+        logger.info("Detected ModernBERT architecture from weight keys")
+    else:
+        # Default to classic BERT for backward compatibility
+        model_type = "bert_with_head"
+        logger.warning("Could not determine architecture from weights, defaulting to classic BERT")
+
+    # Create model with appropriate architecture
+    model = create_model(
+        model_type=model_type,
+        head_type="binary_classification",
+        num_labels=2,
+        model_size=training_config.get("model_type", "base")
+    )
+
+    # Load weights into model
+    model.load_weights(list(weights.items()))
+    logger.info(f"Loaded weights from {weights_path}")
 
     return model
 
@@ -605,22 +639,21 @@ def load_pretrained_weights(model: nn.Module, weights_path: str | Path):
         weights_path: Path to weights file or directory
     """
     weights_path = Path(weights_path)
+    import mlx.core as mx
 
     if weights_path.is_dir():
         # Load from directory
         safetensors_path = weights_path / "model.safetensors"
         if safetensors_path.exists():
-            from safetensors.mlx import load_model
-
-            load_model(model, str(safetensors_path))
+            weights = mx.load(str(safetensors_path))
+            model.load_weights(list(weights.items()))
             logger.info(f"Loaded weights from {safetensors_path}")
         else:
             raise ValueError(f"No model.safetensors found in {weights_path}")
     elif weights_path.suffix == ".safetensors":
         # Load safetensors file directly
-        from safetensors.mlx import load_model
-
-        load_model(model, str(weights_path))
+        weights = mx.load(str(weights_path))
+        model.load_weights(list(weights.items()))
         logger.info(f"Loaded weights from {weights_path}")
     else:
         raise ValueError(f"Unsupported weights format: {weights_path}")

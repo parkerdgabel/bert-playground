@@ -8,58 +8,56 @@
 #   use_lora: true
 #   lora_preset: balanced
 
-# Training configuration
+# Training configuration - optimized for competition
 training:
-  num_epochs: 10
-  gradient_accumulation_steps: 4
+  num_epochs: 15  # More epochs for better convergence
+  gradient_accumulation_steps: 2  # Better gradient estimates
   mixed_precision: true
   eval_strategy: epoch
   eval_steps: 50
-  logging_steps: 10
+  logging_steps: 5  # More frequent logging for monitoring
   save_strategy: best
   save_steps: 50
-  save_total_limit: 3
+  save_total_limit: 2
   save_best_only: true
-  best_metric: val_accuracy
+  best_metric: eval_accuracy  # Focus on accuracy
   best_metric_mode: max
   early_stopping: true
-  early_stopping_patience: 3
-  early_stopping_threshold: 0.001
-  label_smoothing: 0.1
-  dropout_rate: 0.1
+  early_stopping_patience: 5  # More patience for convergence
+  early_stopping_threshold: 0.0005  # Tighter threshold
+  label_smoothing: 0.05  # Light smoothing for better generalization
+  dropout_rate: 0.15  # Higher dropout for regularization
   use_compilation: true
 
-# Optimizer configuration
+# Optimizer configuration - optimized settings
 optimizer:
   type: adamw
-  learning_rate: 5e-5
-  weight_decay: 0.01
+  learning_rate: 1.5e-5  # Lower LR for stable training
+  weight_decay: 0.02  # Higher weight decay for regularization
   max_grad_norm: 1.0
   beta1: 0.9
   beta2: 0.999
   epsilon: 1e-8
 
-# Scheduler configuration
+# Scheduler configuration - disable for now to avoid issues
 scheduler:
-  type: cosine
-  warmup_ratio: 0.1
+  type: none
 
-# Data configuration
+# Data configuration - optimized batch size
 data:
-  batch_size: 32
+  batch_size: 48  # Larger batch for better gradients
   eval_batch_size: 64
-  max_length: 256
-  padding: max_length
-  truncation: true
-  use_pretokenized: true
-  mlx_prefetch_size: 4
-  mlx_tokenizer_chunk_size: 100
+  num_workers: 8
+  prefetch_size: 0  # Disabled due to compilation
+  shuffle_train: true
+  drop_last: false
+  pin_memory: true
 
 # Environment configuration
 environment:
   seed: 42
   experiment_name: titanic_competition
-  run_name: modernbert_lora_v1
+  run_name: modernbert_competition_optimal
 
 # Callbacks are handled internally
 
@@ -70,12 +68,12 @@ custom:
     array_pool_size: 100
     gradient_pool_size: 50
   
-  # LoRA specific settings
+  # LoRA specific settings - optimized for competition
   lora:
-    r: 16
-    alpha: 32
+    r: 32  # Higher rank for more capacity
+    alpha: 64  # Higher alpha for stronger adaptation
     dropout: 0.1
-    target_modules: ["query", "value"]
+    target_modules: ["query", "key", "value", "dense"]  # Target all attention components
     
   # Data augmentation for text
   augmentation:

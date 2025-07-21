@@ -143,8 +143,13 @@ def create_compiled_eval_step(model: Model) -> callable:
     Returns:
         Compiled eval_step function
     """
-    # For evaluation, we only need model state
+    # For evaluation, we need to track model state
+    # Note: For LoRA models, we need to ensure all model parameters are tracked
     state = [model.state]
+    
+    # Add random state if model has dropout (needed for consistent evaluation)
+    if _has_dropout(model):
+        state.append(mx.random.state)
     
     @partial(mx.compile, inputs=state, outputs=state)
     def compiled_eval_step(batch: Dict[str, mx.array]) -> Tuple[mx.array, Dict[str, mx.array]]:
@@ -153,6 +158,10 @@ def create_compiled_eval_step(model: Model) -> callable:
         model_inputs = {k: v for k, v in batch.items() 
                        if k not in ['metadata'] and v is not None}
         
+        # Debug: Check what's in the batch and model_inputs
+        # logger.debug(f"Batch keys: {list(batch.keys())}")
+        # logger.debug(f"Model inputs keys: {list(model_inputs.keys())}")
+        
         # Forward pass (no gradients)
         try:
             outputs = model(**model_inputs)
@@ -160,9 +169,12 @@ def create_compiled_eval_step(model: Model) -> callable:
             outputs = model(batch)
         
         # Extract loss
+        if not isinstance(outputs, dict):
+            raise ValueError(f"Model must return a dictionary, got {type(outputs)}")
+        
         loss = outputs.get("loss")
         if loss is None:
-            raise ValueError("Model must return a dictionary with 'loss' key")
+            raise ValueError(f"Model must return a dictionary with 'loss' key, got keys: {list(outputs.keys())}")
         
         # Build metrics
         metrics = {k: v for k, v in outputs.items() if k != "loss"}

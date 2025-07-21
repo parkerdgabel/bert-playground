@@ -683,6 +683,9 @@ class BaseTrainer:
         """
         self._call_hooks("on_evaluate_begin", self.state)
         
+        # Set model to eval mode
+        self.model.eval()
+        
         # Initialize metrics
         total_loss = 0.0
         total_metrics = {}
@@ -696,11 +699,9 @@ class BaseTrainer:
             if batch_idx % max(1, total_batches // 10) == 0 or batch_idx == 0:
                 progress_pct = (batch_idx / total_batches) * 100
                 logger.info(f"Evaluating - Batch {batch_idx}/{total_batches} ({progress_pct:.1f}%)")
-            # Evaluation step - use compiled version if available
-            if self._use_compiled:
-                loss, metrics = self._compiled_eval_step(batch)
-            else:
-                loss, metrics = self._eval_step(batch)
+            # Evaluation step - don't use compiled version for now due to train/eval mode issues
+            # TODO: Fix compiled evaluation to handle train/eval mode changes properly
+            loss, metrics = self._eval_step(batch)
             
             # Accumulate metrics lazily
             if total_loss == 0.0:
