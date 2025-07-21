@@ -91,6 +91,9 @@ def create_compiled_train_step(
         # Compute loss and gradients
         (loss, outputs), grads = value_and_grad_fn(model, batch)
         
+        # NOTE: mx.eval() cannot be used inside compiled functions
+        # The compiled function will handle evaluation automatically
+        
         # Gradient clipping if enabled
         if config.optimizer.max_grad_norm > 0:
             grads = _clip_gradients_compiled(grads, config.optimizer.max_grad_norm)
@@ -140,8 +143,13 @@ def create_compiled_eval_step(model: Model) -> callable:
     Returns:
         Compiled eval_step function
     """
-    # For evaluation, we only need model state
+    # For evaluation, we need to track model state
+    # Note: For LoRA models, we need to ensure all model parameters are tracked
     state = [model.state]
+    
+    # Add random state if model has dropout (needed for consistent evaluation)
+    if _has_dropout(model):
+        state.append(mx.random.state)
     
     @partial(mx.compile, inputs=state, outputs=state)
     def compiled_eval_step(batch: Dict[str, mx.array]) -> Tuple[mx.array, Dict[str, mx.array]]:
@@ -150,6 +158,10 @@ def create_compiled_eval_step(model: Model) -> callable:
         model_inputs = {k: v for k, v in batch.items() 
                        if k not in ['metadata'] and v is not None}
         
+        # Debug: Check what's in the batch and model_inputs
+        # logger.debug(f"Batch keys: {list(batch.keys())}")
+        # logger.debug(f"Model inputs keys: {list(model_inputs.keys())}")
+        
         # Forward pass (no gradients)
         try:
             outputs = model(**model_inputs)
@@ -157,9 +169,12 @@ def create_compiled_eval_step(model: Model) -> callable:
             outputs = model(batch)
         
         # Extract loss
+        if not isinstance(outputs, dict):
+            raise ValueError(f"Model must return a dictionary, got {type(outputs)}")
+        
         loss = outputs.get("loss")
         if loss is None:
-            raise ValueError("Model must return a dictionary with 'loss' key")
+            raise ValueError(f"Model must return a dictionary with 'loss' key, got keys: {list(outputs.keys())}")
         
         # Build metrics
         metrics = {k: v for k, v in outputs.items() if k != "loss"}
@@ -186,9 +201,9 @@ def _clip_gradients_compiled(grads: Dict[str, Any], max_norm: float) -> Dict[str
     """
     # Compute global norm
     total_norm_sq = 0.0
-    # Use tree_flatten from mlx.utils - returns (flat_tree, tree_def) tuple
-    flat_grads, _ = tree_flatten(grads)
-    for g in flat_grads:
+    # Use tree_flatten from mlx.utils - returns a list of (path, value) tuples
+    flat_grads = tree_flatten(grads)
+    for path, g in flat_grads:
         if g is not None:
             total_norm_sq = total_norm_sq + mx.sum(g * g)
     
@@ -296,9 +311,10 @@ def should_compile_model(model: Model, config: Any) -> bool:
         return False
     
     # Check model size - very small models may not benefit
-    # tree_flatten returns (flat_tree, tree_def) tuple
-    flat_params, _ = tree_flatten(model.parameters())
-    param_count = sum(p.size for p in flat_params if p is not None)
+    # tree_flatten returns a flat list of parameters
+    flat_params = tree_flatten(model.parameters())
+    # flat_params is a list of (name, param) tuples
+    param_count = sum(p.size for _, p in flat_params if p is not None)
     if param_count < 1000:  # Less than 1K parameters
         logger.info(f"Model too small for compilation benefits ({param_count} parameters)")
         return False

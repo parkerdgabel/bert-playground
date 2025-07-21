@@ -78,6 +78,8 @@ def cross_entropy_loss(
 
     # Convert targets to one-hot if needed
     if targets.ndim == 1:
+        # Ensure targets are integers
+        targets = targets.astype(mx.int32)
         targets_one_hot = mx.zeros((targets.shape[0], num_classes))
         targets_one_hot[mx.arange(targets.shape[0]), targets] = 1
     else:

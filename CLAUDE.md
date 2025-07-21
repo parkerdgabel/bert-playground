@@ -445,3 +445,49 @@ uv run python bert_cli.py info
 - **Debug Scripts**: Always place temporary debug scripts in `/tmp` to keep the repository clean
 - **Clean Repository**: Strive to leave the repository in a clean, polished state after making changes
 - **Commit Hygiene**: Make focused commits with clear messages that explain the changes
+- **Testing is Mandatory**: ALWAYS run tests after making changes and ALWAYS add corresponding tests for new features or fixes
+- **Test Structure**: Follow the existing test structure in the `tests/` directory:
+  - `unit/`: Unit tests for individual components
+  - `integration/`: Integration tests for component interactions
+  - `e2e/`: End-to-end tests for complete workflows
+  - `fixtures/`: Shared test fixtures and utilities
+  - Add tests that mirror the structure of the code being tested
+
+### Testing Commands
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run specific test module
+uv run pytest tests/data/unit/loaders/test_mlx_loader.py
+
+# Run tests with coverage
+uv run pytest --cov=bert_playground --cov-report=html
+
+# Run tests in verbose mode
+uv run pytest -v
+
+# Run only unit tests
+uv run pytest tests/*/unit/
+
+# Run tests matching a pattern
+uv run pytest -k "test_mlx"
+```
+
+### Example Test Structure
+
+When adding a new feature in `data/loaders/mlx_loader.py`, create corresponding tests:
+- `tests/data/unit/loaders/test_mlx_loader.py` - Unit tests for individual methods
+- `tests/data/integration/test_data_pipeline.py` - Integration tests with other components
+- Update existing tests if behavior changes
+
+### Test Guidelines
+
+1. **Write tests first**: Consider writing tests before implementing features (TDD)
+2. **Test edge cases**: Include tests for error conditions and edge cases
+3. **Use fixtures**: Leverage pytest fixtures in `conftest.py` files
+4. **Mock external dependencies**: Use mocks for external services/APIs
+5. **Keep tests fast**: Unit tests should run quickly
+6. **Clear test names**: Use descriptive names that explain what is being tested
+7. **Arrange-Act-Assert**: Follow the AAA pattern in test structure

@@ -142,6 +142,15 @@ class MLXDataLoader:
             # Collate into batch
             batch = self._collate_samples(samples)
             
+            # CRITICAL: Force evaluation of batch arrays to prevent lazy evaluation buildup
+            # This prevents hanging when computing gradients on unevaluated arrays
+            # See: https://github.com/ml-explore/mlx/issues/451
+            if batch:
+                # Evaluate all arrays in the batch
+                arrays_to_eval = [v for v in batch.values() if isinstance(v, mx.array)]
+                if arrays_to_eval:
+                    mx.eval(*arrays_to_eval)
+            
             logger.debug(f"Yielding batch {batch_idx} with keys: {list(batch.keys())}")
             yield batch
     
@@ -191,6 +200,15 @@ class MLXDataLoader:
                 
                 # Collate into batch
                 batch = self._collate_samples(samples)
+                
+                # CRITICAL: Force evaluation of batch arrays to prevent lazy evaluation buildup
+                # This prevents hanging when computing gradients on unevaluated arrays
+                # See: https://github.com/ml-explore/mlx/issues/451
+                if batch:
+                    # Evaluate all arrays in the batch
+                    arrays_to_eval = [v for v in batch.values() if isinstance(v, mx.array)]
+                    if arrays_to_eval:
+                        mx.eval(*arrays_to_eval)
                 
                 # Put in queue (blocks if full)
                 self.prefetch_queue.put(batch)

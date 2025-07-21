@@ -141,66 +141,145 @@ class BertWithHead(nn.Module):
         """
         model_path = Path(model_path)
 
-        # Load metadata
-        with open(model_path / "model_metadata.json") as f:
-            metadata = json.load(f)
-
-        # Load BERT
-        bert_path = model_path / "bert"
-        if metadata["bert_type"] == "BertCore":
-            bert = BertCore.from_pretrained(str(bert_path))
+        # Check if this is a flat checkpoint (from training) or nested (from save_pretrained)
+        is_flat_checkpoint = (model_path / "model.safetensors").exists() and not (model_path / "bert").exists()
+        
+        if is_flat_checkpoint:
+            # Handle flat checkpoint structure from training
+            logger.info(f"Loading flat checkpoint from {model_path}")
+            
+            # Load config.json which contains BERT configuration
+            with open(model_path / "config.json") as f:
+                bert_config_dict = json.load(f)
+            
+            # Load weights first to determine actual vocab size
+            from safetensors.mlx import load_file
+            from mlx.utils import tree_flatten, tree_unflatten
+            
+            weights = load_file(str(model_path / "model.safetensors"))
+            
+            # Check actual vocab size from embeddings weight shape
+            embed_key = "bert.embeddings.word_embeddings.weight"
+            if embed_key in weights:
+                actual_vocab_size = weights[embed_key].shape[0]
+                bert_config_dict["vocab_size"] = actual_vocab_size
+                logger.info(f"Adjusted vocab_size to {actual_vocab_size} based on weight dimensions")
+            
+            # Check actual max position embeddings from position embeddings weight shape
+            pos_embed_key = "bert.embeddings.position_embeddings.weight"
+            if pos_embed_key in weights:
+                actual_max_pos = weights[pos_embed_key].shape[0]
+                bert_config_dict["max_position_embeddings"] = actual_max_pos
+                logger.info(f"Adjusted max_position_embeddings to {actual_max_pos} based on weight dimensions")
+            
+            # Try to load model metadata if it exists
+            model_metadata_path = model_path / "model_metadata.json"
+            if model_metadata_path.exists():
+                with open(model_metadata_path) as f:
+                    metadata = json.load(f)
+                bert_type = metadata.get("bert_type", "ModernBertCore")
+                head_type = metadata.get("head_type", "binary_classification")
+            else:
+                # Default values
+                bert_type = "ModernBertCore"
+                head_type = "binary_classification"
+            
+            # Create BERT model with proper config
+            from .core import ModernBertCore, BertCore
+            from .config import BertConfig
+            from .modernbert_config import ModernBertConfig
+            
+            if bert_type == "ModernBertCore":
+                # Create ModernBertConfig from dict
+                bert_config = ModernBertConfig(**bert_config_dict)
+                bert = ModernBertCore(bert_config)
+            else:
+                # Create BertConfig from dict
+                bert_config = BertConfig(**bert_config_dict)
+                bert = BertCore(bert_config)
+            
+            # Create head with default config for binary classification
+            from ..heads import create_head
+            
+            # For Titanic, we know it's binary classification with 2 labels
+            head = create_head(
+                head_type=head_type,
+                input_size=bert_config.hidden_size,
+                output_size=2,  # Binary classification
+                dropout_prob=0.1
+            )
+            
+            # Create BertWithHead model
+            model = cls(bert=bert, head=head)
+            
+            # Apply weights to model (already loaded above)
+            model.load_weights(list(weights.items()))
+            
+            logger.info(f"Loaded flat checkpoint BertWithHead model from {model_path}")
+            return model
+            
         else:
-            # Handle other BERT types if needed
-            from .core import ModernBertCore
+            # Handle nested structure (from save_pretrained)
+            # Load metadata
+            with open(model_path / "model_metadata.json") as f:
+                metadata = json.load(f)
 
-            bert = ModernBertCore.from_pretrained(str(bert_path))
+            # Load BERT
+            bert_path = model_path / "bert"
+            if metadata["bert_type"] == "BertCore":
+                bert = BertCore.from_pretrained(str(bert_path))
+            else:
+                # Handle other BERT types if needed
+                from .core import ModernBertCore
 
-        # Load head config
-        with open(model_path / "head" / "config.json") as f:
-            head_config_dict = json.load(f)
+                bert = ModernBertCore.from_pretrained(str(bert_path))
 
-        # Filter out parameters that HeadConfig doesn't accept
-        valid_params = {
-            "input_size",
-            "output_size",
-            "head_type",
-            "hidden_sizes",
-            "dropout_prob",
-            "activation",
-            "use_bias",
-            "pooling_type",
-            "use_layer_norm",
-            "layer_norm_eps",
-        }
-        filtered_config = {
-            k: v for k, v in head_config_dict.items() if k in valid_params
-        }
+            # Load head config
+            with open(model_path / "head" / "config.json") as f:
+                head_config_dict = json.load(f)
 
-        # No need to convert enums since we're using strings
-        # head_config = HeadConfig(**filtered_config)  # Not needed, we use create_head directly
+            # Filter out parameters that HeadConfig doesn't accept
+            valid_params = {
+                "input_size",
+                "output_size",
+                "head_type",
+                "hidden_sizes",
+                "dropout_prob",
+                "activation",
+                "use_bias",
+                "pooling_type",
+                "use_layer_norm",
+                "layer_norm_eps",
+            }
+            filtered_config = {
+                k: v for k, v in head_config_dict.items() if k in valid_params
+            }
 
-        # Create head based on type
-        from ..heads import create_head
+            # No need to convert enums since we're using strings
+            # head_config = HeadConfig(**filtered_config)  # Not needed, we use create_head directly
 
-        # Remove head_type from config since we pass it explicitly
-        create_head_config = {
-            k: v for k, v in filtered_config.items() if k != "head_type"
-        }
+            # Create head based on type
+            from ..heads import create_head
 
-        head = create_head(
-            head_type=metadata["head_type"],
-            **create_head_config,
-        )
+            # Remove head_type from config since we pass it explicitly
+            create_head_config = {
+                k: v for k, v in filtered_config.items() if k != "head_type"
+            }
 
-        # Load head weights
-        head_weights = mx.load(str(model_path / "head" / "model.safetensors"))
-        head.load_weights(list(head_weights.items()))
+            head = create_head(
+                head_type=metadata["head_type"],
+                **create_head_config,
+            )
 
-        # Create model
-        model = cls(bert=bert, head=head)
+            # Load head weights
+            head_weights = mx.load(str(model_path / "head" / "model.safetensors"))
+            head.load_weights(list(head_weights.items()))
 
-        logger.info(f"Loaded BertWithHead model from {model_path}")
-        return model
+            # Create model
+            model = cls(bert=bert, head=head)
+
+            logger.info(f"Loaded BertWithHead model from {model_path}")
+            return model
 
     def get_num_labels(self) -> int:
         """Get number of labels."""

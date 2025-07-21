@@ -1,0 +1,53 @@
+Training BERT model...
+2025-07-20 19:34:39.287 | INFO     | utils.mlx_patch:apply_mlx_patches:77 - Applying MLX compatibility patches...
+2025-07-20 19:34:39.287 | INFO     | utils.mlx_patch:patch_mlx_astype:72 - Applied MLX astype() compatibility patch
+2025-07-20 19:34:39.287 | INFO     | utils.mlx_patch:apply_mlx_patches:79 - MLX compatibility patches applied successfully
+2025-07-20 19:34:39.289 | INFO     | cli.commands.core.train:train_command:127 - 
+MLX Unified Training System
+2025-07-20 19:34:39.289 | INFO     | cli.commands.core.train:train_command:128 - ============================================================
+None of PyTorch, TensorFlow >= 2.0, or Flax have been found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
+2025-07-20 19:34:40.003 | INFO     | models.factory:<module>:44 - Kaggle heads not available
+2025-07-20 19:34:40.003 | WARNING  | models.factory:<module>:53 - Dataset analysis not available
+2025-07-20 19:34:42.362 | INFO     | cli.commands.core.train:train_command:163 - Loading data...
+2025-07-20 19:34:42.362 | INFO     | cli.commands.core.train:train_command:166 - Loading tokenizer...
+2025-07-20 19:34:42.623 | INFO     | data.factory:_load_data:107 - Auto-detected text column: Name
+2025-07-20 19:34:42.623 | INFO     | data.factory:_load_data:118 - Auto-detected label column: Survived
+2025-07-20 19:34:42.623 | INFO     | data.core.base:__init__:147 - Initialized CSVDataset for unknown (train) with 891 samples
+2025-07-20 19:34:42.624 | INFO     | data.loaders.mlx_loader:__init__:102 - Initialized MLXDataLoader: batch_size=32, num_batches=28, device=Device(gpu, 0), prefetch_size=4
+2025-07-20 19:34:42.626 | INFO     | data.factory:_load_data:107 - Auto-detected text column: Name
+2025-07-20 19:34:42.627 | INFO     | data.core.base:__init__:147 - Initialized CSVDataset for unknown (val) with 891 samples
+2025-07-20 19:34:42.627 | INFO     | data.loaders.mlx_loader:__init__:102 - Initialized MLXDataLoader: batch_size=64, num_batches=14, device=Device(gpu, 0), prefetch_size=4
+2025-07-20 19:34:42.627 | INFO     | cli.commands.core.train:train_command:208 - ✓ Loaded ~896 training samples (28 batches)
+2025-07-20 19:34:42.627 | INFO     | cli.commands.core.train:train_command:211 - ✓ Loaded ~896 validation samples (14 batches)
+2025-07-20 19:34:42.627 | INFO     | cli.commands.core.train:train_command:248 - 
+Training Configuration:
+2025-07-20 19:34:42.627 | INFO     | cli.commands.core.train:train_command:249 -   Model: answerdotai/ModernBERT-base
+2025-07-20 19:34:42.627 | INFO     | cli.commands.core.train:train_command:250 -   Model Type: base
+2025-07-20 19:34:42.627 | INFO     | cli.commands.core.train:train_command:251 -   Output Directory: output/run_20250720_193439
+2025-07-20 19:34:42.627 | INFO     | cli.commands.core.train:train_command:252 -   MLX Embeddings: Disabled
+2025-07-20 19:34:42.627 | INFO     | cli.commands.core.train:train_command:253 -   Tokenizer Backend: auto
+2025-07-20 19:34:42.627 | INFO     | cli.commands.core.train:train_command:254 -   Use LoRA: Disabled
+2025-07-20 19:34:42.627 | INFO     | cli.commands.core.train:train_command:255 -   Batch Size: 32
+2025-07-20 19:34:42.627 | INFO     | cli.commands.core.train:train_command:256 -   Learning Rate: 2e-05
+2025-07-20 19:34:42.627 | INFO     | cli.commands.core.train:train_command:257 -   Epochs: 1
+2025-07-20 19:34:42.627 | INFO     | cli.commands.core.train:train_command:258 -   Gradient Accumulation: 1
+2025-07-20 19:34:42.627 | INFO     | cli.commands.core.train:train_command:259 -   MLflow: Enabled
+2025-07-20 19:34:42.627 | INFO     | cli.commands.core.train:train_command:260 -   Early Stopping: 3
+
+2025-07-20 19:34:42.627 | INFO     | cli.commands.core.train:train_command:263 - Creating model...
+2025-07-20 19:34:42.632 | INFO     | models.bert.core:_build_encoder:470 - Built ModernBERT encoder with 22 layers
+2025-07-20 19:34:42.632 | INFO     | models.bert.core:__init__:436 - Initialized ModernBertCore with config: hidden_size=768, num_layers=22, num_heads=12, max_seq_len=8192, use_rope=True, use_geglu=True, use_alternating_attention=True
+2025-07-20 19:34:42.632 | INFO     | models.factory:create_model:251 - Created ModernBertWithHead model (head_type: binary_classification)
+2025-07-20 19:34:42.632 | INFO     | cli.commands.core.train:train_command:306 - ✓ Created ModernBERT with TitanicClassifier model
+2025-07-20 19:34:42.635 | INFO     | training.core.config:save:354 - Saved configuration to output/run_20250720_193439/trainer_config.yaml
+2025-07-20 19:34:42.636 | INFO     | training.core.memory_pool:create_memory_pools:198 - Created memory pools (enabled=True) for 233 parameters
+2025-07-20 19:34:42.638 | WARNING  | training.core.base:_setup_compilation:143 - Failed to setup compilation: too many values to unpack (expected 2)
+2025-07-20 19:34:42.638 | INFO     | training.core.base:__init__:107 - Initialized BaseTrainer with config: TrainingConfig(num_epochs=1, max_steps=-1, gradient_accumulation_steps=1, mixed_precision=True, eval_strategy=<EvalStrategy.NO: 'no'>, eval_steps=100, eval_delay=0, logging_steps=5, log_level=<LogLevel.INFO: 'info'>, report_to=['mlflow'], save_strategy=<CheckpointStrategy.EPOCH: 'epoch'>, save_steps=100, save_total_limit=3, save_best_only=False, best_metric='eval_loss', best_metric_mode='min', early_stopping=False, early_stopping_patience=3, early_stopping_threshold=0.0001, label_smoothing=0.0, dropout_rate=0.1, use_compilation=True)
+2025-07-20 19:34:42.638 | INFO     | cli.commands.core.train:train_command:337 - 
+Starting training...
+2025-07-20 19:34:42.638 | INFO     | cli.commands.core.train:train_command:341 - About to call trainer.train()
+2025-07-20 19:34:42.638 | INFO     | training.core.base:train:339 - Initialized MLX learning rate scheduler with 28 total steps
+2025-07-20 19:34:42.639 | INFO     | training.core.optimization:create_optimizer:67 - Created adamw optimizer with lr=1.9999999494757503e-05
+2025-07-20 19:34:42.639 | INFO     | training.core.base:train:375 - Starting training for 1 epochs
+2025-07-20 19:34:42.639 | INFO     | training.core.base:train:376 - Total steps: 28, Steps per epoch: 28
+2025-07-20 19:34:42.643 | INFO     | training.core.base:_train_epoch:573 - Epoch 0 - Batch 0/28 (0.0%)
