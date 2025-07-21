@@ -625,7 +625,7 @@ class MLflowMonitor:
                     deleted_count += 1
                 except Exception as e:
                     # Log error but continue
-                    print(f"Failed to delete run {run.run_id}: {e}")
+                    logger.debug(f"Failed to delete run {run.run_id}: {e}")
 
             return {
                 "message": f"Deleted {deleted_count} runs",

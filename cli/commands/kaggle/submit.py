@@ -117,6 +117,7 @@ def submit_command(
             )
 
         print_success("Successfully submitted to Kaggle!")
+        submit_log.info("Successfully submitted to Kaggle")
 
         # Track in MLflow if enabled
         if track_mlflow and checkpoint:

@@ -84,8 +84,7 @@ class UnifiedMLflowTracker:
         self.run = None
         self.is_active = False
 
-        logger.info(f"MLflow tracking URI: {self.tracking_uri}")
-        logger.info(f"Experiment: {experiment_name} (ID: {self.experiment_id})")
+        logger.debug(f"MLflow initialized: {experiment_name} (ID: {self.experiment_id})")
 
     def _get_or_create_experiment(self) -> str:
         """Get or create an MLflow experiment."""
@@ -102,7 +101,7 @@ class UnifiedMLflowTracker:
             artifact_location=self.artifact_location,
             tags=self.tags,
         )
-        logger.info(f"Created new experiment: {self.experiment_name}")
+        logger.debug(f"Created experiment: {self.experiment_name}")
         return experiment_id
 
     def start_run(
@@ -113,7 +112,7 @@ class UnifiedMLflowTracker:
     ):
         """Start a new MLflow run."""
         if self.is_active and not nested:
-            logger.warning("Run already active, ending previous run")
+            logger.debug("Ending previous run before starting new one")
             self.end_run()
 
         run_tags = self.tags.copy()
@@ -138,13 +137,13 @@ class UnifiedMLflowTracker:
         )
         self.is_active = True
 
-        logger.info(f"Started MLflow run: {self.run.info.run_id}")
+        logger.debug(f"Started run: {self.run.info.run_id}")
         return self.run
 
     def log_params(self, params: dict[str, Any]):
         """Log parameters to MLflow."""
         if not self.is_active:
-            logger.warning("No active run for logging parameters")
+            logger.debug("No active run for logging parameters")
             return
 
         # Flatten nested parameters
@@ -157,14 +156,14 @@ class UnifiedMLflowTracker:
             try:
                 mlflow.log_param(key, value)
             except Exception as e:
-                logger.warning(f"Failed to log param {key}: {e}")
+                logger.debug(f"Skipped param {key}: {e}")
 
         logger.debug(f"Logged {len(flat_params)} parameters to MLflow")
 
     def log_metrics(self, metrics: dict[str, float], step: int | None = None):
         """Log metrics to MLflow."""
         if not self.is_active:
-            logger.warning("No active run for logging metrics")
+            logger.debug("No active run for logging metrics")
             return
 
         valid_metrics = {}
@@ -185,7 +184,7 @@ class UnifiedMLflowTracker:
     ):
         """Log artifacts to MLflow."""
         if not self.is_active:
-            logger.warning("No active run for logging artifacts")
+            logger.debug("No active run for logging artifacts")
             return
 
         if isinstance(artifact_paths, str):
@@ -197,9 +196,9 @@ class UnifiedMLflowTracker:
                     mlflow.log_artifact(path, artifact_path)
                 else:
                     mlflow.log_artifacts(path, artifact_path)
-                logger.debug(f"Logged artifact: {path}")
+                pass  # Silent - too verbose
             else:
-                logger.warning(f"Artifact not found: {path}")
+                logger.debug(f"Artifact not found: {path}")
 
     def log_model(
         self,
@@ -211,7 +210,7 @@ class UnifiedMLflowTracker:
     ):
         """Log MLX model to MLflow."""
         if not self.is_active:
-            logger.warning("No active run for logging model")
+            logger.debug("No active run for logging model")
             return
 
         artifact_path = f"models/{model_name}"
@@ -234,7 +233,7 @@ class UnifiedMLflowTracker:
         # Save model info
         mlflow.log_dict(model_info, f"{artifact_path}/model_info.json")
 
-        logger.info(f"Logged model '{model_name}' to MLflow")
+        logger.debug(f"Logged model '{model_name}'")
 
     def log_confusion_matrix(
         self,
@@ -275,7 +274,7 @@ class UnifiedMLflowTracker:
         # Clean up
         os.remove(filename)
 
-        logger.debug(f"Logged confusion matrix at step {step}")
+        # Silent - visualization logged
 
     def log_roc_curve(
         self, y_true: np.ndarray, y_scores: np.ndarray, step: int | None = None
@@ -310,7 +309,7 @@ class UnifiedMLflowTracker:
         # Clean up
         os.remove(filename)
 
-        logger.debug(f"Logged ROC curve at step {step}")
+        # Silent - visualization logged
 
     def log_training_curves(
         self, history: dict[str, list[float]], save_json: bool = True
@@ -384,7 +383,7 @@ class UnifiedMLflowTracker:
         # Clean up
         os.remove(filename)
 
-        logger.info("Logged training curves to MLflow")
+        # Silent - curves logged
 
     def log_gradient_statistics(
         self, gradient_stats: dict[str, dict[str, float]], step: int
@@ -417,7 +416,10 @@ class UnifiedMLflowTracker:
         if self.is_active:
             mlflow.end_run(status=status)
             self.is_active = False
-            logger.info(f"Ended MLflow run with status: {status}")
+        if status == "FINISHED":
+            logger.info(f"MLflow run completed: {self.run.info.run_id}")
+        else:
+            logger.warning(f"MLflow run ended with status: {status}")
 
     def get_best_run(
         self, metric: str, mode: str = "min"
@@ -446,7 +448,7 @@ class UnifiedMLflowTracker:
             "--port",
             str(port),
         ]
-        logger.info(f"Launching MLflow UI at http://{host}:{port}")
+        logger.info(f"MLflow UI: http://{host}:{port}")
         subprocess.run(cmd)
 
     def _flatten_dict(

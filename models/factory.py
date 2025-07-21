@@ -19,6 +19,14 @@ import mlx.nn as nn
 import pandas as pd
 from loguru import logger
 
+# Import advanced logging features
+from utils.logging_utils import (
+    catch_and_log,
+    log_timing,
+    lazy_debug,
+    bind_context
+)
+
 # Import BERT configs and classes
 # Import Classic BERT architecture
 # Import ModernBERT architecture
@@ -41,7 +49,7 @@ try:
     KAGGLE_HEADS_AVAILABLE = True
 except ImportError:
     KAGGLE_HEADS_AVAILABLE = False
-    logger.info("Kaggle heads not available")
+    logger.debug("Kaggle heads not available")
 
 # Import dataset analysis for automatic optimization
 try:
@@ -50,7 +58,7 @@ try:
     DATASET_ANALYSIS_AVAILABLE = True
 except ImportError:
     DATASET_ANALYSIS_AVAILABLE = False
-    logger.warning("Dataset analysis not available")
+    logger.debug("Dataset analysis not available")
 
 # Import LoRA components
 from .lora import (
@@ -121,6 +129,11 @@ class CompetitionAnalysis:
             self.text_columns = []
 
 
+@catch_and_log(
+    ValueError,
+    "Model creation failed",
+    reraise=True
+)
 def create_model(
     model_type: ModelType = "bert_with_head",
     config: dict[str, Any] | BertConfig | ModernBertConfig | None = None,
@@ -143,6 +156,19 @@ def create_model(
     Returns:
         Initialized model
     """
+    # Create logger with context
+    log = bind_context(model_type=model_type, head_type=head_type)
+    log.info(f"Creating model: {model_type}")
+    
+    # Use lazy debug for expensive config serialization
+    lazy_debug(
+        "Model configuration",
+        lambda: {
+            "config": config.__dict__ if hasattr(config, "__dict__") else config,
+            "head_config": head_config.__dict__ if hasattr(head_config, "__dict__") else head_config,
+            "kwargs": kwargs
+        }
+    )
     # Determine config type and create appropriate config
     if model_type in ["modernbert_core", "modernbert_with_head"]:
         # ModernBERT models
@@ -254,9 +280,38 @@ def create_model(
 
     # Load pretrained weights if provided
     if pretrained_path:
-        load_pretrained_weights(model, pretrained_path)
+        with log_timing("load_pretrained_weights", path=str(pretrained_path)):
+            load_pretrained_weights(model, pretrained_path)
+    
+    # Log model statistics
+    if hasattr(model, "num_parameters"):
+        param_count = model.num_parameters()
+        log.info(f"Model created with {param_count:,} parameters")
+        
+        # Lazy debug for parameter breakdown
+        lazy_debug(
+            "Parameter breakdown",
+            lambda: _get_parameter_breakdown(model)
+        )
 
     return model
+
+
+def _get_parameter_breakdown(model) -> dict[str, int]:
+    """Get parameter count breakdown by component."""
+    breakdown = {}
+    
+    if hasattr(model, "bert") and hasattr(model, "head"):
+        # BertWithHead model
+        if hasattr(model.bert, "num_parameters"):
+            breakdown["bert"] = model.bert.num_parameters()
+        if hasattr(model.head, "num_parameters"):
+            breakdown["head"] = model.head.num_parameters()
+    
+    # Add more component breakdowns as needed
+    breakdown["total"] = model.num_parameters() if hasattr(model, "num_parameters") else 0
+    
+    return breakdown
 
 
 def create_model_with_lora(
@@ -545,6 +600,11 @@ def create_multi_adapter_model(
     return base_model, manager
 
 
+@catch_and_log(
+    Exception,
+    "Failed to load model from checkpoint",
+    reraise=True
+)
 def create_model_from_checkpoint(checkpoint_path: str | Path) -> nn.Module:
     """
     Create and load a model from a checkpoint directory.
@@ -556,94 +616,98 @@ def create_model_from_checkpoint(checkpoint_path: str | Path) -> nn.Module:
         Loaded model
     """
     checkpoint_path = Path(checkpoint_path)
+    log = bind_context(checkpoint=str(checkpoint_path))
+    
+    with log_timing("load_model_from_checkpoint", checkpoint=str(checkpoint_path)):
+        log.info(f"Loading model from checkpoint: {checkpoint_path}")
 
-    # Look for metadata.json instead of config.json
-    metadata_path = checkpoint_path / "metadata.json"
+        # Look for metadata.json instead of config.json
+        metadata_path = checkpoint_path / "metadata.json"
 
-    # Try to find training configuration in parent directories
-    training_config_path = None
-    current_path = checkpoint_path
-    for _ in range(3):  # Search up to 3 levels up
-        current_path = current_path.parent
-        potential_config = current_path / "training_config.json"
-        if potential_config.exists():
-            training_config_path = potential_config
-            break
+        # Try to find training configuration in parent directories
+        training_config_path = None
+        current_path = checkpoint_path
+        for _ in range(3):  # Search up to 3 levels up
+            current_path = current_path.parent
+            potential_config = current_path / "training_config.json"
+            if potential_config.exists():
+                training_config_path = potential_config
+                break
 
-    # Load training config if available
-    if training_config_path:
-        with open(training_config_path) as f:
-            training_config = json.load(f)
-        logger.info(f"Found training config at {training_config_path}")
-    else:
-        # Use defaults
-        training_config = {"model": "answerdotai/ModernBERT-base", "model_type": "base"}
-        logger.warning("No training config found, using defaults")
+        # Load training config if available
+        if training_config_path:
+            with open(training_config_path) as f:
+                training_config = json.load(f)
+            logger.info(f"Found training config at {training_config_path}")
+        else:
+            # Use defaults
+            training_config = {"model": "answerdotai/ModernBERT-base", "model_type": "base"}
+            logger.warning("No training config found, using defaults")
 
-    # Check if we have training state for more model info
-    training_state_path = checkpoint_path / "training_state.json"
-    if training_state_path.exists():
-        with open(training_state_path) as f:
-            training_state = json.load(f)
-        logger.info(f"Found training state at {training_state_path}")
-    else:
-        training_state = {}
+        # Check if we have training state for more model info
+        training_state_path = checkpoint_path / "training_state.json"
+        if training_state_path.exists():
+            with open(training_state_path) as f:
+                training_state = json.load(f)
+            logger.info(f"Found training state at {training_state_path}")
+        else:
+            training_state = {}
 
-    # Load weights first to infer model architecture
-    weights_path = checkpoint_path / "model.safetensors"
-    if not weights_path.exists():
-        raise ValueError(f"No model.safetensors found in {checkpoint_path}")
+        # Load weights first to infer model architecture
+        weights_path = checkpoint_path / "model.safetensors"
+        if not weights_path.exists():
+            raise ValueError(f"No model.safetensors found in {checkpoint_path}")
 
-    import mlx.core as mx
+        import mlx.core as mx
 
-    weights = mx.load(str(weights_path))
-    weight_keys = list(weights.keys())
+        weights = mx.load(str(weights_path))
+        weight_keys = list(weights.keys())
 
-    # Infer model type from weight keys by checking the number of encoder layers
-    encoder_layer_keys = [k for k in weight_keys if "encoder_layers" in k]
-    if encoder_layer_keys:
-        # Extract layer numbers
-        layer_numbers = set()
-        for key in encoder_layer_keys:
-            parts = key.split('.')
-            for i, part in enumerate(parts):
-                if part == "encoder_layers" and i + 1 < len(parts):
-                    try:
-                        layer_num = int(parts[i + 1])
-                        layer_numbers.add(layer_num)
-                    except ValueError:
-                        pass
-        
-        max_layer = max(layer_numbers) if layer_numbers else 0
-        
-        if max_layer > 11:  # ModernBERT has 22 layers (0-21)
-            model_type = "modernbert_with_head"
-            logger.info(f"Detected ModernBERT architecture (found {max_layer + 1} layers)")
-        else:  # Classic BERT has 12 layers (0-11)
+        # Infer model type from weight keys by checking the number of encoder layers
+        encoder_layer_keys = [k for k in weight_keys if "encoder_layers" in k]
+        if encoder_layer_keys:
+            # Extract layer numbers
+            layer_numbers = set()
+            for key in encoder_layer_keys:
+                parts = key.split('.')
+                for i, part in enumerate(parts):
+                    if part == "encoder_layers" and i + 1 < len(parts):
+                        try:
+                            layer_num = int(parts[i + 1])
+                            layer_numbers.add(layer_num)
+                        except ValueError:
+                            pass
+            
+            max_layer = max(layer_numbers) if layer_numbers else 0
+            
+            if max_layer > 11:  # ModernBERT has 22 layers (0-21)
+                model_type = "modernbert_with_head"
+                logger.info(f"Detected ModernBERT architecture (found {max_layer + 1} layers)")
+            else:  # Classic BERT has 12 layers (0-11)
+                model_type = "bert_with_head"
+                logger.info(f"Detected classic BERT architecture (found {max_layer + 1} layers)")
+        else:
+            # Default to classic BERT for backward compatibility
             model_type = "bert_with_head"
-            logger.info(f"Detected classic BERT architecture (found {max_layer + 1} layers)")
-    else:
-        # Default to classic BERT for backward compatibility
-        model_type = "bert_with_head"
-        logger.warning(
-            "Could not determine architecture from weights, defaulting to classic BERT"
+            logger.warning(
+                "Could not determine architecture from weights, defaulting to classic BERT"
+            )
+
+        # Create model with appropriate architecture
+        model = create_model(
+            model_type=model_type,
+            head_type="binary_classification",
+            num_labels=2,
+            model_size=training_config.get("model_type", "base"),
         )
 
-    # Create model with appropriate architecture
-    model = create_model(
-        model_type=model_type,
-        head_type="binary_classification",
-        num_labels=2,
-        model_size=training_config.get("model_type", "base"),
-    )
+        # Load weights into model using tree_unflatten to restore hierarchical structure
+        from mlx.utils import tree_unflatten
+        unflattened_weights = tree_unflatten(list(weights.items()))
+        model.update(unflattened_weights)
+        logger.info(f"Loaded weights from {weights_path}")
 
-    # Load weights into model using tree_unflatten to restore hierarchical structure
-    from mlx.utils import tree_unflatten
-    unflattened_weights = tree_unflatten(list(weights.items()))
-    model.update(unflattened_weights)
-    logger.info(f"Loaded weights from {weights_path}")
-
-    return model
+        return model
 
 
 def load_pretrained_weights(model: nn.Module, weights_path: str | Path):

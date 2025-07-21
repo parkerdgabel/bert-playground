@@ -458,6 +458,71 @@ Check MLX device:
 uv run python bert_cli.py info
 ```
 
+## Advanced Logging Features
+
+The project includes comprehensive logging utilities in `utils/logging_utils.py`:
+
+### Key Features
+
+1. **Structured Logging with Context**
+   ```python
+   from utils.logging_utils import bind_training_context
+   
+   log = bind_training_context(epoch=1, step=100, phase="train")
+   log.info("Training step completed", loss=0.5, accuracy=0.92)
+   ```
+
+2. **Performance Timing**
+   ```python
+   from utils.logging_utils import log_timing
+   
+   with log_timing("model_forward_pass", include_memory=True):
+       outputs = model(inputs)
+   ```
+
+3. **Lazy Debug Evaluation**
+   ```python
+   from utils.logging_utils import lazy_debug
+   
+   # Only computes if DEBUG is enabled
+   lazy_debug("Gradient stats", lambda: compute_expensive_stats())
+   ```
+
+4. **Metrics Logger**
+   ```python
+   from utils.logging_utils import MetricsLogger
+   
+   metrics_logger = MetricsLogger("output/metrics.jsonl")
+   metrics_logger.log_metrics({"loss": 0.45, "acc": 0.89}, step=1000, epoch=5)
+   ```
+
+5. **Error Handling**
+   ```python
+   from utils.logging_utils import catch_and_log
+   
+   @catch_and_log(ValueError, "Model loading failed", model_path=path)
+   def load_model(path):
+       # Implementation
+   ```
+
+6. **Progress Tracking**
+   ```python
+   from utils.logging_utils import ProgressTracker
+   
+   with ProgressTracker(len(dataloader), "Training epoch") as tracker:
+       for batch in dataloader:
+           loss = train_step(batch)
+           tracker.update(1, loss=loss)
+   ```
+
+### Logging Best Practices
+
+- Use context binding for consistent structured logs
+- Enable file logging for all training runs (automatic in CLI)
+- Use lazy evaluation for expensive debug computations
+- Apply frequency logging for high-frequency events
+- Leverage progress tracking for long-running operations
+
 ## Important Notes
 
 - Always use `uv run` to execute Python scripts
@@ -465,6 +530,7 @@ uv run python bert_cli.py info
 - **Training hang issue resolved**: Recent fixes prevent MLX lazy evaluation buildup
 - **Predict command fixed**: Now correctly loads checkpoints and auto-detects model architecture
 - **LoRA improvements**: Compiled evaluation automatically disabled for proper train/eval mode handling
+- **File Logging**: All training runs automatically save logs to `{run_dir}/training.log`
 - Batch sizes < 16 will result in very slow training on MLX
 - The model uses random initialization (pretrained weights not loaded yet)
 - Pre-tokenization is recommended for better performance

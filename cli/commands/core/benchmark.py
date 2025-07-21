@@ -11,6 +11,7 @@ import mlx.nn as nn
 import mlx.optimizers as optim
 import numpy as np
 import typer
+from loguru import logger
 
 from ...utils import (
     get_console,
@@ -83,12 +84,26 @@ def benchmark_command(
 
     console.print("\n[bold blue]MLX ModernBERT Benchmark[/bold blue]")
     console.print("=" * 60)
+    
+    # Configure logging
+    from utils.logging_utils import bind_context, log_timing, MetricsLogger, lazy_debug
+    
+    # Create benchmark logger
+    bench_log = bind_context(
+        command="benchmark",
+        model_type=model_type,
+        batch_size=batch_size,
+        seq_length=seq_length
+    )
+    bench_log.info("Starting benchmark")
 
     # Import necessary components
     try:
-        from models.factory import MODEL_REGISTRY, create_model
+        with log_timing("import_models", level="DEBUG"):
+            from models.factory import MODEL_REGISTRY, create_model
 
     except ImportError as e:
+        bench_log.error(f"Failed to import components: {str(e)}")
         print_error(
             f"Failed to import components: {str(e)}\n"
             "Make sure all dependencies are installed.",
@@ -109,6 +124,7 @@ def benchmark_command(
     # Test compilation if requested
     if test_compilation:
         console.print("\n[yellow]Testing MLX compilation impact...[/yellow]")
+        bench_log.info("Testing compilation impact")
 
         # Run without compilation
         console.print("\n[cyan]Without compilation:[/cyan]")
@@ -206,6 +222,15 @@ def _run_single_benchmark(
     use_compilation: bool = False,
 ) -> dict[str, Any]:
     """Run benchmark for a single model type."""
+    from utils.logging_utils import bind_context, log_timing, ProgressTracker, lazy_debug
+    
+    # Create benchmark context
+    bench_log = bind_context(
+        benchmark_type="single",
+        model=model_type,
+        compilation=use_compilation
+    )
+    bench_log.info("Starting single benchmark")
 
     # Import here to avoid issues with module loading
     from models.factory import MODEL_REGISTRY, create_model
@@ -222,6 +247,7 @@ def _run_single_benchmark(
         model_desc = "ModernBERT Binary"
 
     console.print(f"Created {model_desc} model")
+    bench_log.info(f"Created {model_desc} model")
 
     # Create optimizer
     optimizer = optim.AdamW(learning_rate=2e-5)
@@ -249,16 +275,18 @@ def _run_single_benchmark(
             train_step_fn = compiled_step
             console.print("[green]Using compiled training step[/green]")
         except Exception as e:
+            bench_log.warning(f"Failed to compile: {e}")
             console.print(f"[yellow]Failed to compile: {e}[/yellow]")
             use_compilation = False
 
     # Warmup
     console.print(f"Running {warmup_steps} warmup steps...")
-    for _ in range(warmup_steps):
-        if use_compilation and train_step_fn:
-            _ = train_step_fn(dummy_batch)
-        else:
-            loss = _forward_backward_step(model, dummy_batch, optimizer)
+    with log_timing("warmup", steps=warmup_steps):
+        for _ in range(warmup_steps):
+            if use_compilation and train_step_fn:
+                _ = train_step_fn(dummy_batch)
+            else:
+                loss = _forward_backward_step(model, dummy_batch, optimizer)
 
     # Benchmark
     console.print(f"Running {steps} benchmark steps...")
@@ -267,6 +295,9 @@ def _run_single_benchmark(
     total_times = []
     losses = []
     memory_usage = []
+    
+    # Use ProgressTracker for benchmark steps
+    bench_log.info(f"Running {steps} benchmark steps")
 
     for step in range(steps):
         step_start = time.time()

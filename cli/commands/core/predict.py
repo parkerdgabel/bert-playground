@@ -90,6 +90,32 @@ def predict_command(
 
     console.print("\n[bold blue]MLX ModernBERT Prediction[/bold blue]")
     console.print("=" * 60)
+    
+    # Set up logging to file
+    from datetime import datetime
+    from utils.logging_utils import add_file_logger
+    
+    # Create log directory next to output file
+    log_dir = output.parent
+    log_dir.mkdir(parents=True, exist_ok=True)
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = log_dir / f"predict_{timestamp}.log"
+    
+    # Configure logger
+    logger.remove()  # Remove default handler
+    logger.add(sys.stderr, level="INFO", enqueue=False)
+    
+    # Add file handler
+    add_file_logger(
+        file_path=log_file,
+        level="INFO",
+        rotation="100 MB",
+        retention="7 days",
+        compression="zip"
+    )
+    
+    logger.info(f"Prediction logging to: {log_file}")
 
     # Import necessary components
     try:
@@ -297,6 +323,9 @@ def predict_command(
     print_success(
         f"Predictions saved to {output}\n"
         f"Format: {format}\n"
-        f"Total predictions: {len(predictions)}",
+        f"Total predictions: {len(predictions)}\n"
+        f"Logs saved to: {log_file}",
         title="Prediction Complete",
     )
+    
+    logger.info(f"Prediction complete. Output: {output}, Logs: {log_file}")
