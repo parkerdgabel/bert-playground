@@ -550,6 +550,13 @@ class BaseTrainer:
                     loss, metrics = self._compiled_train_step(batch)
                 else:
                     loss, metrics = self._train_step(batch)
+                
+                # CRITICAL FIX: Force evaluation after gradient computation to prevent graph buildup
+                # This prevents MLX lazy evaluation from accumulating large computation graphs
+                # which cause hanging during gradient computation with complex models like ModernBERT
+                # See: https://github.com/ml-explore/mlx/issues/451 for MLX gradient computation performance issues
+                mx.eval(loss, self.model.parameters(), self.optimizer.state)
+                
                 logger.debug("Train step completed")
             
                 # Update state with current batch metrics (for progress callback)
