@@ -121,27 +121,60 @@ def predict_command(
     
     with console.status("[yellow]Generating predictions...[/yellow]"):
         for batch_idx, batch in enumerate(test_loader):
-            # Forward pass
-            with mx.no_grad():
-                outputs = model(
-                    input_ids=batch["input_ids"],
-                    attention_mask=batch["attention_mask"],
-                )
+            # Forward pass (MLX doesn't need no_grad context)
+            outputs = model(
+                input_ids=batch["input_ids"],
+                attention_mask=batch["attention_mask"],
+            )
             
-            # Get predictions
-            if hasattr(outputs, "logits"):
-                logits = outputs.logits
+            # Debug outputs
+            logger.debug(f"Batch {batch_idx} outputs keys: {outputs.keys() if isinstance(outputs, dict) else 'not a dict'}")
+            
+            # Get predictions - model already returns predictions
+            if isinstance(outputs, dict) and "predictions" in outputs:
+                # Use pre-computed predictions
+                preds = outputs["predictions"]
+                
+                # Convert to list
+                if hasattr(preds, 'tolist'):
+                    predictions.extend(preds.tolist())
+                else:
+                    predictions.extend(preds)
+                
+                # Handle probabilities if requested
+                if probability and "probabilities_2class" in outputs:
+                    probs = outputs["probabilities_2class"]
+                    if hasattr(probs, 'tolist'):
+                        probabilities.extend(probs.tolist())
+                    else:
+                        probabilities.extend(probs)
+                        
             else:
-                logits = outputs
-            
-            if probability:
-                # Calculate probabilities
-                probs = mx.softmax(logits, axis=-1)
-                probabilities.extend(probs.tolist())
-            
-            # Get class predictions
-            preds = mx.argmax(logits, axis=-1)
-            predictions.extend(preds.tolist())
+                # Fallback to computing from logits
+                if isinstance(outputs, dict) and "logits" in outputs:
+                    logits = outputs["logits"]
+                elif hasattr(outputs, "logits"):
+                    logits = outputs.logits
+                else:
+                    logits = outputs
+                
+                if probability:
+                    # Calculate probabilities
+                    probs = mx.softmax(logits, axis=-1)
+                    probabilities.extend(probs.tolist())
+                
+                # Get class predictions
+                preds = mx.argmax(logits, axis=-1)
+                
+                # Convert to list (handle both single and batch predictions)
+                if preds.ndim == 0:
+                    predictions.append(int(preds.item()))
+                elif preds.ndim == 1:
+                    predictions.extend(preds.tolist())
+                else:
+                    # If 2D or higher, flatten first dimension
+                    batch_preds = preds.reshape(-1).tolist()
+                    predictions.extend(batch_preds)
             
             total_samples += len(batch["input_ids"])
             
