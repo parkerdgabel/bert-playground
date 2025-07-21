@@ -1,0 +1,43 @@
+# Simple competition config for Titanic with LoRA
+
+# Training configuration
+training:
+  num_epochs: 10
+  gradient_accumulation_steps: 4
+  mixed_precision: true
+  eval_strategy: epoch
+  eval_steps: 50
+  logging_steps: 5
+  save_strategy: best
+  save_steps: 50
+  save_total_limit: 3
+  save_best_only: true
+  best_metric: val_accuracy
+  best_metric_mode: max
+  early_stopping: true
+  early_stopping_patience: 3
+  early_stopping_threshold: 0.001
+  label_smoothing: 0.1
+  dropout_rate: 0.1
+
+# Optimizer configuration
+optimizer:
+  type: adamw
+  learning_rate: 5e-5
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+
+# Scheduler configuration
+scheduler:
+  type: cosine
+  warmup_ratio: 0.1
+
+# Data configuration
+data:
+  batch_size: 32
+  eval_batch_size: 64
+
+# Environment configuration
+environment:
+  seed: 42
+  experiment_name: titanic_lora

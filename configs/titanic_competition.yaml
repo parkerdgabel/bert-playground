@@ -1,0 +1,86 @@
+# Competition-ready configuration for Titanic with ModernBERT + LoRA
+
+# Model configuration - handled by CLI
+# model:
+#   type: modernbert_with_head
+#   head_type: binary_classification
+#   num_labels: 2
+#   use_lora: true
+#   lora_preset: balanced
+
+# Training configuration
+training:
+  num_epochs: 10
+  gradient_accumulation_steps: 4
+  mixed_precision: true
+  eval_strategy: epoch
+  eval_steps: 50
+  logging_steps: 10
+  save_strategy: best
+  save_steps: 50
+  save_total_limit: 3
+  save_best_only: true
+  best_metric: val_accuracy
+  best_metric_mode: max
+  early_stopping: true
+  early_stopping_patience: 3
+  early_stopping_threshold: 0.001
+  label_smoothing: 0.1
+  dropout_rate: 0.1
+  use_compilation: true
+
+# Optimizer configuration
+optimizer:
+  type: adamw
+  learning_rate: 5e-5
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  beta1: 0.9
+  beta2: 0.999
+  epsilon: 1e-8
+
+# Scheduler configuration
+scheduler:
+  type: cosine
+  warmup_ratio: 0.1
+
+# Data configuration
+data:
+  batch_size: 32
+  eval_batch_size: 64
+  max_length: 256
+  padding: max_length
+  truncation: true
+  use_pretokenized: true
+  mlx_prefetch_size: 4
+  mlx_tokenizer_chunk_size: 100
+
+# Environment configuration
+environment:
+  seed: 42
+  experiment_name: titanic_competition
+  run_name: modernbert_lora_v1
+
+# Callbacks are handled internally
+
+# Custom MLX optimizations
+custom:
+  memory_pool:
+    enabled: true
+    array_pool_size: 100
+    gradient_pool_size: 50
+  
+  # LoRA specific settings
+  lora:
+    r: 16
+    alpha: 32
+    dropout: 0.1
+    target_modules: ["query", "value"]
+    
+  # Data augmentation for text
+  augmentation:
+    enabled: true
+    techniques:
+      - synonym_replacement
+      - random_insertion
+    aug_probability: 0.1

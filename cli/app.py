@@ -61,11 +61,13 @@ from .commands.core.train import train_command
 from .commands.core.predict import predict_command
 from .commands.core.benchmark import benchmark_command
 from .commands.core.info import info_command
+from .commands.core.prepare import prepare_command
 
 app.command(name="train", help="Train a BERT model")(train_command)
 app.command(name="predict", help="Generate predictions")(predict_command)
 app.command(name="benchmark", help="Run performance benchmarks")(benchmark_command)
 app.command(name="info", help="Show system information")(info_command)
+app.command(name="prepare", help="Prepare data for training")(prepare_command)
 
 # Additional root-level commands (to be implemented)
 # @app.command()
