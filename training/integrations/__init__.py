@@ -2,7 +2,7 @@
 Integration modules for external services and tools.
 """
 
-from .mlflow import MLflowIntegration, MLflowConfig
+from .mlflow import MLflowConfig, MLflowIntegration
 
 __all__ = [
     "MLflowIntegration",

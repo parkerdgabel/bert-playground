@@ -3,9 +3,9 @@ Metrics module for training evaluation.
 """
 
 from .base import Metric, MetricsCollector
-from .classification import Accuracy, F1Score, AUC, PrecisionRecall
-from .regression import MSE, RMSE, MAE, R2Score
+from .classification import AUC, Accuracy, F1Score, PrecisionRecall
 from .loss import Loss, SmoothLoss
+from .regression import MAE, MSE, RMSE, R2Score
 
 __all__ = [
     # Base
@@ -13,7 +13,7 @@ __all__ = [
     "MetricsCollector",
     # Classification
     "Accuracy",
-    "F1Score", 
+    "F1Score",
     "AUC",
     "PrecisionRecall",
     # Regression

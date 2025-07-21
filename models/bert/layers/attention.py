@@ -395,7 +395,7 @@ def apply_rotary_pos_emb(
         # If cos/sin are 1D (head_dim only), expand to [1, head_dim]
         cos = cos[None, :]
         sin = sin[None, :]
-    
+
     if len(cos.shape) == 2:
         # cos, sin: [seq_len, head_dim] -> [1, 1, seq_len, head_dim]
         cos = cos[None, None, :, :]

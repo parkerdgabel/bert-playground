@@ -7,6 +7,8 @@ This module provides:
 - Factory functions for easy model creation
 """
 
+# Utilities
+from .confidence import BERTConfidenceScorer
 from .config import (
     BertConfig,
     get_base_config,
@@ -48,6 +50,7 @@ from .modernbert_config import (
     ModernBertConfig,
     get_modernbert_config,
 )
+from .utils import BERTLayerManager
 
 __all__ = [
     # Configuration
@@ -89,4 +92,7 @@ __all__ = [
     # Config utilities - neoBERT
     "get_neobert_config",
     "get_neobert_mini_config",
+    # Utilities
+    "BERTConfidenceScorer",
+    "BERTLayerManager",
 ]

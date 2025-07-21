@@ -8,8 +8,10 @@ from .app import app
 
 __version__ = "2.0.0"
 
+
 def main():
     """Entry point for the CLI."""
     app()
+
 
 __all__ = ["app", "main"]

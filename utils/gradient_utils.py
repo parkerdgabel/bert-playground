@@ -3,15 +3,16 @@ Gradient clipping and monitoring utilities for MLX models.
 Optimized for CNN-BERT hybrid architectures.
 """
 
+from typing import Any
+
 import mlx.core as mx
-from typing import Dict, List, Tuple, Optional, Any
-from loguru import logger
 import numpy as np
+from loguru import logger
 
 
 def clip_gradients(
-    gradients: Dict[str, mx.array], max_norm: float = 1.0, norm_type: str = "l2"
-) -> Tuple[Dict[str, mx.array], float]:
+    gradients: dict[str, mx.array], max_norm: float = 1.0, norm_type: str = "l2"
+) -> tuple[dict[str, mx.array], float]:
     """
     Clip gradients by global norm to prevent gradient explosion.
 
@@ -69,9 +70,9 @@ def clip_gradients(
 
 
 def monitor_gradient_components(
-    gradients: Dict[str, mx.array],
-    model_components: Optional[Dict[str, List[str]]] = None,
-) -> Dict[str, Dict[str, float]]:
+    gradients: dict[str, mx.array],
+    model_components: dict[str, list[str]] | None = None,
+) -> dict[str, dict[str, float]]:
     """
     Monitor gradient statistics by model component.
 
@@ -138,7 +139,7 @@ def monitor_gradient_components(
 
 
 def log_gradient_statistics(
-    gradient_stats: Dict[str, Dict[str, float]],
+    gradient_stats: dict[str, dict[str, float]],
     step: int,
     total_norm: float,
     clipped: bool = False,
@@ -168,11 +169,11 @@ def log_gradient_statistics(
 
 
 def detect_gradient_anomalies(
-    gradient_stats: Dict[str, Dict[str, float]],
+    gradient_stats: dict[str, dict[str, float]],
     total_norm: float,
     step: int,
     anomaly_threshold: float = 10.0,
-) -> List[str]:
+) -> list[str]:
     """
     Detect potential gradient anomalies that might indicate training problems.
 
@@ -231,7 +232,7 @@ class GradientMonitor:
         max_norm: float = 1.0,
         log_interval: int = 50,
         anomaly_threshold: float = 10.0,
-        component_mapping: Optional[Dict[str, List[str]]] = None,
+        component_mapping: dict[str, list[str]] | None = None,
     ):
         self.max_norm = max_norm
         self.log_interval = log_interval
@@ -248,8 +249,8 @@ class GradientMonitor:
         self.total_steps = 0
 
     def process_gradients(
-        self, gradients: Dict[str, mx.array], step: int, force_log: bool = False
-    ) -> Tuple[Dict[str, mx.array], Dict[str, Any]]:
+        self, gradients: dict[str, mx.array], step: int, force_log: bool = False
+    ) -> tuple[dict[str, mx.array], dict[str, Any]]:
         """
         Process gradients with clipping and monitoring.
 
@@ -308,7 +309,7 @@ class GradientMonitor:
 
         return clipped_gradients, monitoring_info
 
-    def get_summary_stats(self) -> Dict[str, Any]:
+    def get_summary_stats(self) -> dict[str, Any]:
         """Get summary statistics for the entire training run."""
         if not self.gradient_history:
             return {}
@@ -393,7 +394,7 @@ def create_gradient_monitor(
         },
     }
 
-    component_mapping = component_mappings.get(model_type, None)
+    component_mapping = component_mappings.get(model_type)
 
     return GradientMonitor(
         max_norm=max_norm,

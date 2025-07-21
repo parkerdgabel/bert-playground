@@ -1,32 +1,28 @@
 """Configuration fixtures for testing."""
 
-from pathlib import Path
-from typing import Dict, Any, Optional
 import json
+from pathlib import Path
+from typing import Any
+
 import yaml
 
 from training.core.config import (
     BaseTrainerConfig,
-    OptimizerConfig,
-    SchedulerConfig,
-    DataConfig,
-    TrainingConfig,
-    EnvironmentConfig,
 )
-from training.kaggle.config import KaggleConfig, KaggleTrainerConfig
+from training.kaggle.config import KaggleTrainerConfig
 
 
 def create_test_config(
-    output_dir: Optional[Path] = None,
+    output_dir: Path | None = None,
     num_epochs: int = 2,
     batch_size: int = 4,
     learning_rate: float = 1e-3,
-    **kwargs
+    **kwargs,
 ) -> BaseTrainerConfig:
     """Create test configuration with sensible defaults."""
     if output_dir is None:
         output_dir = Path("/tmp/test_training")
-    
+
     config_dict = {
         "optimizer": {
             "type": "adam",
@@ -57,7 +53,7 @@ def create_test_config(
             "seed": 42,
         },
     }
-    
+
     # Update with any additional kwargs
     for key, value in kwargs.items():
         if key in config_dict:
@@ -65,20 +61,20 @@ def create_test_config(
                 config_dict[key].update(value)
             else:
                 config_dict[key] = value
-    
+
     return BaseTrainerConfig(**config_dict)
 
 
 def create_kaggle_config(
-    output_dir: Optional[Path] = None,
+    output_dir: Path | None = None,
     competition_name: str = "titanic",
     cv_folds: int = 5,
-    **kwargs
+    **kwargs,
 ) -> KaggleTrainerConfig:
     """Create Kaggle-specific test configuration."""
     if output_dir is None:
         output_dir = Path("/tmp/test_kaggle")
-    
+
     # Create full config dict with kaggle settings
     config_dict = {
         "optimizer": {
@@ -94,19 +90,19 @@ def create_kaggle_config(
         },
         "kaggle": {
             "competition_name": competition_name,
-            "competition_type": "binary_classification", 
+            "competition_type": "binary_classification",
             "competition_metric": "accuracy",
             "cv_folds": cv_folds,
             "enable_ensemble": False,
             "enable_tta": False,
             "auto_submit": False,
-        }
+        },
     }
-    
+
     return KaggleTrainerConfig(**config_dict)
 
 
-def create_minimal_config(output_dir: Optional[Path] = None) -> BaseTrainerConfig:
+def create_minimal_config(output_dir: Path | None = None) -> BaseTrainerConfig:
     """Create minimal configuration for fast tests."""
     return create_test_config(
         output_dir=output_dir,
@@ -121,7 +117,7 @@ def create_minimal_config(output_dir: Optional[Path] = None) -> BaseTrainerConfi
     )
 
 
-def create_distributed_config(output_dir: Optional[Path] = None) -> BaseTrainerConfig:
+def create_distributed_config(output_dir: Path | None = None) -> BaseTrainerConfig:
     """Create configuration for distributed training tests."""
     return create_test_config(
         output_dir=output_dir,
@@ -134,7 +130,7 @@ def create_distributed_config(output_dir: Optional[Path] = None) -> BaseTrainerC
 
 
 def create_gradient_accumulation_config(
-    output_dir: Optional[Path] = None,
+    output_dir: Path | None = None,
     accumulation_steps: int = 4,
 ) -> BaseTrainerConfig:
     """Create configuration with gradient accumulation."""
@@ -149,7 +145,7 @@ def create_gradient_accumulation_config(
 
 
 def create_early_stopping_config(
-    output_dir: Optional[Path] = None,
+    output_dir: Path | None = None,
     patience: int = 3,
 ) -> BaseTrainerConfig:
     """Create configuration with early stopping."""
@@ -165,7 +161,7 @@ def create_early_stopping_config(
 
 
 def create_scheduler_config(
-    output_dir: Optional[Path] = None,
+    output_dir: Path | None = None,
     scheduler_type: str = "cosine",
 ) -> BaseTrainerConfig:
     """Create configuration with specific scheduler."""
@@ -190,19 +186,21 @@ def create_scheduler_config(
             "threshold": 0.01,
         },
     }
-    
+
     return create_test_config(
         output_dir=output_dir,
         scheduler=scheduler_configs.get(scheduler_type, {"type": scheduler_type}),
     )
 
 
-def save_config_to_file(config: BaseTrainerConfig, file_path: Path, format: str = "json"):
+def save_config_to_file(
+    config: BaseTrainerConfig, file_path: Path, format: str = "json"
+):
     """Save configuration to file for testing."""
     config_dict = config.to_dict()
-    
+
     file_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     if format == "json":
         with open(file_path, "w") as f:
             json.dump(config_dict, f, indent=2)
@@ -213,7 +211,7 @@ def save_config_to_file(config: BaseTrainerConfig, file_path: Path, format: str 
         raise ValueError(f"Unknown format: {format}")
 
 
-def create_invalid_config_dict() -> Dict[str, Any]:
+def create_invalid_config_dict() -> dict[str, Any]:
     """Create invalid configuration dictionary for error testing."""
     return {
         "optimizer": {
@@ -227,7 +225,7 @@ def create_invalid_config_dict() -> Dict[str, Any]:
     }
 
 
-def create_config_variations() -> Dict[str, BaseTrainerConfig]:
+def create_config_variations() -> dict[str, BaseTrainerConfig]:
     """Create various configuration variations for testing."""
     return {
         "minimal": create_minimal_config(),

@@ -559,7 +559,7 @@ def create_model_from_checkpoint(checkpoint_path: str | Path) -> nn.Module:
 
     # Look for metadata.json instead of config.json
     metadata_path = checkpoint_path / "metadata.json"
-    
+
     # Try to find training configuration in parent directories
     training_config_path = None
     current_path = checkpoint_path
@@ -569,7 +569,7 @@ def create_model_from_checkpoint(checkpoint_path: str | Path) -> nn.Module:
         if potential_config.exists():
             training_config_path = potential_config
             break
-    
+
     # Load training config if available
     if training_config_path:
         with open(training_config_path) as f:
@@ -577,10 +577,7 @@ def create_model_from_checkpoint(checkpoint_path: str | Path) -> nn.Module:
         logger.info(f"Found training config at {training_config_path}")
     else:
         # Use defaults
-        training_config = {
-            "model": "answerdotai/ModernBERT-base",
-            "model_type": "base"
-        }
+        training_config = {"model": "answerdotai/ModernBERT-base", "model_type": "base"}
         logger.warning("No training config found, using defaults")
 
     # Check if we have training state for more model info
@@ -596,11 +593,12 @@ def create_model_from_checkpoint(checkpoint_path: str | Path) -> nn.Module:
     weights_path = checkpoint_path / "model.safetensors"
     if not weights_path.exists():
         raise ValueError(f"No model.safetensors found in {checkpoint_path}")
-    
+
     import mlx.core as mx
+
     weights = mx.load(str(weights_path))
     weight_keys = list(weights.keys())
-    
+
     # Infer model type from weight keys
     if any("encoder_layers" in key for key in weight_keys):
         # Classic BERT architecture
@@ -613,14 +611,16 @@ def create_model_from_checkpoint(checkpoint_path: str | Path) -> nn.Module:
     else:
         # Default to classic BERT for backward compatibility
         model_type = "bert_with_head"
-        logger.warning("Could not determine architecture from weights, defaulting to classic BERT")
+        logger.warning(
+            "Could not determine architecture from weights, defaulting to classic BERT"
+        )
 
     # Create model with appropriate architecture
     model = create_model(
         model_type=model_type,
         head_type="binary_classification",
         num_labels=2,
-        model_size=training_config.get("model_type", "base")
+        model_size=training_config.get("model_type", "base"),
     )
 
     # Load weights into model

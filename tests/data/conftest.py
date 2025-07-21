@@ -2,23 +2,21 @@
 Pytest configuration and shared fixtures for data module tests.
 """
 
-import pytest
-import tempfile
-import shutil
-from pathlib import Path
-from typing import Optional, Dict, Any, List, Iterator
-import mlx.core as mx
-import pandas as pd
 import json
 
 # Add project root to path
 import sys
+import tempfile
+from pathlib import Path
+
+import mlx.core as mx
+import pandas as pd
+import pytest
+
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from data.core.base import DatasetSpec
-from data.core.metadata import CompetitionMetadata
 from data.loaders.mlx_loader import MLXDataLoader, MLXLoaderConfig
-from data.templates.engine import TextTemplateEngine
 
 
 # Test configuration
@@ -53,7 +51,7 @@ def tmp_cache_dir():
 # Mock dataset implementations
 class MockDataset:
     """Mock dataset for testing."""
-    
+
     def __init__(
         self,
         num_samples: int = 100,
@@ -66,33 +64,33 @@ class MockDataset:
         self.task_type = task_type
         self.num_classes = num_classes
         self._index = 0
-    
+
     def __len__(self) -> int:
         return self.num_samples
-    
-    def __getitem__(self, idx: int) -> Dict[str, mx.array]:
+
+    def __getitem__(self, idx: int) -> dict[str, mx.array]:
         """Get item by index."""
         # Generate deterministic data based on index
         mx.random.seed(42 + idx)
-        
+
         features = mx.random.normal((self.num_features,))
-        
+
         if self.task_type == "classification":
             label = mx.array(idx % self.num_classes)
         else:  # regression
             label = mx.array(float(idx) / self.num_samples)
-        
+
         return {
             "features": features,
             "labels": label,
             "index": mx.array(idx),
         }
-    
+
     def __iter__(self):
         """Iterate through dataset."""
         self._index = 0
         return self
-    
+
     def __next__(self):
         """Get next item."""
         if self._index >= self.num_samples:
@@ -104,7 +102,7 @@ class MockDataset:
 
 class MockTextDataset(MockDataset):
     """Mock text dataset for testing."""
-    
+
     def __init__(
         self,
         num_samples: int = 100,
@@ -116,23 +114,23 @@ class MockTextDataset(MockDataset):
         self.vocab_size = vocab_size
         self.sequence_length = sequence_length
         self.num_classes = num_classes
-    
-    def __getitem__(self, idx: int) -> Dict[str, mx.array]:
+
+    def __getitem__(self, idx: int) -> dict[str, mx.array]:
         """Get text item by index."""
         mx.random.seed(42 + idx)
-        
+
         # Generate random token IDs
         input_ids = mx.random.randint(0, self.vocab_size, (self.sequence_length,))
         attention_mask = mx.ones((self.sequence_length,))
-        
+
         # Random padding
         padding_length = mx.random.randint(0, self.sequence_length // 2).item()
         if padding_length > 0:
             attention_mask[-padding_length:] = 0
             input_ids[-padding_length:] = 0
-        
+
         label = mx.array(idx % self.num_classes)
-        
+
         return {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
@@ -171,6 +169,7 @@ def mock_dataloader():
 @pytest.fixture
 def create_csv_data():
     """Create CSV data for testing."""
+
     def _create(
         path: Path,
         num_rows: int = 100,
@@ -182,20 +181,21 @@ def create_csv_data():
             f"feature_{i}": [float(j * i) for j in range(num_rows)]
             for i in range(num_features)
         }
-        
+
         if has_labels:
             data["label"] = [j % 2 for j in range(num_rows)]
-        
+
         df = pd.DataFrame(data)
         df.to_csv(path, index=False)
         return path
-    
+
     return _create
 
 
 @pytest.fixture
 def create_json_data():
     """Create JSON data for testing."""
+
     def _create(
         path: Path,
         num_samples: int = 100,
@@ -211,7 +211,7 @@ def create_json_data():
                 "features": [float(j) for j in range(5)],
             }
             data.append(record)
-        
+
         if structure == "records":
             with open(path, "w") as f:
                 json.dump(data, f)
@@ -219,9 +219,9 @@ def create_json_data():
             with open(path, "w") as f:
                 for record in data:
                     f.write(json.dumps(record) + "\n")
-        
+
         return path
-    
+
     return _create
 
 
@@ -266,6 +266,7 @@ def memory_config():
 def classification_spec():
     """Create classification dataset spec."""
     from data.core.base import CompetitionType
+
     return DatasetSpec(
         competition_name="test_classification",
         dataset_path="./test_data",
@@ -282,6 +283,7 @@ def classification_spec():
 def regression_spec():
     """Create regression dataset spec."""
     from data.core.base import CompetitionType
+
     return DatasetSpec(
         competition_name="test_regression",
         dataset_path="./test_data",
@@ -303,56 +305,62 @@ def template_engine():
 @pytest.fixture
 def sample_tabular_data():
     """Create sample tabular data for template testing."""
-    return pd.DataFrame({
-        "age": [25, 30, 35, 40],
-        "gender": ["M", "F", "M", "F"],
-        "income": [50000, 60000, 70000, 80000],
-        "label": [0, 1, 1, 0],
-    })
+    return pd.DataFrame(
+        {
+            "age": [25, 30, 35, 40],
+            "gender": ["M", "F", "M", "F"],
+            "income": [50000, 60000, 70000, 80000],
+            "label": [0, 1, 1, 0],
+        }
+    )
 
 
 # Utility fixtures
 @pytest.fixture
 def assert_batches_equal():
     """Utility for comparing batches."""
-    def _assert(batch1: Dict[str, mx.array], batch2: Dict[str, mx.array]):
+
+    def _assert(batch1: dict[str, mx.array], batch2: dict[str, mx.array]):
         """Assert two batches are equal."""
         assert set(batch1.keys()) == set(batch2.keys()), "Batch keys don't match"
-        
+
         for key in batch1:
-            assert mx.array_equal(batch1[key], batch2[key]), \
+            assert mx.array_equal(batch1[key], batch2[key]), (
                 f"Batch values for {key} don't match"
-    
+            )
+
     return _assert
 
 
 @pytest.fixture
 def create_streaming_dataset():
     """Create streaming dataset."""
+
     class StreamingDataset:
         def __init__(self, num_samples: int = 1000):
             self.num_samples = num_samples
             self._position = 0
-        
+
         def __iter__(self):
             self._position = 0
             return self
-        
+
         def __next__(self):
             if self._position >= self.num_samples:
                 raise StopIteration
-            
+
             # Simulate streaming delay
             import time
+
             time.sleep(0.001)
-            
+
             data = {
                 "features": mx.random.normal((10,)),
                 "label": mx.array(self._position % 2),
             }
             self._position += 1
             return data
-    
+
     return StreamingDataset
 
 
@@ -360,27 +368,30 @@ def create_streaming_dataset():
 @pytest.fixture
 def track_memory():
     """Track memory usage during test."""
+
     class MemoryTracker:
         def __init__(self):
             self.measurements = []
-        
+
         def measure(self):
             """Take memory measurement."""
-            import psutil
             import os
+
+            import psutil
+
             process = psutil.Process(os.getpid())
             self.measurements.append(process.memory_info().rss)
-        
+
         def get_peak_usage(self):
             """Get peak memory usage."""
             return max(self.measurements) if self.measurements else 0
-        
+
         def get_delta(self):
             """Get memory usage delta."""
             if len(self.measurements) < 2:
                 return 0
             return self.measurements[-1] - self.measurements[0]
-    
+
     return MemoryTracker()
 
 
@@ -388,42 +399,44 @@ def track_memory():
 @pytest.fixture
 def benchmark_loader():
     """Benchmark data loader performance."""
+
     def _benchmark(
         loader: DataLoader,
         num_epochs: int = 3,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Benchmark loader performance."""
         import time
-        
+
         times = []
         samples_processed = 0
-        
+
         for epoch in range(num_epochs):
             start = time.time()
             for batch in loader:
                 samples_processed += batch["features"].shape[0]
             times.append(time.time() - start)
-        
+
         return {
             "mean_epoch_time": sum(times) / len(times),
             "total_samples": samples_processed,
             "samples_per_second": samples_processed / sum(times),
         }
-    
+
     return _benchmark
 
 
 # Error simulation fixtures
 class CorruptDataset(MockDataset):
     """Dataset that produces corrupt data."""
-    
+
     def __init__(self, corruption_rate: float = 0.1, **kwargs):
         super().__init__(**kwargs)
         self.corruption_rate = corruption_rate
-    
-    def __getitem__(self, idx: int) -> Dict[str, mx.array]:
+
+    def __getitem__(self, idx: int) -> dict[str, mx.array]:
         """Get item with possible corruption."""
         import random
+
         if random.random() < self.corruption_rate:
             raise ValueError(f"Corrupt data at index {idx}")
         return super().__getitem__(idx)
@@ -431,14 +444,15 @@ class CorruptDataset(MockDataset):
 
 class SlowDataset(MockDataset):
     """Dataset with artificial delays."""
-    
+
     def __init__(self, delay: float = 0.1, **kwargs):
         super().__init__(**kwargs)
         self.delay = delay
-    
-    def __getitem__(self, idx: int) -> Dict[str, mx.array]:
+
+    def __getitem__(self, idx: int) -> dict[str, mx.array]:
         """Get item with delay."""
         import time
+
         time.sleep(self.delay)
         return super().__getitem__(idx)
 
@@ -472,11 +486,12 @@ def mock_kaggle_competition():
 @pytest.fixture
 def create_kaggle_files(tmp_data_dir, create_csv_data):
     """Create mock Kaggle competition files."""
+
     def _create(competition_name: str = "titanic"):
         """Create competition files."""
         comp_dir = tmp_data_dir / competition_name
         comp_dir.mkdir(exist_ok=True)
-        
+
         # Create train, test, and submission files
         train_path = create_csv_data(
             comp_dir / "train.csv",
@@ -484,23 +499,25 @@ def create_kaggle_files(tmp_data_dir, create_csv_data):
             num_features=5,
             has_labels=True,
         )
-        
+
         test_path = create_csv_data(
             comp_dir / "test.csv",
             num_rows=50,
             num_features=5,
             has_labels=False,
         )
-        
+
         # Create sample submission
-        submission_df = pd.DataFrame({
-            "PassengerId": range(50),
-            "Survived": [0] * 50,
-        })
+        submission_df = pd.DataFrame(
+            {
+                "PassengerId": range(50),
+                "Survived": [0] * 50,
+            }
+        )
         submission_df.to_csv(comp_dir / "sample_submission.csv", index=False)
-        
+
         return comp_dir
-    
+
     return _create
 
 

@@ -1,37 +1,38 @@
 """Unified evaluation utilities for model evaluation, validation, and submission generation."""
 
-import os
 import json
+import os
 import subprocess
+from datetime import datetime
+from pathlib import Path
+
+import matplotlib.pyplot as plt
 import mlx.core as mx
 import mlx.nn as nn
 import pandas as pd
-from pathlib import Path
-from datetime import datetime
-from typing import Dict, List, Tuple, Optional, Union
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
-from rich import box
-import matplotlib.pyplot as plt
 import seaborn as sns
+from loguru import logger
+from rich import box
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
+from rich.table import Table
 from sklearn.metrics import (
     accuracy_score,
+    confusion_matrix,
+    f1_score,
     precision_score,
     recall_score,
-    f1_score,
-    confusion_matrix,
     roc_auc_score,
     roc_curve,
 )
-from loguru import logger
+
+from data.unified_loader import UnifiedTitanicDataPipeline
+from models.classification import TitanicClassifier
 
 # Import unified modules
-from models.modernbert import ModernBertModel, ModernBertConfig
+from models.modernbert import ModernBertConfig, ModernBertModel
 from models.modernbert_cnn_hybrid import CNNEnhancedModernBERT
-from models.classification import TitanicClassifier
-from data.unified_loader import UnifiedTitanicDataPipeline
 from utils.mlflow_helper import UnifiedMLflowTracker
 
 console = Console()
@@ -45,7 +46,7 @@ class UnifiedModelEvaluator:
         output_dir: str = "evaluation_results",
         submission_dir: str = "kaggle_submissions",
         enable_mlflow: bool = False,
-        mlflow_experiment: Optional[str] = None,
+        mlflow_experiment: str | None = None,
     ):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
@@ -73,8 +74,8 @@ class UnifiedModelEvaluator:
             )
 
     def find_best_models(
-        self, search_dirs: Optional[List[str]] = None
-    ) -> List[Tuple[str, str]]:
+        self, search_dirs: list[str] | None = None
+    ) -> list[tuple[str, str]]:
         """Find all trained best models in specified directories."""
         models = []
 
@@ -107,7 +108,7 @@ class UnifiedModelEvaluator:
         logger.info(f"Found {len(models)} models to evaluate")
         return models
 
-    def load_model(self, model_path: Union[str, Path]) -> Tuple[nn.Module, Dict]:
+    def load_model(self, model_path: str | Path) -> tuple[nn.Module, dict]:
         """Load a model from checkpoint with automatic type detection."""
         model_path = Path(model_path)
         logger.info(f"Loading model from {model_path}")
@@ -158,7 +159,7 @@ class UnifiedModelEvaluator:
 
         return model, model_info
 
-    def load_model_info(self, model_path: Path) -> Dict:
+    def load_model_info(self, model_path: Path) -> dict:
         """Load comprehensive model information."""
         info = {
             "path": str(model_path),
@@ -199,7 +200,7 @@ class UnifiedModelEvaluator:
         model: nn.Module,
         val_path: str = "data/titanic/val.csv",
         batch_size: int = 32,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Run comprehensive evaluation on validation set."""
         console.print(Panel.fit("📊 Evaluating on Validation Set", style="bold blue"))
 
@@ -283,7 +284,7 @@ class UnifiedModelEvaluator:
         self,
         model: nn.Module,
         test_path: str = "data/titanic/test.csv",
-        submission_name: Optional[str] = None,
+        submission_name: str | None = None,
         batch_size: int = 32,
     ) -> str:
         """Generate Kaggle submission file."""
@@ -334,7 +335,7 @@ class UnifiedModelEvaluator:
         logger.info(f"Saved submission to {submission_path}")
         return str(submission_path)
 
-    def visualize_results(self, save_path: Optional[Path] = None):
+    def visualize_results(self, save_path: Path | None = None):
         """Create comprehensive visualization of evaluation results."""
         if not hasattr(self, "val_results"):
             logger.warning("No validation results to visualize")
@@ -377,13 +378,13 @@ class UnifiedModelEvaluator:
             probs = self.val_results["probabilities"]
             labels = self.val_results["labels"]
             axes[1, 1].hist(
-                [p for p, lbl in zip(probs, labels) if lbl == 0],
+                [p for p, lbl in zip(probs, labels, strict=False) if lbl == 0],
                 alpha=0.5,
                 label="Class 0",
                 bins=20,
             )
             axes[1, 1].hist(
-                [p for p, lbl in zip(probs, labels) if lbl == 1],
+                [p for p, lbl in zip(probs, labels, strict=False) if lbl == 1],
                 alpha=0.5,
                 label="Class 1",
                 bins=20,
@@ -401,7 +402,7 @@ class UnifiedModelEvaluator:
         else:
             plt.show()
 
-    def create_evaluation_report(self, model_info: Dict, metrics: Dict) -> Table:
+    def create_evaluation_report(self, model_info: dict, metrics: dict) -> Table:
         """Create a rich table with evaluation results."""
         table = Table(title="Model Evaluation Report", box=box.ROUNDED)
 
@@ -429,7 +430,7 @@ class UnifiedModelEvaluator:
         model_path: str,
         submit_to_kaggle: bool = False,
         competition: str = "titanic",
-    ) -> Dict:
+    ) -> dict:
         """Complete evaluation pipeline with optional Kaggle submission."""
         results = {}
 
@@ -512,7 +513,7 @@ class UnifiedModelEvaluator:
             console.print(f"❌ Error submitting to Kaggle: {e}", style="bold red")
             logger.error(f"Kaggle submission error: {e}")
 
-    def compare_models(self, model_paths: List[str]) -> pd.DataFrame:
+    def compare_models(self, model_paths: list[str]) -> pd.DataFrame:
         """Compare multiple models and return comparison DataFrame."""
         results = []
 
@@ -553,7 +554,7 @@ class UnifiedModelEvaluator:
 # Convenience functions
 def evaluate_single_model(
     model_path: str, submit: bool = False, enable_mlflow: bool = False
-) -> Dict:
+) -> dict:
     """Evaluate a single model with optional submission."""
     evaluator = UnifiedModelEvaluator(enable_mlflow=enable_mlflow)
     return evaluator.evaluate_and_submit(model_path, submit_to_kaggle=submit)
@@ -575,7 +576,7 @@ def compare_all_models(output_dir: str = "evaluation_results") -> pd.DataFrame:
 def generate_submission_only(
     model_path: str,
     test_path: str = "data/titanic/test.csv",
-    submission_name: Optional[str] = None,
+    submission_name: str | None = None,
 ) -> str:
     """Generate submission file without full evaluation."""
     evaluator = UnifiedModelEvaluator()

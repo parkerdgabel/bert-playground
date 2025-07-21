@@ -1,19 +1,20 @@
 """Unified MLflow helper module for comprehensive experiment tracking."""
 
+import json
+import os
+import subprocess
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from typing import Any
+
+import matplotlib.pyplot as plt
 import mlflow
 import mlflow.pytorch
-from mlflow.tracking import MlflowClient
-from pathlib import Path
-import os
-from typing import Dict, Any, Optional, List, Union
-import json
 import numpy as np
-import matplotlib.pyplot as plt
 import seaborn as sns
-from datetime import datetime
 from loguru import logger
-import subprocess
-from enum import Enum
+from mlflow.tracking import MlflowClient
 
 
 class TrackingMode(Enum):
@@ -33,12 +34,12 @@ class UnifiedMLflowTracker:
     def __init__(
         self,
         experiment_name: str,
-        tracking_mode: Union[str, TrackingMode] = TrackingMode.FILE,
-        tracking_uri: Optional[str] = None,
+        tracking_mode: str | TrackingMode = TrackingMode.FILE,
+        tracking_uri: str | None = None,
         base_dir: str = "./mlflow",
-        run_name: Optional[str] = None,
-        tags: Optional[Dict[str, str]] = None,
-        artifact_location: Optional[str] = None,
+        run_name: str | None = None,
+        tags: dict[str, str] | None = None,
+        artifact_location: str | None = None,
     ):
         self.experiment_name = experiment_name
         self.run_name = run_name or f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -106,9 +107,9 @@ class UnifiedMLflowTracker:
 
     def start_run(
         self,
-        run_name: Optional[str] = None,
+        run_name: str | None = None,
         nested: bool = False,
-        tags: Optional[Dict[str, str]] = None,
+        tags: dict[str, str] | None = None,
     ):
         """Start a new MLflow run."""
         if self.is_active and not nested:
@@ -140,7 +141,7 @@ class UnifiedMLflowTracker:
         logger.info(f"Started MLflow run: {self.run.info.run_id}")
         return self.run
 
-    def log_params(self, params: Dict[str, Any]):
+    def log_params(self, params: dict[str, Any]):
         """Log parameters to MLflow."""
         if not self.is_active:
             logger.warning("No active run for logging parameters")
@@ -160,7 +161,7 @@ class UnifiedMLflowTracker:
 
         logger.debug(f"Logged {len(flat_params)} parameters to MLflow")
 
-    def log_metrics(self, metrics: Dict[str, float], step: Optional[int] = None):
+    def log_metrics(self, metrics: dict[str, float], step: int | None = None):
         """Log metrics to MLflow."""
         if not self.is_active:
             logger.warning("No active run for logging metrics")
@@ -168,9 +169,11 @@ class UnifiedMLflowTracker:
 
         valid_metrics = {}
         for key, value in metrics.items():
-            if isinstance(value, (int, float)):
-                valid_metrics[key] = float(value)
-            elif isinstance(value, np.ndarray) and value.size == 1:
+            if (
+                isinstance(value, (int, float))
+                or isinstance(value, np.ndarray)
+                and value.size == 1
+            ):
                 valid_metrics[key] = float(value)
 
         if valid_metrics:
@@ -178,7 +181,7 @@ class UnifiedMLflowTracker:
             logger.debug(f"Logged {len(valid_metrics)} metrics at step {step}")
 
     def log_artifacts(
-        self, artifact_paths: Union[str, List[str]], artifact_path: Optional[str] = None
+        self, artifact_paths: str | list[str], artifact_path: str | None = None
     ):
         """Log artifacts to MLflow."""
         if not self.is_active:
@@ -203,8 +206,8 @@ class UnifiedMLflowTracker:
         model_path: str,
         model_name: str,
         framework: str = "mlx",
-        metadata: Optional[Dict[str, Any]] = None,
-        model_version: Optional[str] = None,
+        metadata: dict[str, Any] | None = None,
+        model_version: str | None = None,
     ):
         """Log MLX model to MLflow."""
         if not self.is_active:
@@ -237,8 +240,8 @@ class UnifiedMLflowTracker:
         self,
         y_true: np.ndarray,
         y_pred: np.ndarray,
-        labels: Optional[List[str]] = None,
-        step: Optional[int] = None,
+        labels: list[str] | None = None,
+        step: int | None = None,
     ):
         """Log confusion matrix visualization."""
         if not self.is_active:
@@ -275,13 +278,13 @@ class UnifiedMLflowTracker:
         logger.debug(f"Logged confusion matrix at step {step}")
 
     def log_roc_curve(
-        self, y_true: np.ndarray, y_scores: np.ndarray, step: Optional[int] = None
+        self, y_true: np.ndarray, y_scores: np.ndarray, step: int | None = None
     ):
         """Log ROC curve visualization."""
         if not self.is_active:
             return
 
-        from sklearn.metrics import roc_curve, auc
+        from sklearn.metrics import auc, roc_curve
 
         fpr, tpr, _ = roc_curve(y_true, y_scores)
         roc_auc = auc(fpr, tpr)
@@ -310,7 +313,7 @@ class UnifiedMLflowTracker:
         logger.debug(f"Logged ROC curve at step {step}")
 
     def log_training_curves(
-        self, history: Dict[str, List[float]], save_json: bool = True
+        self, history: dict[str, list[float]], save_json: bool = True
     ):
         """Log comprehensive training history curves."""
         if not self.is_active:
@@ -384,7 +387,7 @@ class UnifiedMLflowTracker:
         logger.info("Logged training curves to MLflow")
 
     def log_gradient_statistics(
-        self, gradient_stats: Dict[str, Dict[str, float]], step: int
+        self, gradient_stats: dict[str, dict[str, float]], step: int
     ):
         """Log gradient statistics for monitoring training stability."""
         if not self.is_active:
@@ -397,7 +400,7 @@ class UnifiedMLflowTracker:
 
         self.log_metrics(metrics, step=step)
 
-    def log_dataset_info(self, dataset_info: Dict[str, Any]):
+    def log_dataset_info(self, dataset_info: dict[str, Any]):
         """Log dataset information."""
         if not self.is_active:
             return
@@ -418,7 +421,7 @@ class UnifiedMLflowTracker:
 
     def get_best_run(
         self, metric: str, mode: str = "min"
-    ) -> Optional[mlflow.entities.Run]:
+    ) -> mlflow.entities.Run | None:
         """Get the best run from the experiment based on a metric."""
         runs = mlflow.search_runs(
             experiment_ids=[self.experiment_id],
@@ -447,8 +450,8 @@ class UnifiedMLflowTracker:
         subprocess.run(cmd)
 
     def _flatten_dict(
-        self, d: Dict[str, Any], parent_key: str = "", sep: str = "."
-    ) -> Dict[str, str]:
+        self, d: dict[str, Any], parent_key: str = "", sep: str = "."
+    ) -> dict[str, str]:
         """Flatten nested dictionary for parameter logging."""
         items = []
         for k, v in d.items():
@@ -475,7 +478,7 @@ class UnifiedMLflowTracker:
 # Factory functions for convenience
 def create_experiment_tracker(
     experiment_name: str,
-    tracking_uri: Optional[str] = None,
+    tracking_uri: str | None = None,
     base_dir: str = "./mlflow",
     **kwargs,
 ) -> UnifiedMLflowTracker:
@@ -488,7 +491,7 @@ def create_experiment_tracker(
     )
 
 
-def create_experiment_tags(config: Dict[str, Any]) -> Dict[str, str]:
+def create_experiment_tags(config: dict[str, Any]) -> dict[str, str]:
     """Create comprehensive experiment tags from configuration."""
     return {
         "dataset": config.get("dataset", "unknown"),

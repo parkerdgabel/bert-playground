@@ -24,7 +24,7 @@ class RegressionHead(BaseHead):
             config: Head configuration
         """
         # Ensure regression settings
-        if not hasattr(config, 'output_size') or config.output_size is None:
+        if not hasattr(config, "output_size") or config.output_size is None:
             config.output_size = 1
         config.head_type = "regression"
 
@@ -118,7 +118,7 @@ class RegressionHead(BaseHead):
             Loss value
         """
         pred_values = predictions["predictions"]
-        
+
         # Ensure targets have same shape as predictions
         if len(pred_values.shape) > len(targets.shape):
             targets = mx.expand_dims(targets, axis=-1)

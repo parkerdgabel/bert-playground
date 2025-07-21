@@ -14,12 +14,13 @@ Key Features:
 
 from .core import (
     CompetitionMetadata,
-    CompetitionType, 
+    CompetitionType,
     DatasetAnalyzer,
     DatasetRegistry,
     DatasetSpec,
     KaggleDataset,
 )
+
 # Kaggle integration (to be implemented)
 # from .kaggle import (
 #     KaggleClient,
@@ -32,20 +33,16 @@ from .loaders import (
     StreamingPipeline,
     UnifiedMemoryManager,
 )
-from .templates import (
-    BERTTextConverter,
-    CompetitionTextTemplate,
-    TabularTextConverter,
-    TextTemplateEngine,
-)
+# Text conversion now handled by augmentation module
+# from .templates import (...)
 
 __version__ = "0.1.0"
 
 # Factory functions
 from .factory import (
-    create_dataset,
-    create_dataloader,
     create_data_pipeline,
+    create_dataloader,
+    create_dataset,
 )
 
 __all__ = [
@@ -54,28 +51,20 @@ __all__ = [
     "DatasetSpec",
     "CompetitionType",
     "CompetitionMetadata",
-    "DatasetAnalyzer", 
+    "DatasetAnalyzer",
     "DatasetRegistry",
-    
     # Kaggle integration (to be implemented)
     # "KaggleClient",
-    # "KaggleCompetitionDataset", 
+    # "KaggleCompetitionDataset",
     # "LeaderboardTracker",
     # "SubmissionManager",
-    
     # MLX-optimized loaders
     "MLXDataLoader",
-    "StreamingPipeline", 
+    "StreamingPipeline",
     "UnifiedMemoryManager",
-    
-    # Text conversion
-    "TextTemplateEngine",
-    "TabularTextConverter",
-    "BERTTextConverter",
-    "CompetitionTextTemplate",
-    
+    # Text conversion now handled by augmentation module
     # Factory functions
     "create_dataset",
-    "create_dataloader", 
+    "create_dataloader",
     "create_data_pipeline",
 ]

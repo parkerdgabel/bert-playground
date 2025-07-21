@@ -116,7 +116,7 @@ class RegressionConfig(HeadConfig):
     def __post_init__(self):
         """Set regression-specific defaults."""
         self.head_type = "regression"
-        
+
         # Only set default output_size if not provided
         if self.output_size is None:
             self.output_size = 1  # Regression typically has single output

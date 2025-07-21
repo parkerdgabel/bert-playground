@@ -1,15 +1,15 @@
-import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
-import numpy as np
-from pathlib import Path
-from typing import List, Optional
 import json
+from datetime import datetime
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
 from loguru import logger
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
-from datetime import datetime
+from rich.table import Table
 
 console = Console()
 
@@ -27,12 +27,12 @@ class ExperimentVisualizer:
         plt.rcParams["font.size"] = 10
 
     def plot_training_history(
-        self, history_path: str, save_path: Optional[str] = None
+        self, history_path: str, save_path: str | None = None
     ) -> plt.Figure:
         """Plot training history from JSON file."""
         logger.info(f"Loading training history from {history_path}")
 
-        with open(history_path, "r") as f:
+        with open(history_path) as f:
             history = json.load(f)
 
         # Create figure with subplots
@@ -135,7 +135,7 @@ class ExperimentVisualizer:
         return fig
 
     def create_experiment_report(
-        self, experiment_dir: str, mlflow_run_id: Optional[str] = None
+        self, experiment_dir: str, mlflow_run_id: str | None = None
     ) -> str:
         """Create a comprehensive experiment report."""
         experiment_dir = Path(experiment_dir)
@@ -151,7 +151,7 @@ class ExperimentVisualizer:
         # Load configuration
         config_path = experiment_dir / "config.json"
         if config_path.exists():
-            with open(config_path, "r") as f:
+            with open(config_path) as f:
                 config = json.load(f)
 
             report_lines.append("## Configuration\n")
@@ -162,7 +162,7 @@ class ExperimentVisualizer:
         # Load training history
         history_path = experiment_dir / "training_history.json"
         if history_path.exists():
-            with open(history_path, "r") as f:
+            with open(history_path) as f:
                 history = json.load(f)
 
             report_lines.append("## Training Summary\n")
@@ -257,8 +257,8 @@ class ExperimentVisualizer:
 
     def compare_experiments(
         self,
-        experiment_dirs: List[str],
-        metrics_to_compare: List[str] = ["val_accuracy", "val_loss", "val_f1"],
+        experiment_dirs: list[str],
+        metrics_to_compare: list[str] = ["val_accuracy", "val_loss", "val_f1"],
     ) -> pd.DataFrame:
         """Compare multiple experiments."""
         comparison_data = []
@@ -270,7 +270,7 @@ class ExperimentVisualizer:
             # Load config
             config_path = exp_path / "config.json"
             if config_path.exists():
-                with open(config_path, "r") as f:
+                with open(config_path) as f:
                     config = json.load(f)
                 exp_data["learning_rate"] = config.get("training", {}).get(
                     "learning_rate", "N/A"
@@ -282,7 +282,7 @@ class ExperimentVisualizer:
             # Load history
             history_path = exp_path / "training_history.json"
             if history_path.exists():
-                with open(history_path, "r") as f:
+                with open(history_path) as f:
                     history = json.load(f)
 
                 for metric in metrics_to_compare:
@@ -344,14 +344,14 @@ class ExperimentVisualizer:
         self,
         y_true: np.ndarray,
         y_pred: np.ndarray,
-        y_proba: Optional[np.ndarray] = None,
-        save_dir: Optional[str] = None,
+        y_proba: np.ndarray | None = None,
+        save_dir: str | None = None,
     ):
         """Visualize prediction results."""
         save_dir = Path(save_dir) if save_dir else self.output_dir
         save_dir.mkdir(parents=True, exist_ok=True)
 
-        from sklearn.metrics import confusion_matrix, classification_report
+        from sklearn.metrics import classification_report, confusion_matrix
 
         # Create figure
         fig, axes = plt.subplots(2, 2, figsize=(14, 10))

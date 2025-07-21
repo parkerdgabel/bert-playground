@@ -8,58 +8,54 @@ This module provides a configuration-driven approach to training with:
 - Kaggle competition-specific features
 """
 
-from .core import (
-    # Core protocols
-    Trainer,
-    TrainerConfig,
-    TrainingState,
-    TrainingResult,
-    # Base implementations
-    BaseTrainer,
-    BaseTrainerConfig,
-)
-
 from .callbacks import (
     # Callback protocols
     Callback,
     CallbackList,
     # Built-in callbacks
     EarlyStopping,
-    ModelCheckpoint,
     LearningRateScheduler,
-    ProgressBar,
-    MLflowCallback,
     MetricsLogger,
+    MLflowCallback,
+    ModelCheckpoint,
+    ProgressBar,
 )
-
+from .core import (
+    # Base implementations
+    BaseTrainer,
+    BaseTrainerConfig,
+    # Core protocols
+    Trainer,
+    TrainerConfig,
+    TrainingResult,
+    TrainingState,
+)
+from .factory import (
+    create_trainer,
+    get_trainer_config,
+    list_trainers,
+    register_trainer,
+)
+from .kaggle import (
+    CompetitionProfile,
+    KaggleTrainer,
+    KaggleTrainerConfig,
+)
 from .metrics import (
-    # Metrics protocols
-    Metric,
-    MetricsCollector,
+    AUC,
     # Built-in metrics
     Accuracy,
     F1Score,
-    AUC,
     Loss,
-)
-
-from .kaggle import (
-    KaggleTrainer,
-    KaggleTrainerConfig,
-    CompetitionProfile,
-)
-
-from .factory import (
-    create_trainer,
-    register_trainer,
-    list_trainers,
-    get_trainer_config,
+    # Metrics protocols
+    Metric,
+    MetricsCollector,
 )
 
 __all__ = [
     # Core
     "Trainer",
-    "TrainerConfig", 
+    "TrainerConfig",
     "TrainingState",
     "TrainingResult",
     "BaseTrainer",
