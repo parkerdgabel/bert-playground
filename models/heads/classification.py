@@ -43,9 +43,9 @@ class BinaryClassificationHead(BaseHead):
 
     def _build_output_layer(self):
         """Build the output layer for binary classification."""
-        # Single output unit
+        # Two output units for standard softmax classification
         self.classifier = nn.Linear(
-            self.projection_output_size, 1, bias=self.config.use_bias
+            self.projection_output_size, 2, bias=self.config.use_bias
         )
 
     def _init_loss(self):
@@ -68,22 +68,19 @@ class BinaryClassificationHead(BaseHead):
         Returns:
             Dictionary containing logits, probabilities, and predictions
         """
-        # Get logits
-        logits = self.classifier(features)  # [batch_size, 1]
+        # Get logits for both classes
+        logits = self.classifier(features)  # [batch_size, 2]
 
-        # Get probabilities
-        probs = mx.sigmoid(logits)
+        # Get probabilities using softmax
+        probs = mx.softmax(logits, axis=-1)
 
-        # Binary predictions - reshape instead of squeeze to handle batch size
-        predictions = (probs > 0.5).astype(mx.int32).reshape(-1)
-
-        # Create 2-class probabilities for compatibility
-        probs_2class = mx.concatenate([1 - probs, probs], axis=-1)
+        # Get predictions
+        predictions = mx.argmax(logits, axis=-1)
 
         return {
-            "logits": logits.reshape(-1),  # [batch_size]
-            "probabilities": probs.reshape(-1),  # [batch_size]
-            "probabilities_2class": probs_2class,  # [batch_size, 2]
+            "logits": logits,  # [batch_size, 2]
+            "probabilities": probs[:, 1],  # [batch_size] - probability of positive class
+            "probabilities_2class": probs,  # [batch_size, 2]
             "predictions": predictions,  # [batch_size]
         }
 
@@ -104,10 +101,10 @@ class BinaryClassificationHead(BaseHead):
 
         if self.loss_fn is not None:
             # Use focal loss
-            return self.loss_fn(logits.reshape(-1, 1), targets)
+            return self.loss_fn(logits, targets)
         else:
-            # Use standard BCE
-            return binary_cross_entropy_loss(logits, targets)
+            # Use standard cross-entropy loss for 2-class classification
+            return cross_entropy_loss(logits, targets)
 
 
 class MulticlassClassificationHead(BaseHead):
