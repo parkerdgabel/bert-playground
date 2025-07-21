@@ -713,12 +713,12 @@ class BaseTrainer:
                         and self.state.global_step % self.config.training.save_steps == 0
                     ):
                         self._save_checkpoint(is_best=False)
-            except Exception as e:
-                logger.error(f"Error in batch {batch_idx}: {e}")
-                import traceback
+                except Exception as e:
+                    logger.error(f"Error in batch {batch_idx}: {e}")
+                    import traceback
 
-                traceback.print_exc()
-                raise
+                    traceback.print_exc()
+                    raise
 
         # Average metrics - evaluate only at the end
         mx.eval(epoch_loss)  # Force evaluation before division
