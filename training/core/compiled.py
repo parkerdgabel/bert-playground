@@ -91,6 +91,9 @@ def create_compiled_train_step(
         # Compute loss and gradients
         (loss, outputs), grads = value_and_grad_fn(model, batch)
         
+        # NOTE: mx.eval() cannot be used inside compiled functions
+        # The compiled function will handle evaluation automatically
+        
         # Gradient clipping if enabled
         if config.optimizer.max_grad_norm > 0:
             grads = _clip_gradients_compiled(grads, config.optimizer.max_grad_norm)

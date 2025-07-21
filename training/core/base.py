@@ -192,6 +192,11 @@ class BaseTrainer:
             (loss, outputs), grads = value_and_grad_fn(self.model, batch)
             logger.debug(f"Got loss and grads, loss shape: {loss.shape if hasattr(loss, 'shape') else 'scalar'}")
             
+            # Critical: Force evaluation of gradients to prevent hanging
+            # This ensures the computation graph is evaluated immediately
+            # rather than building up a large lazy computation graph
+            mx.eval(grads)
+            
             # Gradient clipping (keep lazy)
             if self.config.optimizer.max_grad_norm > 0:
                 grads, grad_norm = clip_gradients(grads, self.config.optimizer.max_grad_norm)
