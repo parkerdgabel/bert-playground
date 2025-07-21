@@ -186,8 +186,8 @@ def _clip_gradients_compiled(grads: Dict[str, Any], max_norm: float) -> Dict[str
     """
     # Compute global norm
     total_norm_sq = 0.0
-    # Use tree_flatten from mlx.utils - returns (flat_tree, tree_def) tuple
-    flat_grads, _ = tree_flatten(grads)
+    # Use tree_flatten from mlx.utils - returns a flat list
+    flat_grads = tree_flatten(grads)
     for g in flat_grads:
         if g is not None:
             total_norm_sq = total_norm_sq + mx.sum(g * g)
@@ -296,9 +296,10 @@ def should_compile_model(model: Model, config: Any) -> bool:
         return False
     
     # Check model size - very small models may not benefit
-    # tree_flatten returns (flat_tree, tree_def) tuple
-    flat_params, _ = tree_flatten(model.parameters())
-    param_count = sum(p.size for p in flat_params if p is not None)
+    # tree_flatten returns a flat list of parameters
+    flat_params = tree_flatten(model.parameters())
+    # flat_params is a list of (name, param) tuples
+    param_count = sum(p.size for _, p in flat_params if p is not None)
     if param_count < 1000:  # Less than 1K parameters
         logger.info(f"Model too small for compilation benefits ({param_count} parameters)")
         return False
