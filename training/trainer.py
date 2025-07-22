@@ -1,12 +1,10 @@
-"""Main trainer module - provides unified training interface.
+"""Main trainer module - provides unified training interface using hexagonal architecture.
 
-This module provides both the new strategy-based training system and
-backward compatibility with the legacy trainer interface.
+This module provides the strategy-based training system using dependency injection
+and ports/adapters pattern.
 """
 
-import warnings
-
-# New strategy-based system (recommended)
+# Strategy-based system using hexagonal architecture
 from .strategies import (
     StandardTraining,
     GradientAccumulationTraining,
@@ -16,94 +14,60 @@ from .strategies import (
     get_default_strategy,
 )
 
-# Legacy trainers (deprecated but maintained for backward compatibility)
+# Core trainer implementations
 from .core.base import BaseTrainer as _BaseTrainer
 from .kaggle.trainer import KaggleTrainer as _KaggleTrainer
-from .compat import LegacyTrainerAdapter, create_legacy_trainer
 
-# Backward compatibility wrappers
+# Direct trainer classes using hexagonal architecture
 class BaseTrainer(_BaseTrainer):
-    """Backward compatibility wrapper for BaseTrainer."""
+    """Standard base trainer using hexagonal architecture and dependency injection."""
     
     def __init__(self, *args, **kwargs):
-        warnings.warn(
-            "BaseTrainer is deprecated. Please use the new strategy-based system:\n"
-            "from training.strategies import get_strategy\n"
-            "strategy = get_strategy('StandardTraining')",
-            DeprecationWarning,
-            stacklevel=2
-        )
         super().__init__(*args, **kwargs)
 
 
 class KaggleTrainer(_KaggleTrainer):
-    """Backward compatibility wrapper for KaggleTrainer."""
+    """Kaggle-specific trainer using hexagonal architecture and dependency injection."""
     
     def __init__(self, *args, **kwargs):
-        warnings.warn(
-            "KaggleTrainer is deprecated. Please use the new strategy-based system:\n"
-            "from training.strategies import get_strategy\n"
-            "strategy = get_strategy('MLXOptimizedTraining')",
-            DeprecationWarning,
-            stacklevel=2
-        )
         super().__init__(*args, **kwargs)
 
 
-# Main trainer class - now uses the strategy system but maintains compatibility
-def Trainer(model=None, config=None, strategy="StandardTraining", **kwargs):
-    """Main trainer factory function.
-    
-    This function provides a unified interface that can work with both
-    the new strategy-based system and legacy configurations.
+# Main trainer interface using hexagonal architecture
+def create_trainer(strategy_name: str = "StandardTraining", **kwargs):
+    """
+    Create a trainer using the strategy-based system with hexagonal architecture.
     
     Args:
-        model: Model to train
-        config: Training configuration
-        strategy: Training strategy name or strategy instance
-        **kwargs: Additional arguments
+        strategy_name: Name of the training strategy to use
+        **kwargs: Additional configuration arguments
         
     Returns:
-        Training strategy or legacy trainer adapter
+        Training strategy instance
         
     Examples:
-        # New way (recommended)
-        strategy = Trainer(strategy="MLXOptimizedTraining")
+        # Create specific strategy
+        strategy = create_trainer("MLXOptimizedTraining")
         pipeline = strategy.create_pipeline(context)
         
-        # Legacy way (deprecated but supported)
-        trainer = Trainer(model, config)  # Returns LegacyTrainerAdapter
+        # Use default strategy
+        strategy = create_trainer()
     """
-    # If model and config provided, assume legacy usage
-    if model is not None and config is not None:
-        warnings.warn(
-            "Legacy Trainer(model, config) usage is deprecated. "
-            "Please use the new strategy-based system.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        return LegacyTrainerAdapter(model, config, **kwargs)
-    
-    # New strategy-based usage
-    if isinstance(strategy, str):
-        return get_strategy(strategy)
-    else:
-        return strategy
+    return get_strategy(strategy_name)(**kwargs)
 
 
-# Export both new and legacy interfaces
+# Export hexagonal architecture interfaces
 __all__ = [
-    # New strategy-based system (recommended)
+    # Strategy-based system using hexagonal architecture
     "StandardTraining",
     "GradientAccumulationTraining", 
     "MixedPrecisionTraining",
     "MLXOptimizedTraining",
     "get_strategy",
     "get_default_strategy",
-    "Trainer",
+    "create_trainer",
     
-    # Legacy interfaces (deprecated)
+    # Direct trainer classes
     "BaseTrainer",
     "KaggleTrainer",
-    "create_legacy_trainer",
 ]

@@ -1,7 +1,7 @@
-"""Base classes for k-bert plugins - re-exported from core.protocols for backward compatibility.
+"""Base classes for k-bert plugins using hexagonal architecture.
 
-This module provides backward compatibility for the old plugin base classes
-by re-exporting the new protocol-based interfaces.
+This module provides plugin interfaces that integrate with the dependency injection
+container and event system.
 """
 
 # Re-export plugin protocols from the centralized location

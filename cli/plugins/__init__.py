@@ -1,15 +1,10 @@
-"""Plugin system for k-bert custom components.
+"""Plugin system for k-bert custom components using hexagonal architecture.
 
-This module provides a plugin architecture that allows users to extend k-bert
-with custom BERT heads, data augmenters, feature extractors, and other components.
-
-DEPRECATED: This module is deprecated in favor of the unified plugin system
-in core.plugins. Use core.plugins.integration for backwards compatibility.
+This module provides a plugin architecture that integrates with the dependency injection
+container and allows users to extend k-bert with custom components.
 """
 
-import warnings
-
-# Import from unified system with backwards compatibility
+# Import from unified plugin system
 from core.plugins.integration import (
     get_component_registry as get_registry,
     load_project_plugins,
@@ -17,7 +12,7 @@ from core.plugins.integration import (
     ensure_plugins_loaded,
 )
 
-# Legacy imports for backwards compatibility
+# Plugin base classes and components
 from .registry import ComponentRegistry, register_component, get_component
 from .loader import PluginLoader
 from .base import (
@@ -28,29 +23,23 @@ from .base import (
     DataLoaderPlugin,
 )
 
-# Issue deprecation warning
-warnings.warn(
-    "cli.plugins is deprecated. Use core.plugins and core.plugins.integration instead.",
-    DeprecationWarning,
-    stacklevel=2
-)
 
 __all__ = [
-    # Registry (legacy)
+    # Registry
     "ComponentRegistry",
     "register_component", 
     "get_component",
     "get_registry",
-    # Loader (legacy)
+    # Loader
     "PluginLoader",
     "load_project_plugins",
-    # Base classes (legacy)
+    # Base classes
     "BasePlugin",
     "HeadPlugin",
     "AugmenterPlugin",
     "FeatureExtractorPlugin",
     "DataLoaderPlugin",
-    # New unified system
+    # Unified system
     "setup_plugin_system",
     "ensure_plugins_loaded",
 ]

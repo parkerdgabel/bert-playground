@@ -1,4 +1,4 @@
-"""Training protocols - re-exported from core.protocols for backward compatibility."""
+"""Training protocols - unified interfaces for training components in hexagonal architecture."""
 
 # Re-export all training protocols from the centralized location
 from core.protocols.training import (

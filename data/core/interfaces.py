@@ -1,4 +1,4 @@
-"""Data interfaces - re-exported from core.protocols for backward compatibility."""
+"""Data interfaces - protocols for data components in hexagonal architecture."""
 
 # Re-export all data protocols from the centralized location
 from core.protocols.data import (
