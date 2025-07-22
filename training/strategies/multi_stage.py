@@ -12,7 +12,7 @@ from loguru import logger
 from ..core.config import OptimizerConfig
 from ..core.optimization import create_optimizer
 from ..core.optimizers import LayerWiseAdamW
-from ..core.protocols import Model, Optimizer
+from core.protocols import Model, Optimizer
 
 
 class TrainingStage(Enum):

@@ -7,7 +7,7 @@ from typing import Any
 
 from loguru import logger
 
-from ..core.protocols import Trainer, TrainingResult, TrainingState
+from core.protocols import Trainer, TrainingResult, TrainingState
 from ..integrations.mlflow import (
     MLflowConfig,
     MLflowIntegration,

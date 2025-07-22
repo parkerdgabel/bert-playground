@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from training.core.protocols import TrainingResult, TrainingState
+from core.protocols import TrainingResult, TrainingState
 
 
 class TestTrainingState:

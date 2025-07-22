@@ -12,7 +12,7 @@ import mlx.core as mx
 from loguru import logger
 
 from models.bert.confidence import BERTConfidenceScorer
-from ..core.protocols import DataLoader, Model
+from core.protocols import DataLoader, Model
 
 
 @dataclass

@@ -58,6 +58,7 @@ dependencies = [
     "pydantic>=2.10.0",
     "pydantic-settings>=2.7.0",
     "toml>=0.10.2",
+    "kink>=0.8.0",
 ]
 
 [project.urls]

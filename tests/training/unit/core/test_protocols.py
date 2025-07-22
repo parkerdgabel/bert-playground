@@ -7,7 +7,7 @@ from typing import Any
 import mlx.core as mx
 import mlx.nn as nn
 
-from training.core.protocols import (
+from core.protocols import (
     CheckpointManager,
     DataLoader,
     LRScheduler,

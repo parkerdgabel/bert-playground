@@ -8,7 +8,7 @@ the core ensemble model functionality.
 from loguru import logger
 
 from ...models.ensemble import BERTEnsembleConfig, BERTEnsembleModel
-from ..core.protocols import DataLoader
+from core.protocols import DataLoader
 
 
 class BERTEnsembleTrainer:

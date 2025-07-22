@@ -10,7 +10,7 @@ import pandas as pd
 from loguru import logger
 
 from ..callbacks.base import Callback
-from ..core.protocols import Trainer, TrainingResult, TrainingState
+from core.protocols import Trainer, TrainingResult, TrainingState
 
 
 class KaggleSubmissionCallback(Callback):

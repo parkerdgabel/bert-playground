@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from loguru import logger
 
-from ..core.protocols import Trainer, TrainingResult, TrainingState
+from core.protocols import Trainer, TrainingResult, TrainingState
 from .base import Callback
 
 

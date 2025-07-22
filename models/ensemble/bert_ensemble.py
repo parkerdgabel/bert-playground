@@ -12,7 +12,7 @@ from typing import Any
 import mlx.core as mx
 from loguru import logger
 
-from training.core.protocols import DataLoader, Model
+from core.protocols import DataLoader, Model
 from models.factory import create_model, create_model_from_checkpoint
 
 

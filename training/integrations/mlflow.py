@@ -14,7 +14,7 @@ import mlflow.pytorch  # For compatibility, though we're using MLX
 from loguru import logger
 
 from ..core.config import BaseTrainerConfig
-from ..core.protocols import Model, TrainingResult, TrainingState
+from core.protocols import Model, TrainingResult, TrainingState
 
 
 @dataclass

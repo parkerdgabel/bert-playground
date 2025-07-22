@@ -1,0 +1,34 @@
+name: test-project
+description: Test description
+version: '1.0'
+competition: titanic
+data:
+  max_length: 256
+  train_path: data/train.csv
+  val_path: data/val.csv
+  test_path: data/test.csv
+  batch_size: 32
+training:
+  default_batch_size: 32
+  epochs: 5
+  learning_rate: 2.0e-05
+  output_dir: ./outputs
+models:
+  default_model: answerdotai/ModernBERT-base
+mlflow:
+  auto_log: true
+  experiment_name: test-project
+experiments:
+- name: quick_test
+  description: Quick test with 1 epoch
+  config:
+    training:
+      epochs: 1
+- name: full_training
+  description: Full training with best settings
+  config:
+    training:
+      epochs: 10
+      learning_rate: 1.0e-05
+    data:
+      batch_size: 64

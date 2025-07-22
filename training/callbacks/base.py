@@ -8,7 +8,7 @@ from typing import Any
 import mlx.core as mx
 from loguru import logger
 
-from ..core.protocols import Trainer, TrainingResult, TrainingState
+from core.protocols import Trainer, TrainingResult, TrainingState
 
 
 class Callback(ABC):

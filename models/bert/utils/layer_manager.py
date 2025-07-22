@@ -6,7 +6,7 @@ from typing import Any
 
 from loguru import logger
 
-from training.core.protocols import Model
+from core.protocols import Model
 
 
 class BERTLayerManager:

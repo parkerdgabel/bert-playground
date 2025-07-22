@@ -4,7 +4,7 @@ Early stopping callback to prevent overfitting.
 
 from loguru import logger
 
-from ..core.protocols import Trainer, TrainingState
+from core.protocols import Trainer, TrainingState
 from .base import Callback
 
 

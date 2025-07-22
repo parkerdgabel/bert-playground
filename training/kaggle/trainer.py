@@ -16,7 +16,7 @@ from data.augmentation.text import BERTTextAugmenter
 from data.augmentation.tabular import TabularToTextAugmenter
 from models.ensemble import BERTEnsembleConfig, BERTEnsembleModel
 from ..core.base import BaseTrainer
-from ..core.protocols import DataLoader, Model, TrainingResult
+from core.protocols import DataLoader, Model, TrainingResult
 from ..strategies.multi_stage import MultiStageBERTTrainer, TrainingStage
 from .adversarial_validation import AdversarialValidationConfig, AdversarialValidator
 from .bert_pseudo_labeling import (

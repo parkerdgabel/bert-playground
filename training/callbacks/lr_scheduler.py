@@ -4,7 +4,7 @@ Learning rate scheduler callback for dynamic learning rate adjustment.
 
 from loguru import logger
 
-from ..core.protocols import Trainer, TrainingState
+from core.protocols import Trainer, TrainingState
 from .base import Callback
 
 

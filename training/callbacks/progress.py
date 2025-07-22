@@ -6,7 +6,7 @@ import sys
 
 from tqdm import tqdm
 
-from ..core.protocols import Trainer, TrainingState
+from core.protocols import Trainer, TrainingState
 from .base import Callback
 
 

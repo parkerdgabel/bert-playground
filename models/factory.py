@@ -7,6 +7,9 @@ It supports:
 - Competition-specific model creation
 - Automatic dataset analysis and optimization
 - LoRA/QLoRA adapter injection for efficient fine-tuning
+
+NOTE: This module now delegates to focused builders for better separation of concerns.
+The API remains the same for backward compatibility.
 """
 
 import json
@@ -25,6 +28,9 @@ from utils.logging_utils import (
     lazy_debug,
     bind_context
 )
+
+# Import dependency injection container
+from .di import get_container
 
 # Import BERT configs and classes
 # Import Classic BERT architecture
@@ -161,119 +167,39 @@ def create_model(
             "kwargs": kwargs
         }
     )
-    # Determine config type and create appropriate config
-    if model_type in ["modernbert_core", "modernbert_with_head"]:
-        # ModernBERT models
-        if isinstance(config, dict):
-            # Create ModernBertConfig from dict, applying only valid config kwargs
-            config_dict = config.copy()
-            # Filter out non-config arguments
-            valid_config_keys = {
-                f.name for f in ModernBertConfig.__dataclass_fields__.values()
-            }
-            config_kwargs = {k: v for k, v in kwargs.items() if k in valid_config_keys}
-            config_dict.update(config_kwargs)
-            config = ModernBertConfig(**config_dict)
-        elif config is None:
-            model_size = kwargs.pop("model_size", "base")
-            # Filter out non-config arguments
-            valid_config_keys = {
-                f.name for f in ModernBertConfig.__dataclass_fields__.values()
-            }
-            config_kwargs = {k: v for k, v in kwargs.items() if k in valid_config_keys}
-            config = ModernBertConfig(model_size=model_size, **config_kwargs)
-        elif isinstance(config, BertConfig):
-            # Convert BertConfig to ModernBertConfig
-            config = ModernBertConfig.from_bert_config(config)
-    else:
-        # Classic BERT models
-        if isinstance(config, dict):
-            config = BertConfig(**config)
-        elif config is None:
-            config = BertConfig()
-
-    # Create base model
-    if model_type == "bert_core":
-        # Create Classic BERT core
-        model = create_bert_core(config=config, **kwargs)
-        logger.info("Created Classic BertCore model")
-    elif model_type == "modernbert_core":
-        # Create ModernBERT core
-        model = create_modernbert_core(config=config, **kwargs)
-        logger.info("Created ModernBertCore model")
-    elif model_type == "bert_with_head":
-        # Create Classic BERT with attached head
+    
+    # Get DI container and model builder
+    container = get_container()
+    model_builder = container.get_model_builder()
+    
+    # Delegate to appropriate builder method
+    if model_type in ["bert_core", "modernbert_core"]:
+        # Create core model
+        model = model_builder.build_core(model_type, config, **kwargs)
+    elif model_type in ["bert_with_head", "modernbert_with_head"]:
+        # Extract common parameters
         num_labels = kwargs.pop("num_labels", 2)
         freeze_bert = kwargs.pop("freeze_bert", False)
         freeze_bert_layers = kwargs.pop("freeze_bert_layers", None)
-
-        model = create_bert_with_head(
-            bert_config=config,
-            head_config=head_config,
+        
+        # Create model with head
+        model = model_builder.build_with_head(
+            model_type=model_type,
+            config=config,
             head_type=head_type,
+            head_config=head_config,
             num_labels=num_labels,
             freeze_bert=freeze_bert,
             freeze_bert_layers=freeze_bert_layers,
             **kwargs,
         )
-        logger.info(f"Created BertWithHead model (head_type: {head_type})")
-    elif model_type == "modernbert_with_head":
-        # Create ModernBERT with attached head
-        num_labels = kwargs.pop("num_labels", 2)
-        freeze_bert = kwargs.pop("freeze_bert", False)
-        freeze_bert_layers = kwargs.pop("freeze_bert_layers", None)
-
-        # Create ModernBERT core first
-        modernbert_core = create_modernbert_core(config=config, **kwargs)
-
-        # Create head configuration
-        if head_config is None:
-            if head_type is None:
-                raise ValueError("Either head_config or head_type must be provided")
-
-            # Convert string to enum if needed
-            # Keep head_type as string
-
-            # Get default config for head type
-            from .heads.base import get_default_config_for_head_type
-
-            head_config = get_default_config_for_head_type(
-                head_type,
-                input_size=modernbert_core.get_hidden_size(),
-                output_size=num_labels,
-            )
-
-        # Convert dict to HeadConfig if needed
-        if isinstance(head_config, dict):
-            head_config = HeadConfig(**head_config)
-
-        # Create head using the factory function
-        from .heads import create_head
-
-        # Extract config dict and remove duplicates
-        head_config_dict = head_config.__dict__.copy()
-        head_type_str = head_config_dict.pop("head_type", None)
-
-        head = create_head(
-            head_type=head_type_str,
-            **head_config_dict,
-        )
-
-        # Create ModernBERT with head (reuse BertWithHead wrapper)
-        model = BertWithHead(
-            bert=modernbert_core,
-            head=head,
-            freeze_bert=freeze_bert,
-            freeze_bert_layers=freeze_bert_layers,
-        )
-        logger.info(f"Created ModernBertWithHead model (head_type: {head_type})")
     else:
         raise ValueError(f"Unknown model type: {model_type}")
 
     # Load pretrained weights if provided
     if pretrained_path:
         with log_timing("load_pretrained_weights", path=str(pretrained_path)):
-            load_pretrained_weights(model, pretrained_path)
+            model_builder.load_pretrained_weights(model, pretrained_path)
     
     # Log model statistics
     if hasattr(model, "num_parameters"):
@@ -283,27 +209,13 @@ def create_model(
         # Lazy debug for parameter breakdown
         lazy_debug(
             "Parameter breakdown",
-            lambda: _get_parameter_breakdown(model)
+            lambda: model_builder.get_parameter_count(model)
         )
 
     return model
 
 
-def _get_parameter_breakdown(model) -> dict[str, int]:
-    """Get parameter count breakdown by component."""
-    breakdown = {}
-    
-    if hasattr(model, "bert") and hasattr(model, "head"):
-        # BertWithHead model
-        if hasattr(model.bert, "num_parameters"):
-            breakdown["bert"] = model.bert.num_parameters()
-        if hasattr(model.head, "num_parameters"):
-            breakdown["head"] = model.head.num_parameters()
-    
-    # Add more component breakdowns as needed
-    breakdown["total"] = model.num_parameters() if hasattr(model, "num_parameters") else 0
-    
-    return breakdown
+# Parameter breakdown function removed - now handled by ModelBuilder
 
 
 def create_model_with_lora(
@@ -710,25 +622,10 @@ def load_pretrained_weights(model: nn.Module, weights_path: str | Path):
         model: Model to load weights into
         weights_path: Path to weights file or directory
     """
-    weights_path = Path(weights_path)
-    import mlx.core as mx
-
-    if weights_path.is_dir():
-        # Load from directory
-        safetensors_path = weights_path / "model.safetensors"
-        if safetensors_path.exists():
-            weights = mx.load(str(safetensors_path))
-            model.load_weights(list(weights.items()))
-            logger.info(f"Loaded weights from {safetensors_path}")
-        else:
-            raise ValueError(f"No model.safetensors found in {weights_path}")
-    elif weights_path.suffix == ".safetensors":
-        # Load safetensors file directly
-        weights = mx.load(str(weights_path))
-        model.load_weights(list(weights.items()))
-        logger.info(f"Loaded weights from {weights_path}")
-    else:
-        raise ValueError(f"Unsupported weights format: {weights_path}")
+    # Delegate to model builder
+    container = get_container()
+    model_builder = container.get_model_builder()
+    model_builder.load_pretrained_weights(model, weights_path)
 
 
 def get_model_config(**kwargs) -> BertConfig:
@@ -744,74 +641,154 @@ def get_model_config(**kwargs) -> BertConfig:
     return BertConfig(**kwargs)
 
 
-# Model registry for easy access
-MODEL_REGISTRY = {
-    # Classic BERT models
-    "bert-core": lambda **kwargs: create_model("bert_core", **kwargs),
-    "bert-binary": lambda **kwargs: create_model(
-        "bert_with_head", head_type="binary_classification", **kwargs
-    ),
-    "bert-multiclass": lambda **kwargs: create_model(
-        "bert_with_head", head_type="multiclass_classification", **kwargs
-    ),
-    "bert-multilabel": lambda **kwargs: create_model(
-        "bert_with_head", head_type="multilabel_classification", **kwargs
-    ),
-    "bert-regression": lambda **kwargs: create_model(
-        "bert_with_head", head_type="regression", **kwargs
-    ),
-    # ModernBERT models
-    "modernbert-core": lambda **kwargs: create_model("modernbert_core", **kwargs),
-    "modernbert-base": lambda **kwargs: create_model(
-        "modernbert_core", model_size="base", **kwargs
-    ),
-    "modernbert-large": lambda **kwargs: create_model(
-        "modernbert_core", model_size="large", **kwargs
-    ),
-    "modernbert-binary": lambda **kwargs: create_model(
-        "modernbert_with_head", head_type="binary_classification", **kwargs
-    ),
-    "modernbert-multiclass": lambda **kwargs: create_model(
-        "modernbert_with_head", head_type="multiclass_classification", **kwargs
-    ),
-    "modernbert-multilabel": lambda **kwargs: create_model(
-        "modernbert_with_head", head_type="multilabel_classification", **kwargs
-    ),
-    "modernbert-regression": lambda **kwargs: create_model(
-        "modernbert_with_head", head_type="regression", **kwargs
-    ),
-    # LoRA models
-    "bert-lora-binary": lambda **kwargs: create_bert_with_lora(
-        head_type="binary_classification", **kwargs
-    ),
-    "bert-lora-multiclass": lambda **kwargs: create_bert_with_lora(
-        head_type="multiclass_classification", **kwargs
-    ),
-    "bert-lora-regression": lambda **kwargs: create_bert_with_lora(
-        head_type="regression", **kwargs
-    ),
-    "modernbert-lora-binary": lambda **kwargs: create_modernbert_with_lora(
-        head_type="binary_classification", **kwargs
-    ),
-    "modernbert-lora-multiclass": lambda **kwargs: create_modernbert_with_lora(
-        head_type="multiclass_classification", **kwargs
-    ),
-    "modernbert-lora-regression": lambda **kwargs: create_modernbert_with_lora(
-        head_type="regression", **kwargs
-    ),
-    # QLoRA models (memory efficient)
-    "bert-qlora-binary": lambda **kwargs: create_qlora_model(
-        model_type="bert_with_head", head_type="binary_classification", **kwargs
-    ),
-    "modernbert-qlora-binary": lambda **kwargs: create_qlora_model(
-        model_type="modernbert_with_head", head_type="binary_classification", **kwargs
-    ),
-}
+# Model registry is now managed by ModelRegistry class
+# This dictionary is maintained for backward compatibility
+MODEL_REGISTRY = {}
+
+def _init_model_registry():
+    """Initialize the backward-compatible model registry."""
+    global MODEL_REGISTRY
+    
+    # Get registry from DI container
+    container = get_container()
+    registry = container.get_registry()
+    
+    # Add LoRA models to registry (not in default registration)
+    registry.register(
+        "bert-lora-binary",
+        lambda **kwargs: create_bert_with_lora(
+            head_type="binary_classification", **kwargs
+        ),
+        description="BERT with LoRA for binary classification",
+        category="lora",
+        tags=["bert", "lora", "binary"],
+    )
+    
+    registry.register(
+        "bert-lora-multiclass",
+        lambda **kwargs: create_bert_with_lora(
+            head_type="multiclass_classification", **kwargs
+        ),
+        description="BERT with LoRA for multi-class classification",
+        category="lora",
+        tags=["bert", "lora", "multiclass"],
+    )
+    
+    registry.register(
+        "bert-lora-regression",
+        lambda **kwargs: create_bert_with_lora(
+            head_type="regression", **kwargs
+        ),
+        description="BERT with LoRA for regression",
+        category="lora",
+        tags=["bert", "lora", "regression"],
+    )
+    
+    registry.register(
+        "modernbert-lora-binary",
+        lambda **kwargs: create_modernbert_with_lora(
+            head_type="binary_classification", **kwargs
+        ),
+        description="ModernBERT with LoRA for binary classification",
+        category="lora",
+        tags=["modernbert", "lora", "binary"],
+    )
+    
+    registry.register(
+        "modernbert-lora-multiclass",
+        lambda **kwargs: create_modernbert_with_lora(
+            head_type="multiclass_classification", **kwargs
+        ),
+        description="ModernBERT with LoRA for multi-class classification",
+        category="lora",
+        tags=["modernbert", "lora", "multiclass"],
+    )
+    
+    registry.register(
+        "modernbert-lora-regression",
+        lambda **kwargs: create_modernbert_with_lora(
+            head_type="regression", **kwargs
+        ),
+        description="ModernBERT with LoRA for regression",
+        category="lora",
+        tags=["modernbert", "lora", "regression"],
+    )
+    
+    # QLoRA models
+    registry.register(
+        "bert-qlora-binary",
+        lambda **kwargs: create_qlora_model(
+            model_type="bert_with_head", head_type="binary_classification", **kwargs
+        ),
+        description="BERT with QLoRA for binary classification",
+        category="qlora",
+        tags=["bert", "qlora", "binary", "memory-efficient"],
+    )
+    
+    registry.register(
+        "modernbert-qlora-binary",
+        lambda **kwargs: create_qlora_model(
+            model_type="modernbert_with_head", head_type="binary_classification", **kwargs
+        ),
+        description="ModernBERT with QLoRA for binary classification",
+        category="qlora",
+        tags=["modernbert", "qlora", "binary", "memory-efficient"],
+    )
+    
+    # Additional specialized models
+    registry.register(
+        "bert-multilabel",
+        lambda **kwargs: create_model(
+            "bert_with_head", head_type="multilabel_classification", **kwargs
+        ),
+        description="BERT for multi-label classification",
+        category="classification",
+        tags=["bert", "classification", "multilabel"],
+    )
+    
+    registry.register(
+        "modernbert-multilabel",
+        lambda **kwargs: create_model(
+            "modernbert_with_head", head_type="multilabel_classification", **kwargs
+        ),
+        description="ModernBERT for multi-label classification",
+        category="classification",
+        tags=["modernbert", "classification", "multilabel"],
+    )
+    
+    registry.register(
+        "modernbert-base",
+        lambda **kwargs: create_model(
+            "modernbert_core", model_size="base", **kwargs
+        ),
+        description="ModernBERT base size core model",
+        category="core",
+        tags=["modernbert", "core", "base"],
+    )
+    
+    registry.register(
+        "modernbert-large",
+        lambda **kwargs: create_model(
+            "modernbert_core", model_size="large", **kwargs
+        ),
+        description="ModernBERT large size core model",
+        category="core",
+        tags=["modernbert", "core", "large"],
+    )
+    
+    # Build backward-compatible dictionary
+    for name in registry.list_models():
+        MODEL_REGISTRY[name] = lambda n=name, **kwargs: registry.create(n, **kwargs)
+
+# Initialize on module import
+_init_model_registry()
 
 
 def list_available_models() -> list[str]:
     """List all available model types in the registry."""
-    return list(MODEL_REGISTRY.keys())
+    container = get_container()
+    registry = container.get_registry()
+    return registry.list_models()
 
 
 def create_from_registry(model_name: str, **kwargs) -> nn.Module:
@@ -825,13 +802,9 @@ def create_from_registry(model_name: str, **kwargs) -> nn.Module:
     Returns:
         Initialized model
     """
-    if model_name not in MODEL_REGISTRY:
-        raise ValueError(
-            f"Unknown model: {model_name}. "
-            f"Available models: {', '.join(list_available_models())}"
-        )
-
-    return MODEL_REGISTRY[model_name](**kwargs)
+    container = get_container()
+    registry = container.get_registry()
+    return registry.create(model_name, **kwargs)
 
 
 # === ADVANCED CLASSIFICATION FUNCTIONS (absorbed from classification/factory.py) ===
@@ -860,18 +833,12 @@ def create_kaggle_classifier(
     Returns:
         Configured classifier instance
     """
-    # Map task types to head types
-    task_to_head_map = {
-        "binary": "binary_classification",
-        "multiclass": "multiclass_classification",
-        "multilabel": "multilabel_classification",
-        "regression": "regression",
-        "ordinal": "ordinal_regression",
-        "time_series": "time_series",
-        "ranking": "ranking",
-    }
-
-    head_type = task_to_head_map.get(task_type, "multiclass_classification")
+    # Get head factory from container
+    container = get_container()
+    head_factory = container.get_head_factory()
+    
+    # Get appropriate head type for task
+    head_type = head_factory.get_head_for_task(task_type)
 
     # Use dataset spec to optimize configuration if available
     if dataset_spec and hasattr(dataset_spec, "optimization_profile"):
@@ -938,18 +905,25 @@ def create_competition_classifier(
 
         logger.info(f"Auto-optimized configuration: {kwargs}")
 
-    # Determine task type from analysis
-    task_type_map = {
-        CompetitionType.BINARY_CLASSIFICATION: "binary",
-        CompetitionType.MULTICLASS_CLASSIFICATION: "multiclass",
-        CompetitionType.MULTILABEL_CLASSIFICATION: "multilabel",
-        CompetitionType.REGRESSION: "regression",
-        CompetitionType.ORDINAL_REGRESSION: "ordinal",
-        CompetitionType.TIME_SERIES: "time_series",
-        CompetitionType.RANKING: "ranking",
+    # Get head factory from container
+    container = get_container()
+    head_factory = container.get_head_factory()
+    
+    # Get appropriate head type from competition type
+    head_type = head_factory.get_head_for_competition_type(analysis.competition_type)
+    
+    # Map to task type for create_kaggle_classifier
+    head_to_task_map = {
+        "binary_classification": "binary",
+        "multiclass_classification": "multiclass",
+        "multilabel_classification": "multilabel",
+        "regression": "regression",
+        "ordinal_regression": "ordinal",
+        "time_series": "time_series",
+        "ranking": "ranking",
     }
-
-    task_type = task_type_map.get(analysis.competition_type, "multiclass")
+    
+    task_type = head_to_task_map.get(head_type, "multiclass")
 
     # Create classifier
     classifier = create_kaggle_classifier(
@@ -1150,39 +1124,23 @@ def create_bert_for_task(
     Returns:
         BertWithHead model
     """
+    # Get head factory from container
+    container = get_container()
+    head_factory = container.get_head_factory()
+    
     # Convert task to head type string if needed
     if isinstance(task, str):
         # Try to parse as CompetitionType
         try:
             comp_type = CompetitionType(task)
-            # Map competition type to head type
-            comp_to_head_map = {
-                CompetitionType.BINARY_CLASSIFICATION: "binary_classification",
-                CompetitionType.MULTICLASS_CLASSIFICATION: "multiclass_classification",
-                CompetitionType.MULTILABEL_CLASSIFICATION: "multilabel_classification",
-                CompetitionType.REGRESSION: "regression",
-                CompetitionType.ORDINAL_REGRESSION: "ordinal_regression",
-                CompetitionType.TIME_SERIES: "time_series",
-                CompetitionType.RANKING: "ranking",
-            }
-            head_type = comp_to_head_map.get(comp_type, "binary_classification")
+            head_type = head_factory.get_head_for_competition_type(comp_type)
         except ValueError:
             # Task is already a string head type
             head_type = task
     elif isinstance(task, CompetitionType):
-        # Map competition type to head type
-        comp_to_head_map = {
-            CompetitionType.BINARY_CLASSIFICATION: "binary_classification",
-            CompetitionType.MULTICLASS_CLASSIFICATION: "multiclass_classification",
-            CompetitionType.MULTILABEL_CLASSIFICATION: "multilabel_classification",
-            CompetitionType.REGRESSION: "regression",
-            CompetitionType.ORDINAL_REGRESSION: "ordinal_regression",
-            CompetitionType.TIME_SERIES: "time_series",
-            CompetitionType.RANKING: "ranking",
-        }
-        head_type = comp_to_head_map.get(task, "binary_classification")
+        head_type = head_factory.get_head_for_competition_type(task)
     else:
-        head_type = task
+        head_type = str(task)
 
     return create_bert_with_head(
         bert_name=pretrained_name,

@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from training.callbacks.base import Callback, CallbackList
-from training.core.protocols import TrainingResult
+from core.protocols import TrainingResult
 from training.core.state import TrainingState
 
 
