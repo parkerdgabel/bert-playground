@@ -1,0 +1,67 @@
+# k-bert.yaml - Example Project Configuration
+# Copy this file to k-bert.yaml and customize for your project
+
+name: titanic-bert
+competition: titanic
+description: BERT model for Titanic survival prediction
+version: "1.0"
+
+# Model configuration
+models:
+  default_model: answerdotai/ModernBERT-base
+  default_architecture: modernbert
+  use_mlx_embeddings: true
+  use_lora: false
+  
+  # Task-specific head
+  head:
+    type: binary_classification
+    num_labels: 2
+
+# Data configuration  
+data:
+  train_path: data/titanic/train.csv
+  val_path: data/titanic/val.csv
+  test_path: data/titanic/test.csv
+  
+  # Processing settings
+  max_length: 256
+  batch_size: 32
+  num_workers: 4
+  prefetch_size: 4
+  use_pretokenized: true
+
+# Training configuration
+training:
+  default_epochs: 5
+  default_learning_rate: 2e-5
+  
+  # Output settings
+  output_dir: ./outputs
+  save_best_only: true
+  early_stopping_patience: 3
+  
+  # Training control
+  warmup_ratio: 0.1
+  seed: 42
+  mixed_precision: true
+
+# MLflow configuration
+mlflow:
+  auto_log: true
+  default_experiment: titanic-experiments
+
+# Optional: Define experiments for different training runs
+experiments:
+  - name: quick_test
+    description: Quick test with 1 epoch
+    config:
+      training:
+        default_epochs: 1
+        
+  - name: full_training
+    description: Full training with more epochs
+    config:
+      training:
+        default_epochs: 10
+        default_learning_rate: 1e-5

@@ -70,6 +70,7 @@ def callback(
 
 
 # Core commands at root level for convenience
+# Config-first versions are now the main versions
 from .commands.core.benchmark import benchmark_command
 from .commands.core.info import info_command
 from .commands.core.predict import predict_command
