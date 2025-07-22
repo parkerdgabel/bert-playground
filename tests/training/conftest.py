@@ -61,7 +61,18 @@ class MockModel(nn.Module):
         y = batch.get("labels", batch.get("y"))
 
         logits = self.linear(x)
-        loss = mx.mean((logits - y) ** 2)
+        
+        # Compute appropriate loss based on output dimensions
+        if self.output_dim > 1 and y is not None:
+            # Classification case - use cross entropy
+            import mlx.nn as nn
+            loss = nn.losses.cross_entropy(logits, y, reduction="mean")
+        elif y is not None:
+            # Regression case - use MSE
+            loss = mx.mean((logits - y) ** 2)
+        else:
+            # No labels - dummy loss
+            loss = mx.array(0.0)
 
         return {
             "loss": loss,

@@ -6,7 +6,7 @@ trainers, optimizers, schedulers, callbacks, and metrics.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Dict, Optional, Protocol
 
 import mlx.core as mx
 import mlx.nn as nn
@@ -507,4 +507,193 @@ class CheckpointManager(Protocol):
     @property
     def checkpoint_dir(self) -> Path:
         """Get checkpoint directory."""
+        ...
+
+
+class Command(Protocol):
+    """Protocol for training commands (Command pattern)."""
+    
+    @property
+    def name(self) -> str:
+        """Command name for logging and debugging."""
+        ...
+    
+    @property
+    def requires_grad(self) -> bool:
+        """Whether this command requires gradient computation."""
+        ...
+    
+    def can_execute(self, context: "CommandContext") -> bool:
+        """Check if command can be executed given current context."""
+        ...
+    
+    def execute(self, context: "CommandContext") -> "CommandResult":
+        """Execute the command."""
+        ...
+    
+    def rollback(self, context: "CommandContext") -> None:
+        """Rollback command effects if needed."""
+        ...
+
+
+class CommandContext(Protocol):
+    """Protocol for command execution context."""
+    
+    # Core components
+    model: Model
+    optimizer: Optimizer
+    state: TrainingState
+    
+    # Optional components
+    train_dataloader: Optional["DataLoader"]
+    val_dataloader: Optional["DataLoader"]
+    lr_scheduler: Optional[LRScheduler]
+    metrics_collector: Optional[MetricsCollector]
+    checkpoint_manager: Optional[CheckpointManager]
+    
+    # Current execution state
+    batch: Optional[Dict[str, Any]]
+    batch_idx: int
+    outputs: Dict[str, Any]
+    gradients: Dict[str, Any]
+    loss: Optional[float]
+    metrics: Dict[str, float]
+    
+    # Control flags
+    should_accumulate_gradients: bool
+    should_update_weights: bool
+    is_training: bool
+    
+    # Configuration
+    config: dict[str, Any]
+
+
+class CommandResult(Protocol):
+    """Protocol for command execution results."""
+    
+    success: bool
+    outputs: dict[str, Any]
+    error: Exception | None
+    metrics: dict[str, float]
+    should_continue: bool
+    should_skip_remaining: bool
+
+
+class Pipeline(Protocol):
+    """Protocol for training pipelines."""
+    
+    commands: list[Command]
+    middleware: list["Middleware"]
+    name: str
+    stop_on_error: bool
+    
+    def execute(self, context: CommandContext) -> CommandResult:
+        """Execute the pipeline with all middleware."""
+        ...
+
+
+class Middleware(Protocol):
+    """Protocol for pipeline middleware."""
+    
+    @property
+    def name(self) -> str:
+        """Middleware name for debugging."""
+        ...
+    
+    @property
+    def enabled(self) -> bool:
+        """Whether middleware is enabled."""
+        ...
+    
+    def before_pipeline(self, context: CommandContext) -> CommandContext:
+        """Called before pipeline execution starts."""
+        ...
+    
+    def after_pipeline(self, context: CommandContext, result: CommandResult) -> CommandResult:
+        """Called after pipeline execution completes."""
+        ...
+    
+    def before_command(self, command: Command, context: CommandContext) -> tuple[Command, CommandContext]:
+        """Called before each command execution."""
+        ...
+    
+    def after_command(self, command: Command, context: CommandContext, result: CommandResult) -> CommandResult:
+        """Called after each command execution."""
+        ...
+    
+    def on_error(self, command: Command, context: CommandContext, error: Exception) -> CommandResult | None:
+        """Called when a command raises an error."""
+        ...
+
+
+class TrainingStrategy(Protocol):
+    """Protocol for training strategies (Strategy pattern)."""
+    
+    @property
+    def name(self) -> str:
+        """Strategy name."""
+        ...
+    
+    @property
+    def description(self) -> str:
+        """Strategy description."""
+        ...
+    
+    def create_pipeline(self, context: CommandContext) -> Pipeline:
+        """Create training pipeline for this strategy."""
+        ...
+    
+    def configure_context(self, context: CommandContext) -> CommandContext:
+        """Configure context for this strategy."""
+        ...
+    
+    def validate_requirements(self, context: CommandContext) -> list[str]:
+        """Validate that context meets strategy requirements."""
+        ...
+    
+    def get_default_config(self) -> dict[str, Any]:
+        """Get default configuration for this strategy."""
+        ...
+
+
+class FrameworkAdapter(Protocol):
+    """Protocol for framework-specific adapters."""
+    
+    @property
+    def name(self) -> str:
+        """Framework name."""
+        ...
+    
+    @property
+    def available(self) -> bool:
+        """Whether framework is available."""
+        ...
+    
+    # Tensor operations
+    def to_tensor(self, data: Any) -> Any:
+        """Convert data to framework tensor."""
+        ...
+    
+    def to_python(self, tensor: Any) -> float | int | list:
+        """Convert tensor to Python types."""
+        ...
+    
+    def compute_gradient_norm(self, gradients: dict[str, Any]) -> float:
+        """Compute norm of gradients."""
+        ...
+    
+    def clip_gradients_by_norm(self, gradients: dict[str, Any], max_norm: float) -> tuple[dict[str, Any], float]:
+        """Clip gradients by norm."""
+        ...
+    
+    def scale_gradients(self, gradients: dict[str, Any], scale: float) -> dict[str, Any]:
+        """Scale gradients by factor."""
+        ...
+    
+    def update_model_parameters(self, model: Model, optimizer: Optimizer, gradients: dict[str, Any]) -> None:
+        """Update model parameters with optimizer."""
+        ...
+    
+    def get_learning_rate(self, optimizer: Optimizer) -> float:
+        """Get current learning rate from optimizer."""
         ...

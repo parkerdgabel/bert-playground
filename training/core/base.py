@@ -1,5 +1,8 @@
 """
 Base trainer implementation with MLX optimizations for Apple Silicon.
+
+This trainer now acts as a facade over the decomposed training components,
+maintaining backward compatibility while using the new architecture.
 """
 
 import sys
@@ -27,20 +30,31 @@ from utils.logging_utils import (
 from .config import BaseTrainerConfig
 from .optimization import GradientAccumulator, clip_gradients, create_optimizer
 from .protocols import DataLoader, Model, TrainingHook, TrainingResult, TrainingState
-from .state import CheckpointManager, TrainingStateManager
+from .state import TrainingStateManager
+
+# Import new components
+from training.components import (
+    TrainingLoop,
+    EvaluationLoop,
+    CheckpointManager,
+    MetricsTracker,
+    TrainingOrchestrator,
+)
 
 
 class BaseTrainer:
     """
     Base trainer implementation with MLX optimizations.
 
-    This trainer provides:
-    - Efficient MLX-based training loop
-    - Gradient accumulation
-    - Mixed precision training (automatic in MLX)
-    - Checkpoint management
-    - Hook/callback system
-    - Comprehensive logging
+    This trainer now acts as a facade over decomposed components:
+    - TrainingLoop: Handles core training iteration
+    - EvaluationLoop: Handles validation/evaluation
+    - CheckpointManager: Manages checkpoint operations
+    - MetricsTracker: Tracks and reports metrics
+    - TrainingOrchestrator: Coordinates all components
+    
+    This design maintains backward compatibility while providing
+    better separation of concerns and testability.
     """
 
     def __init__(
@@ -57,7 +71,7 @@ class BaseTrainer:
             config: Training configuration
             callbacks: Optional list of training callbacks
         """
-        self._model = model  # Set internal attributes directly
+        self._model = model
         self._config = config
         self.callbacks = callbacks or []
 
@@ -68,35 +82,44 @@ class BaseTrainer:
         config_path = self.config.environment.output_dir / "trainer_config.yaml"
         self.config.save(config_path)
 
-        # Initialize components
-        # Optimizer will be created later in train() when we know the total steps
+        # Initialize optimizer (will be set in train())
         self.optimizer = None
-
-        # LR scheduler will be initialized in fit() when we know the total steps
         self.lr_scheduler = None
-        self._lr_schedule_fn = None  # MLX native schedule function
+        self._lr_schedule_fn = None
 
-
+        # Initialize components
         self.gradient_accumulator = GradientAccumulator(
             self.config.training.gradient_accumulation_steps
         )
-
-        # Initialize state management
-        self._state = TrainingState()  # Set the internal attribute directly
-        self.state_manager = TrainingStateManager(self.config.environment.output_dir)
+        
+        # Create decomposed components
         self.checkpoint_manager = CheckpointManager(
             checkpoint_dir=self.config.environment.output_dir / "checkpoints",
             save_total_limit=self.config.training.save_total_limit,
+            keep_best_only=self.config.training.save_best_only,
         )
-
-        # Training function
-        self._train_step = self._create_train_step()
-        self._eval_step = self._create_eval_step()
-
-        # Setup compilation if enabled
-        self._setup_compilation()
-
-        # Initialize best metric tracking
+        
+        self.metrics_tracker = MetricsTracker(
+            window_size=100,
+            output_dir=self.config.environment.output_dir,
+        )
+        
+        # Configure metrics tracking
+        self.metrics_tracker.configure_metric(
+            self.config.training.best_metric,
+            self.config.training.best_metric_mode
+        )
+        
+        # These will be initialized when optimizer is created
+        self.training_loop = None
+        self.evaluation_loop = EvaluationLoop(model)
+        self.orchestrator = None
+        
+        # Initialize state
+        self._state = TrainingState()
+        self.state_manager = TrainingStateManager(self.config.environment.output_dir)
+        
+        # For backward compatibility
         self._best_metric_value = (
             float("inf")
             if self.config.training.best_metric_mode == "min"
@@ -104,13 +127,16 @@ class BaseTrainer:
         )
         self._is_better = self._create_metric_comparator()
         
-        # Initialize metrics logger for structured output
+        # Metrics logger for structured output
         self.metrics_logger = None
         if config.environment.output_dir:
             metrics_path = config.environment.output_dir / "metrics.jsonl"
             self.metrics_logger = MetricsLogger(sink_path=metrics_path)
-
-        logger.info("Initialized BaseTrainer")
+            
+        # Setup compilation
+        self._setup_compilation()
+        
+        logger.info("Initialized BaseTrainer with decomposed components")
 
     def _setup_compilation(self):
         """Setup MLX compilation for training if available and beneficial."""
@@ -337,12 +363,7 @@ class BaseTrainer:
         Returns:
             TrainingResult with final metrics and paths
         """
-        # Resume from checkpoint if specified
-        if resume_from:
-            self._load_checkpoint(resume_from)
-            logger.info(f"Resumed from checkpoint: {resume_from}")
-
-        # Calculate total steps
+        # Calculate total steps for optimizer/scheduler setup
         steps_per_epoch = len(train_dataloader)
         total_steps = steps_per_epoch * self.config.training.num_epochs
 
@@ -351,60 +372,67 @@ class BaseTrainer:
         if self.config.scheduler.type != "none":
             from .optimization import create_mlx_lr_schedule
 
-            # Create MLX native schedule
             learning_rate = create_mlx_lr_schedule(
                 config=self.config.scheduler,
                 base_lr=self.config.optimizer.learning_rate,
                 num_training_steps=total_steps,
             )
             self._lr_schedule_fn = learning_rate if callable(learning_rate) else None
+            logger.info(f"Initialized MLX learning rate scheduler with {total_steps} total steps")
 
-            logger.info(
-                f"Initialized MLX learning rate scheduler with {total_steps} total steps"
-            )
-
-        # Create optimizer with the learning rate (schedule or constant)
+        # Create optimizer
         original_lr = self.config.optimizer.learning_rate
-        self.config.optimizer.learning_rate = (
-            learning_rate  # Temporarily set for optimizer creation
-        )
+        self.config.optimizer.learning_rate = learning_rate
         self.optimizer = create_optimizer(self.model, self.config.optimizer)
-        self.config.optimizer.learning_rate = original_lr  # Restore original value
-
-        # Now create compiled functions if requested
+        self.config.optimizer.learning_rate = original_lr
+        
+        # Now create the training loop with optimizer
+        self.training_loop = TrainingLoop(
+            model=self.model,
+            optimizer=self.optimizer,
+            config=self.config.training,
+            gradient_accumulator=self.gradient_accumulator,
+        )
+        
+        # Setup compilation if enabled
         if hasattr(self, "_should_compile") and self._should_compile:
             try:
-                from .compiled import (
-                    create_compiled_eval_step,
-                    create_compiled_train_step,
+                from .compiled import create_compiled_eval_step, create_compiled_train_step
+                
+                # Create compiled steps
+                compiled_train_step, _ = create_compiled_train_step(
+                    self.model,
+                    self.optimizer,
+                    self.config,
+                    self.gradient_accumulator,
                 )
-
-                # Create compiled training step
-                self._compiled_train_step, self._compilation_state = (
-                    create_compiled_train_step(
-                        self.model,
-                        self.optimizer,
-                        self.config,
-                        self.gradient_accumulator,
-                    )
-                )
-
-                # Create compiled eval step
-                self._compiled_eval_step = create_compiled_eval_step(self.model)
-
-                self._use_compiled = True
+                compiled_eval_step = create_compiled_eval_step(self.model)
+                
+                # Set compiled steps on components
+                self.training_loop.set_compiled_step(compiled_train_step)
+                self.evaluation_loop.set_compiled_step(compiled_eval_step)
+                
                 logger.info("Successfully created compiled training functions")
-
             except Exception as e:
                 logger.warning(f"Failed to create compiled functions: {e}")
-                self._use_compiled = False
-
-        # Initialize training
-        self.state.training_start_time = time.time()
-        self._call_hooks("on_train_begin", self.state)
-
-        logger.info(f"Starting training for {self.config.training.num_epochs} epochs")
-        logger.info(f"Total steps: {total_steps}, Steps per epoch: {steps_per_epoch}")
+        
+        # Create orchestrator with all components
+        self.orchestrator = TrainingOrchestrator(
+            model=self.model,
+            config=self.config,
+            training_loop=self.training_loop,
+            evaluation_loop=self.evaluation_loop,
+            checkpoint_manager=self.checkpoint_manager,
+            metrics_tracker=self.metrics_tracker,
+            callbacks=self.callbacks,
+        )
+        
+        # Delegate to orchestrator
+        return self.orchestrator.train(
+            train_dataloader=train_dataloader,
+            val_dataloader=val_dataloader,
+            resume_from=resume_from,
+        )
 
         # Ensure output is flushed
         # Training loop
@@ -745,78 +773,19 @@ class BaseTrainer:
         Returns:
             Dictionary of metrics
         """
-        self._call_hooks("on_evaluate_begin", self.state)
-
-        # Set model to eval mode
-        self.model.eval()
-
-        # Initialize metrics
-        total_loss = 0.0
-        total_metrics = {}
-        num_batches = 0
-
-        # Evaluation loop
-        total_batches = len(dataloader)
-        
-        # Create evaluation logger
-        eval_log = bind_training_context(
-            epoch=self.state.epoch,
-            phase="eval"
-        )
-        eval_log.info(f"Starting evaluation on {total_batches} batches")
-
-        with ProgressTracker(
-            total_batches,
-            "Evaluation",
-            log_frequency=20,  # Log every 20%
-            phase="eval"
-        ) as tracker:
-            for batch_idx, batch in enumerate(dataloader):
-                # Evaluation step - don't use compiled version for now due to train/eval mode issues
-                # TODO: Fix compiled evaluation to handle train/eval mode changes properly
-                loss, metrics = self._eval_step(batch)
-
-            # Accumulate metrics lazily
-            if total_loss == 0.0:
-                total_loss = loss
-            else:
-                total_loss = total_loss + loss
-
-            for k, v in metrics.items():
-                if v is None or (hasattr(v, "shape") and v.size > 1):
-                    continue
-                if k not in total_metrics:
-                    total_metrics[k] = v
-                else:
-                    total_metrics[k] = total_metrics[k] + v
-            num_batches += 1
-
-            # Progress tracking is handled above, no need for pbar update
-
-        # Force evaluation and average metrics at the end
-        mx.eval(total_loss)
-        avg_loss = (
-            float(total_loss.item()) / num_batches
-            if hasattr(total_loss, "item")
-            else float(total_loss) / num_batches
-        )
-
-        avg_metrics = {"loss": avg_loss}
-
-        # Average other metrics
-        for k, v in total_metrics.items():
-            if hasattr(v, "item"):
-                mx.eval(v)
-                avg_metrics[k] = float(v.item()) / num_batches
-            else:
-                avg_metrics[k] = float(v) / num_batches
-
-        # Prefix with eval_
-        eval_metrics = {f"eval_{k}": v for k, v in avg_metrics.items()}
-
-        self._call_hooks("on_evaluate_end", self.state, eval_metrics)
-
-        return eval_metrics
+        if self.orchestrator:
+            # Use orchestrator if available
+            return self.orchestrator.evaluate(dataloader)
+        else:
+            # Fallback to evaluation loop directly
+            if not hasattr(self, 'evaluation_loop') or self.evaluation_loop is None:
+                self.evaluation_loop = EvaluationLoop(self.model)
+            
+            return self.evaluation_loop.evaluate(
+                dataloader=dataloader,
+                state=self.state,
+                callbacks=[self._create_eval_callback()],
+            )
 
     def predict(self, dataloader: DataLoader) -> mx.array:
         """
@@ -828,42 +797,15 @@ class BaseTrainer:
         Returns:
             Predictions as MLX array
         """
-        predictions = []
-
-        # Avoid tqdm due to MLX threading issues
-        # pbar = tqdm(dataloader, desc="Predicting", leave=False, dynamic_ncols=True)
-        pbar = dataloader
-
-        for batch in pbar:
-            # Forward pass - handle different model calling conventions
-            # Remove metadata if present as it's not needed for model forward
-            model_inputs = {
-                k: v
-                for k, v in batch.items()
-                if k not in ["metadata"] and v is not None
-            }
-
-            try:
-                # Try unpacked arguments first (for BERT models)
-                outputs = self.model(**model_inputs)
-            except TypeError:
-                # Fall back to batch dictionary (for simple test models)
-                outputs = self.model(batch)
-
-            # Extract predictions (assuming 'logits' key)
-            if "logits" in outputs:
-                preds = outputs["logits"]
-            elif "predictions" in outputs:
-                preds = outputs["predictions"]
-            else:
-                raise ValueError(
-                    "Model must return 'logits' or 'predictions' in output dict"
-                )
-
-            predictions.append(preds)
-
-        # Concatenate all predictions
-        return mx.concatenate(predictions, axis=0)
+        if self.orchestrator:
+            # Use orchestrator if available
+            return self.orchestrator.predict(dataloader)
+        else:
+            # Fallback to evaluation loop directly
+            if not hasattr(self, 'evaluation_loop') or self.evaluation_loop is None:
+                self.evaluation_loop = EvaluationLoop(self.model)
+            
+            return self.evaluation_loop.predict(dataloader)
 
     def _save_checkpoint(self, is_best: bool = False, is_final: bool = False) -> Path:
         """Save training checkpoint."""
@@ -910,14 +852,34 @@ class BaseTrainer:
             if hasattr(callback, method):
                 logger.debug(f"Calling {method} on {callback.__class__.__name__}")
                 getattr(callback, method)(self, *args, **kwargs)
+                
+    def _create_eval_callback(self):
+        """Create a callback wrapper for evaluation hooks."""
+        class EvalCallback:
+            def __init__(self, trainer):
+                self.trainer = trainer
+                
+            def on_evaluate_begin(self, state):
+                self.trainer._call_hooks("on_evaluate_begin", state)
+                
+            def on_evaluate_end(self, state, metrics):
+                self.trainer._call_hooks("on_evaluate_end", state, metrics)
+                
+        return EvalCallback(self)
 
     def save_checkpoint(self, path: Path) -> None:
         """Public method to save checkpoint."""
-        self._save_checkpoint(is_best=False, is_final=False)
+        if self.orchestrator:
+            self.orchestrator.save_checkpoint(path)
+        else:
+            self._save_checkpoint(is_best=False, is_final=False)
 
     def load_checkpoint(self, path: Path) -> None:
         """Public method to load checkpoint."""
-        self._load_checkpoint(path)
+        if self.orchestrator:
+            self.orchestrator.load_checkpoint(path)
+        else:
+            self._load_checkpoint(path)
 
     @property
     def model(self) -> Model:

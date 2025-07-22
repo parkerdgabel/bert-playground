@@ -1,7 +1,11 @@
-"""Main CLI application setup and configuration."""
+"""Main CLI application setup and configuration with hexagonal architecture."""
 
 import typer
+from pathlib import Path
 from rich.console import Console
+
+from core.bootstrap import initialize_application, get_service
+from core.ports.monitoring import MonitoringService
 
 # Import command groups
 from .commands.kaggle import kaggle_app
@@ -56,16 +60,25 @@ def callback(
         False, "--verbose", "-V", help="Enable verbose output"
     ),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output"),
+    config: str = typer.Option(None, "--config", "-c", help="Configuration file path"),
 ):
     """K-BERT: State-of-the-art BERT models for Kaggle competitions."""
+    
+    # Initialize the application with hexagonal architecture
+    config_path = Path(config) if config else None
+    container = initialize_application(config_path)
+    
+    # Get monitoring service for logging configuration
+    monitoring = get_service(MonitoringService)
+    
     # Set global verbosity
     if verbose:
+        monitoring.set_level("DEBUG")
         import os
-
         os.environ["BERT_CLI_VERBOSE"] = "1"
     elif quiet:
+        monitoring.set_level("ERROR")
         import os
-
         os.environ["BERT_CLI_QUIET"] = "1"
 
 

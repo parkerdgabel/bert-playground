@@ -20,7 +20,7 @@ from .config.schemas import KBertConfig
 from .commands.base import CommandMiddleware
 from .middleware import (
     LoggingMiddleware,
-    ErrorHandlingMiddleware,
+    ErrorMiddleware,
     PerformanceMiddleware,
     ValidationMiddleware,
 )
@@ -208,7 +208,7 @@ def _register_middleware(container: Container) -> None:
     """
     # Create middleware instances
     middleware = [
-        ErrorHandlingMiddleware(),
+        ErrorMiddleware(),
         LoggingMiddleware(),
         ValidationMiddleware(),
         PerformanceMiddleware(),

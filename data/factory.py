@@ -1,7 +1,7 @@
-"""Factory functions for creating datasets and data loaders.
+"""Factory functions for creating datasets and data loaders using hexagonal architecture.
 
 This module provides convenient factory functions to create datasets and data loaders
-for the training pipeline, following the same pattern as the models and training factories.
+for the training pipeline, using dependency injection and ports/adapters pattern.
 """
 
 from pathlib import Path
@@ -9,6 +9,11 @@ from typing import Any
 
 import pandas as pd
 from loguru import logger
+
+# Import hexagonal architecture components
+from core.bootstrap import get_service
+from core.ports.storage import StorageService
+from core.ports.compute import ComputeBackend
 
 from .augmentation import (
     AugmentationConfig,
@@ -487,3 +492,67 @@ def create_data_pipeline(
     logger.info(f"Created data pipeline with loaders: {list(loaders.keys())}")
 
     return loaders
+
+
+class DatasetFactory:
+    """
+    Factory class for creating datasets and data loaders using hexagonal architecture.
+    
+    This uses dependency injection and ports/adapters pattern for external dependencies.
+    """
+    
+    def __init__(self):
+        self.storage_service = get_service(StorageService)
+        self.compute_backend = get_service(ComputeBackend)
+    
+    def create_dataloader(
+        self,
+        data_path: str | Path,
+        batch_size: int = 32,
+        shuffle: bool = True,
+        split: str = "train",
+        **kwargs
+    ) -> MLXDataLoader:
+        """
+        Create a data loader using dependency injection and hexagonal architecture.
+        
+        Args:
+            data_path: Path to the data file
+            batch_size: Batch size for the loader
+            shuffle: Whether to shuffle the data
+            split: Data split type (train/val/test)
+            **kwargs: Additional configuration
+            
+        Returns:
+            MLX data loader instance
+        """
+        logger.info(f"Creating dataloader for {data_path} (split: {split})")
+        
+        # Use the global create_dataloader function but with DI services
+        return create_dataloader(
+            data_path=data_path,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            split=split,
+            **kwargs
+        )
+    
+    def create_dataset(
+        self,
+        data_path: str | Path,
+        **kwargs
+    ) -> KaggleDataset:
+        """
+        Create a dataset using dependency injection.
+        
+        Args:
+            data_path: Path to the data file
+            **kwargs: Additional configuration
+            
+        Returns:
+            Dataset instance
+        """
+        logger.info(f"Creating dataset from {data_path}")
+        
+        # Use the global create_dataset function
+        return create_dataset(data_path, **kwargs)

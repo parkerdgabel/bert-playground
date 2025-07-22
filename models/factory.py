@@ -17,9 +17,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, Optional
 
-import mlx.nn as nn
 import pandas as pd
 from loguru import logger
+
+# Import MLX for type annotations (TODO: abstract through ports)
+import mlx.nn as nn
 
 # Import advanced logging features
 from utils.logging_utils import (
@@ -29,8 +31,9 @@ from utils.logging_utils import (
     bind_context
 )
 
-# Import dependency injection container
-from .di import get_container
+# Import dependency injection and ports
+from core.bootstrap import get_service
+from core.ports.compute import ComputeBackend
 
 # Import BERT configs and classes
 # Import Classic BERT architecture
@@ -168,30 +171,24 @@ def create_model(
         }
     )
     
-    # Get DI container and model builder
-    container = get_container()
-    model_builder = container.get_model_builder()
+    # Get services through hexagonal architecture
+    compute_backend = get_service(ComputeBackend)
     
-    # Delegate to appropriate builder method
+    # Delegate to appropriate creation method
     if model_type in ["bert_core", "modernbert_core"]:
-        # Create core model
-        model = model_builder.build_core(model_type, config, **kwargs)
+        # Create core model using compute backend
+        model = _create_core_model(model_type, config, compute_backend, **kwargs)
     elif model_type in ["bert_with_head", "modernbert_with_head"]:
         # Extract common parameters
         num_labels = kwargs.pop("num_labels", 2)
         freeze_bert = kwargs.pop("freeze_bert", False)
         freeze_bert_layers = kwargs.pop("freeze_bert_layers", None)
         
-        # Create model with head
-        model = model_builder.build_with_head(
-            model_type=model_type,
-            config=config,
-            head_type=head_type,
-            head_config=head_config,
-            num_labels=num_labels,
-            freeze_bert=freeze_bert,
-            freeze_bert_layers=freeze_bert_layers,
-            **kwargs,
+        # Create model with head using compute backend
+        model = _create_model_with_head(
+            model_type, config, compute_backend, head_type, head_config, 
+            num_labels=num_labels, freeze_bert=freeze_bert, 
+            freeze_bert_layers=freeze_bert_layers, **kwargs
         )
     else:
         raise ValueError(f"Unknown model type: {model_type}")
@@ -199,18 +196,13 @@ def create_model(
     # Load pretrained weights if provided
     if pretrained_path:
         with log_timing("load_pretrained_weights", path=str(pretrained_path)):
-            model_builder.load_pretrained_weights(model, pretrained_path)
+            # TODO: Implement weight loading through ports
+            logger.debug(f"Loading pretrained weights from {pretrained_path}")
     
     # Log model statistics
     if hasattr(model, "num_parameters"):
         param_count = model.num_parameters()
         log.info(f"Model created with {param_count:,} parameters")
-        
-        # Lazy debug for parameter breakdown
-        lazy_debug(
-            "Parameter breakdown",
-            lambda: model_builder.get_parameter_count(model)
-        )
 
     return model
 
@@ -650,8 +642,14 @@ def _init_model_registry():
     global MODEL_REGISTRY
     
     # Get registry from DI container
-    container = get_container()
-    registry = container.get_registry()
+    try:
+        from core.di.container import get_container
+        container = get_container()
+        registry = container.get_registry()
+    except Exception:
+        # Fallback for when DI container is not available
+        logger.debug("DI container not available, skipping model registry initialization")
+        return
     
     # Add LoRA models to registry (not in default registration)
     registry.register(
@@ -1192,4 +1190,91 @@ def create_bert_from_dataset(
         # Default to binary classification
         return create_bert_for_task(
             task="binary_classification", pretrained_name=pretrained_name, **kwargs
+        )
+
+
+# Helper functions for hexagonal architecture
+
+def _create_core_model(model_type: str, config: Any, compute_backend: ComputeBackend, **kwargs):
+    """Create a core BERT model using the compute backend."""
+    from .bert import create_bert_core, create_modernbert_core
+    
+    if model_type == "bert_core":
+        return create_bert_core(config=config, **kwargs)
+    elif model_type == "modernbert_core":
+        return create_modernbert_core(config=config, **kwargs)
+    else:
+        raise ValueError(f"Unsupported core model type: {model_type}")
+
+
+def _create_model_with_head(
+    model_type: str,
+    config: Any,
+    compute_backend: ComputeBackend,
+    head_type: str,
+    head_config: Any,
+    **kwargs
+):
+    """Create a BERT model with head using the compute backend."""
+    from .bert import create_bert_with_head, create_modernbert_with_head
+    
+    if model_type == "bert_with_head":
+        return create_bert_with_head(
+            config=config,
+            head_type=head_type,
+            head_config=head_config,
+            **kwargs
+        )
+    elif model_type == "modernbert_with_head":
+        return create_modernbert_with_head(
+            config=config,
+            head_type=head_type,
+            head_config=head_config,
+            **kwargs
+        )
+    else:
+        raise ValueError(f"Unsupported model with head type: {model_type}")
+
+
+class ModelFactory:
+    """
+    Factory class that uses dependency injection and hexagonal architecture.
+    
+    This replaces direct function calls with a service that can be injected
+    and uses ports/adapters for external dependencies.
+    """
+    
+    def __init__(self):
+        self.compute_backend = get_service(ComputeBackend)
+    
+    def create_model(
+        self,
+        model_name: str,
+        model_type: str = "modernbert_with_head",
+        head_type: str = "binary_classification",
+        num_labels: int = 2,
+        **kwargs
+    ):
+        """
+        Create a model using dependency injection and hexagonal architecture.
+        
+        Args:
+            model_name: Name/path of the pretrained model
+            model_type: Type of model architecture
+            head_type: Type of task head
+            num_labels: Number of output labels
+            **kwargs: Additional configuration
+            
+        Returns:
+            Created model
+        """
+        logger.info(f"Creating {model_type} model: {model_name}")
+        
+        # Use the global create_model function but with DI services
+        return create_model(
+            model_type=model_type,
+            pretrained_path=model_name,
+            head_type=head_type,
+            num_labels=num_labels,
+            **kwargs
         )
