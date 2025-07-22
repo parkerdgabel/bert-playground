@@ -1,0 +1,86 @@
+# K-BERT Project Configuration
+name: my-k-bert-project
+version: "1.0"
+description: "Custom k-bert project with plugins"
+
+# Plugin directories (relative to project root)
+plugins:
+  - src/heads
+  - src/augmenters
+  - src/features
+  - src/models
+  - src/metrics
+
+# Model configuration
+models:
+  default_model: "answerdotai/ModernBERT-base"
+  use_mlx_embeddings: true
+  
+  # Custom head configuration
+  head:
+    type: "CustomBinaryHead"  # Use our custom head
+    config:
+      hidden_size: 768
+      dropout_prob: 0.1
+      hidden_dim: 256
+      activation: "gelu"
+
+# Data configuration  
+data:
+  # Feature extraction pipeline
+  feature_extractors:
+    - name: "TextStatisticsExtractor"
+      config:
+        compute_readability: true
+        compute_sentiment_markers: true
+    - name: "TemporalFeatureExtractor"
+      config:
+        date_columns: ["created_date", "modified_date"]
+  
+  # Augmentation pipeline
+  augmenters:
+    - name: "DomainSpecificAugmenter"
+      config:
+        augment_prob: 0.5
+        synonym_prob: 0.3
+        max_changes: 3
+    - name: "TabularDataAugmenter"
+      config:
+        numerical_noise: 0.05
+        categorical_swap_prob: 0.1
+
+# Training configuration
+training:
+  default_epochs: 5
+  default_batch_size: 32
+  default_learning_rate: 2e-5
+  
+  # Use custom components
+  use_custom_head: true
+  use_feature_extraction: true
+  use_augmentation: true
+
+# Experiments configuration
+experiments:
+  - name: "baseline"
+    description: "Baseline without custom components"
+    config:
+      training:
+        use_custom_head: false
+        use_feature_extraction: false
+        use_augmentation: false
+  
+  - name: "with_features"
+    description: "Add feature extraction"
+    config:
+      training:
+        use_feature_extraction: true
+        use_augmentation: false
+  
+  - name: "full_pipeline"
+    description: "All custom components"
+    config:
+      training:
+        use_custom_head: true
+        use_feature_extraction: true
+        use_augmentation: true
