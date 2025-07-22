@@ -10,6 +10,7 @@ from .commands.model import model_app
 from .commands.config import app as config_app
 from .commands.competition import app as competition_app
 from .commands.project import app as project_app
+from .commands.analyze import analyze_app
 
 # Initialize the main app
 app = typer.Typer(
@@ -29,6 +30,7 @@ app.add_typer(project_app, name="project", help="Project management")
 app.add_typer(kaggle_app, name="kaggle", help="Kaggle competition workflows")
 app.add_typer(mlflow_app, name="mlflow", help="MLflow experiment tracking")
 app.add_typer(model_app, name="model", help="Model management and serving")
+app.add_typer(analyze_app, name="analyze", help="SQL-based data analysis using DuckDB")
 
 # Global options
 console = Console()

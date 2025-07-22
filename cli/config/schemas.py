@@ -113,6 +113,47 @@ class LoggingConfig(BaseModel):
         return v_upper
 
 
+class AnalysisConfig(BaseModel):
+    """Data analysis configuration."""
+    
+    default_engine: str = Field("duckdb", description="Default SQL engine")
+    memory_limit: str = Field("4GB", description="Memory limit for analysis engine")
+    temp_directory: Optional[Path] = Field(None, description="Temporary directory for analysis")
+    auto_load_csvs: bool = Field(True, description="Automatically load CSV files")
+    default_format: str = Field("table", description="Default output format")
+    save_reports: bool = Field(True, description="Save analysis reports")
+    report_dir: Path = Field(Path("./analysis_reports"), description="Report output directory")
+    
+    # Visualization settings
+    visualization_backend: str = Field("plotly", description="Visualization backend")
+    visualization_theme: str = Field("plotly_white", description="Visualization theme")
+    figure_width: int = Field(12, description="Default figure width", ge=1)
+    figure_height: int = Field(8, description="Default figure height", ge=1)
+    
+    # SQL settings
+    explain_queries: bool = Field(False, description="Show query execution plans")
+    query_timeout: Optional[int] = Field(None, description="Query timeout in seconds")
+    max_result_rows: int = Field(10000, description="Maximum rows in query results", ge=1)
+    
+    @field_validator("default_format")
+    @classmethod
+    def validate_format(cls, v: str) -> str:
+        """Validate output format."""
+        valid_formats = ["table", "json", "csv", "html", "markdown"]
+        if v not in valid_formats:
+            raise ValueError(f"Invalid format. Must be one of: {valid_formats}")
+        return v
+    
+    @field_validator("visualization_backend")
+    @classmethod
+    def validate_backend(cls, v: str) -> str:
+        """Validate visualization backend."""
+        valid_backends = ["plotly", "matplotlib", "seaborn"]
+        if v not in valid_backends:
+            raise ValueError(f"Invalid backend. Must be one of: {valid_backends}")
+        return v
+
+
 class ProjectConfig(BaseModel):
     """Project-level configuration."""
     
@@ -128,6 +169,7 @@ class ProjectConfig(BaseModel):
     mlflow: Optional[MLflowConfig] = None
     data: Optional[DataConfig] = None
     logging: Optional[LoggingConfig] = None
+    analysis: Optional[AnalysisConfig] = None
     
     # Project-specific settings
     experiments: Optional[List[Dict[str, Any]]] = Field(None, description="Experiment configurations")
@@ -157,6 +199,7 @@ class KBertConfig(BaseSettings):
     mlflow: MLflowConfig = Field(default_factory=MLflowConfig)
     data: DataConfig = Field(default_factory=DataConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    analysis: AnalysisConfig = Field(default_factory=AnalysisConfig)
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "KBertConfig":
