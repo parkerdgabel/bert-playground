@@ -196,7 +196,7 @@ class TrainingRunConfig(BaseModel):
     learning_rate: float = Field(..., gt=0)
     
     # Optional overrides
-    model_config: Optional[Dict[str, Any]] = None
+    model_settings: Optional[Dict[str, Any]] = None
     training_config: Optional[Dict[str, Any]] = None
     data_config: Optional[Dict[str, Any]] = None
     

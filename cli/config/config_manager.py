@@ -198,6 +198,9 @@ class ConfigManager:
         # Convert to dict and remove None values
         config_dict = config.to_dict()
         
+        # Convert Path objects to strings for YAML serialization
+        config_dict = self._convert_paths_to_strings(config_dict)
+        
         # Save as YAML
         with open(self.user_config_path, "w") as f:
             yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)
@@ -278,7 +281,7 @@ class ConfigManager:
         config = get_default_config()
         
         if interactive:
-            from rich.prompt import Prompt
+            from rich.prompt import Prompt, Confirm
             from rich.console import Console
             
             console = Console()
@@ -447,6 +450,44 @@ class ConfigManager:
         config = self.get_merged_config()
         return self._flatten_config(config.to_dict())
     
+    def list_settings(self) -> Dict[str, Any]:
+        """List all settings (alias for list_all_values).
+        
+        Returns:
+            Flat dictionary of all configuration values
+        """
+        return self.list_all_values()
+    
+    def validate_project_config(self, path: Optional[Path] = None) -> List[str]:
+        """Validate project configuration.
+        
+        Args:
+            path: Path to project config file (optional)
+            
+        Returns:
+            List of validation errors (empty if valid)
+        """
+        try:
+            config = self.load_project_config(path)
+            if config is None:
+                return ["No project configuration found"]
+            
+            # Basic validation - check required fields
+            errors = []
+            
+            if not config.name:
+                errors.append("Project name is required")
+            
+            if not config.models or not config.models.default_model:
+                errors.append("Default model must be specified")
+            
+            if not config.data:
+                errors.append("Data configuration is required")
+            
+            return errors
+        except Exception as e:
+            return [f"Failed to load configuration: {str(e)}"]
+    
     def _flatten_config(self, obj: Any, prefix: str = "") -> Dict[str, Any]:
         """Flatten nested configuration to dot-notation keys.
         
@@ -477,6 +518,24 @@ class ConfigManager:
             result[prefix] = obj
         
         return result
+    
+    def _convert_paths_to_strings(self, obj: Any) -> Any:
+        """Convert Path objects to strings for YAML serialization.
+        
+        Args:
+            obj: Configuration object
+            
+        Returns:
+            Object with paths converted to strings
+        """
+        if isinstance(obj, Path):
+            return str(obj)
+        elif isinstance(obj, dict):
+            return {k: self._convert_paths_to_strings(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._convert_paths_to_strings(v) for v in obj]
+        else:
+            return obj
 
 
 # Global configuration manager instance

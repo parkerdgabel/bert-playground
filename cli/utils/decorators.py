@@ -33,6 +33,9 @@ def handle_errors(func: Callable) -> Callable:
                 title="Import Error",
             )
             raise typer.Exit(1)
+        except typer.Exit:
+            # Let typer.Exit pass through without catching it
+            raise
         except Exception as e:
             logger.exception("Unexpected error")
             print_error(
