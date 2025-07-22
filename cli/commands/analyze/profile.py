@@ -235,21 +235,44 @@ def _profile_column(
     col_type: str,
 ) -> Dict[str, Any]:
     """Profile a single column."""
+    # Determine column type category
+    numeric_types = ["INTEGER", "BIGINT", "DOUBLE", "FLOAT", "DECIMAL", "NUMERIC", "REAL"]
+    boolean_types = ["BOOLEAN", "BOOL"]
+    
+    if col_type.upper() in numeric_types:
+        col_category = "numeric"
+    elif col_type.upper() in boolean_types:
+        col_category = "boolean"
+    else:
+        col_category = "categorical"
+    
     profile = {
         "name": col_name,
         "dtype": col_type,
-        "type": "numeric" if col_type.upper() in ["INTEGER", "BIGINT", "DOUBLE", "FLOAT", "DECIMAL"] else "categorical",
+        "type": col_category,
     }
     
     # Basic statistics
-    basic_stats_query = f"""
-    SELECT 
-        COUNT(*) as count,
-        COUNT(DISTINCT "{col_name}") as unique,
-        COUNT(*) - COUNT("{col_name}") as missing,
-        COUNT(CASE WHEN "{col_name}" = '' THEN 1 END) as empty_strings
-    FROM ({table_query}) t
-    """
+    if col_category == "categorical":
+        # For categorical columns, check for empty strings
+        basic_stats_query = f"""
+        SELECT 
+            COUNT(*) as count,
+            COUNT(DISTINCT "{col_name}") as unique,
+            COUNT(*) - COUNT("{col_name}") as missing,
+            COUNT(CASE WHEN "{col_name}" = '' THEN 1 END) as empty_strings
+        FROM ({table_query}) t
+        """
+    else:
+        # For numeric and boolean columns, don't check for empty strings
+        basic_stats_query = f"""
+        SELECT 
+            COUNT(*) as count,
+            COUNT(DISTINCT "{col_name}") as unique,
+            COUNT(*) - COUNT("{col_name}") as missing,
+            0 as empty_strings
+        FROM ({table_query}) t
+        """
     
     basic_stats = db.execute_query(basic_stats_query).iloc[0]
     profile["count"] = int(basic_stats["count"])
@@ -258,7 +281,7 @@ def _profile_column(
     profile["missing_pct"] = (profile["missing"] / profile["count"] * 100) if profile["count"] > 0 else 0
     profile["cardinality"] = profile["unique"] / profile["count"] if profile["count"] > 0 else 0
     
-    if profile["type"] == "numeric":
+    if col_category == "numeric":
         # Numeric statistics
         numeric_stats_query = f"""
         SELECT 

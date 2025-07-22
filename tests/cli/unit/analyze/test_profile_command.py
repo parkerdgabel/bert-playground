@@ -278,12 +278,11 @@ class TestProfileCommand:
     def test_profile_with_config(self, runner, sample_data_dir, tmp_path):
         """Test profile with custom config."""
         config_file = tmp_path / "config.yaml"
-        config_file.write_text("""
-analysis:
-    memory_limit: "1GB"
-    visualization_backend: "plotly"
-    figure_width: 10
-    figure_height: 6
+        config_file.write_text("""analysis:
+  memory_limit: "1GB"
+  visualization_backend: "plotly"
+  figure_width: 10
+  figure_height: 6
 """)
         
         result = runner.invoke(

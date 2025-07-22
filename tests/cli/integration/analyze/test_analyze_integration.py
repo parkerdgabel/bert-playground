@@ -37,7 +37,7 @@ def kaggle_style_data():
             "Ticket": [f"TICKET_{i}" for i in range(891)],
             "Fare": [10.0 + i % 200 + (i % 7) * 5.5 for i in range(891)],
             "Cabin": [f"C{i}" if i % 5 == 0 else None for i in range(891)],
-            "Embarked": ["S", "C", "Q"][i % 3] if i % 20 != 0 else None for i in range(891)],
+            "Embarked": [["S", "C", "Q"][i % 3] if i % 20 != 0 else None for i in range(891)],
         })
         train_df.to_csv(data_dir / "train.csv", index=False)
         
@@ -53,7 +53,7 @@ def kaggle_style_data():
             "Ticket": [f"TICKET_{i}" for i in range(892, 1310)],
             "Fare": [10.0 + i % 200 + (i % 7) * 5.5 for i in range(418)],
             "Cabin": [f"C{i}" if i % 5 == 0 else None for i in range(418)],
-            "Embarked": ["S", "C", "Q"][i % 3] if i % 20 != 0 else None for i in range(418)],
+            "Embarked": [["S", "C", "Q"][i % 3] if i % 20 != 0 else None for i in range(418)],
         })
         test_df.to_csv(data_dir / "test.csv", index=False)
         
@@ -79,6 +79,9 @@ class TestAnalyzeIntegration:
             app,
             ["analyze", "explore", "-d", str(kaggle_style_data), "-o", str(reports_dir / "exploration.md")],
         )
+        if result.exit_code != 0:
+            print(f"STDOUT:\n{result.stdout}")
+            print(f"STDERR:\n{result.stderr}")
         assert result.exit_code == 0
         assert (reports_dir / "exploration.md").exists()
         

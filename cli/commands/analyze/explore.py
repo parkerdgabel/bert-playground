@@ -257,6 +257,8 @@ def explore(
             
     # Save report if requested
     if output:
+        # Create parent directory if it doesn't exist
+        output.parent.mkdir(parents=True, exist_ok=True)
         with open(output, "w") as f:
             f.writelines(report_lines)
         console.print(f"\n[green]Exploration report saved to: {output}[/green]")
