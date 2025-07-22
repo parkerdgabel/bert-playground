@@ -10,7 +10,6 @@ import pytest
 
 from data.core.base import CompetitionType
 from data.loaders.mlx_loader import MLXDataLoader, MLXLoaderConfig
-from data.loaders.streaming import StreamingConfig, StreamingPipeline
 from data.augmentation import TabularToTextAugmenter, FeatureMetadata, FeatureType
 from data.tokenizers import MLXTokenizer
 from tests.data.fixtures.configs import create_dataset_spec
@@ -33,10 +32,6 @@ class TestDataPipelineIntegration:
                 batch_size=32,
                 shuffle=True,
                 num_workers=2,
-            ),
-            "streaming": StreamingConfig(
-                buffer_size=512,
-                chunk_size=32,
             ),
         }
 
@@ -71,8 +66,6 @@ class TestDataPipelineIntegration:
             text_columns=["Name"],
         )
 
-        # Create template engine
-        engine = TextTemplateEngine()
 
         # Get samples from dataset as text
         texts = []
@@ -88,35 +81,6 @@ class TestDataPipelineIntegration:
         # Should contain feature information
         assert "feature" in sample_text.lower() or ":" in sample_text
 
-    def test_streaming_pipeline_basic(self, titanic_dataset):
-        """Test basic streaming pipeline functionality."""
-        # Create streaming pipeline
-        config = StreamingConfig(
-            buffer_size=10,
-            batch_size=4,
-            num_producer_threads=1,
-        )
-
-        pipeline = StreamingPipeline(titanic_dataset, config)
-
-        # Test basic functionality
-        assert pipeline.dataset == titanic_dataset
-        assert pipeline.config == config
-
-        # Test that we can create and stop pipeline without errors
-        pipeline.start()
-
-        # Give it a moment to produce some samples
-        import time
-
-        time.sleep(0.1)
-
-        pipeline.stop()
-
-        # Test performance stats
-        stats = pipeline.get_performance_stats()
-        assert "samples_produced" in stats
-        assert "samples_consumed" in stats
 
     def test_caching_integration(self):
         """Test caching across pipeline components."""
@@ -147,46 +111,6 @@ class TestDataPipelineIntegration:
             # Cache hit should be faster
             assert second_access < first_access
 
-    def test_memory_management_integration(self, sample_titanic_data):
-        """Test memory management across components."""
-        from data.loaders.memory import MemoryConfig, UnifiedMemoryManager
-
-        # Create memory manager
-        memory_config = MemoryConfig(
-            max_unified_memory_mb=128,
-            enable_automatic_cleanup=True,
-        )
-        memory_manager = UnifiedMemoryManager(memory_config)
-
-        # Create dataset and loader with memory manager
-        spec = create_dataset_spec(num_samples=100)
-
-        from tests.data.fixtures.datasets import MockKaggleDataset
-
-        dataset = MockKaggleDataset(spec)
-        # Generate sample data for memory manager
-        dataset._generate_data()
-
-        loader_config = MLXLoaderConfig(
-            batch_size=32,
-        )
-        loader = MLXDataLoader(dataset, loader_config)
-
-        # Track memory usage
-        initial_memory = memory_manager.get_memory_usage()
-
-        # Load several batches
-        for i, batch in enumerate(loader):
-            if i >= 5:
-                break
-
-        final_memory = memory_manager.get_memory_usage()
-
-        # Memory should be efficiently managed
-        memory_growth = final_memory.get("allocated_mb", 0) - initial_memory.get(
-            "allocated_mb", 0
-        )
-        assert memory_growth < 50  # Less than 50MB growth
 
     def test_multi_dataset_pipeline(self):
         """Test pipeline with multiple datasets."""

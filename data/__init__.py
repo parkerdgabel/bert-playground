@@ -21,20 +21,9 @@ from .core import (
     KaggleDataset,
 )
 
-# Kaggle integration (to be implemented)
-# from .kaggle import (
-#     KaggleClient,
-#     KaggleCompetitionDataset,
-#     LeaderboardTracker,
-#     SubmissionManager,
-# )
 from .loaders import (
     MLXDataLoader,
-    StreamingPipeline,
-    UnifiedMemoryManager,
 )
-# Text conversion now handled by augmentation module
-# from .templates import (...)
 
 __version__ = "0.1.0"
 
@@ -60,8 +49,6 @@ __all__ = [
     # "SubmissionManager",
     # MLX-optimized loaders
     "MLXDataLoader",
-    "StreamingPipeline",
-    "UnifiedMemoryManager",
     # Text conversion now handled by augmentation module
     # Factory functions
     "create_dataset",

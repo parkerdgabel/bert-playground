@@ -398,9 +398,9 @@ class DatasetRegistry:
         """
         # For now, import and return the generic implementation
         # This will be replaced with specific implementations
-        from ..kaggle import KaggleCompetitionDataset
+        from ..factory import CSVDataset
 
-        return KaggleCompetitionDataset
+        return CSVDataset
 
     def _load_registry(self) -> None:
         """Load registry from disk."""

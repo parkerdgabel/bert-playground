@@ -197,7 +197,7 @@ def _show_datasets_info(console):
     console.print("=" * 60)
 
     try:
-        from data.datasets import DatasetRegistry
+        from data.core.registry import DatasetRegistry
 
         registry = DatasetRegistry()
         datasets = registry.list_datasets()

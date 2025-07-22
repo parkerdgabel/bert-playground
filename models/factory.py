@@ -11,7 +11,6 @@ It supports:
 
 import json
 from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
 from typing import Any, Literal, Optional
 
@@ -42,23 +41,33 @@ from .bert import (
 )
 from .heads.base import HeadConfig
 
-# Import Kaggle heads if available
-try:
-    from .classification.kaggle_heads import create_kaggle_head  # noqa: F401
-
-    KAGGLE_HEADS_AVAILABLE = True
-except ImportError:
-    KAGGLE_HEADS_AVAILABLE = False
-    logger.debug("Kaggle heads not available")
+# Kaggle heads are not currently available
+KAGGLE_HEADS_AVAILABLE = False
 
 # Import dataset analysis for automatic optimization
 try:
     from data.dataset_spec import KaggleDatasetSpec
+    from data.core.base import CompetitionType
 
     DATASET_ANALYSIS_AVAILABLE = True
 except ImportError:
     DATASET_ANALYSIS_AVAILABLE = False
     logger.debug("Dataset analysis not available")
+    # Define CompetitionType locally if not available
+    from enum import Enum
+    
+    class CompetitionType(Enum):
+        """Types of Kaggle competitions."""
+        BINARY_CLASSIFICATION = "binary_classification"
+        MULTICLASS_CLASSIFICATION = "multiclass_classification"
+        MULTILABEL_CLASSIFICATION = "multilabel_classification"
+        REGRESSION = "regression"
+        ORDINAL_REGRESSION = "ordinal_regression"
+        TIME_SERIES = "time_series"
+        RANKING = "ranking"
+        STRUCTURED_PREDICTION = "structured_prediction"
+        GENERATIVE = "generative"
+        UNKNOWN = "unknown"
 
 # Import LoRA components
 from .lora import (
@@ -74,24 +83,7 @@ ModelType = Literal[
     "bert_with_head",
     "modernbert_core",
     "modernbert_with_head",
-    "bert_with_lora",
-    "modernbert_with_lora",
 ]
-
-
-class CompetitionType(Enum):
-    """Types of Kaggle competitions (absorbed from kaggle_competition_factory)."""
-
-    BINARY_CLASSIFICATION = "binary_classification"
-    MULTICLASS_CLASSIFICATION = "multiclass_classification"
-    MULTILABEL_CLASSIFICATION = "multilabel_classification"
-    REGRESSION = "regression"
-    ORDINAL_REGRESSION = "ordinal_regression"
-    TIME_SERIES = "time_series"
-    RANKING = "ranking"
-    STRUCTURED_PREDICTION = "structured_prediction"
-    GENERATIVE = "generative"
-    UNKNOWN = "unknown"
 
 
 @dataclass
@@ -739,12 +731,11 @@ def load_pretrained_weights(model: nn.Module, weights_path: str | Path):
         raise ValueError(f"Unsupported weights format: {weights_path}")
 
 
-def get_model_config(model_type: ModelType = "bert_with_head", **kwargs) -> BertConfig:
+def get_model_config(**kwargs) -> BertConfig:
     """
-    Get default configuration for a model type.
+    Get default configuration for a model.
 
     Args:
-        model_type: Type of model
         **kwargs: Configuration overrides
 
     Returns:
@@ -814,25 +805,6 @@ MODEL_REGISTRY = {
     ),
     "modernbert-qlora-binary": lambda **kwargs: create_qlora_model(
         model_type="modernbert_with_head", head_type="binary_classification", **kwargs
-    ),
-    # Competition-specific models
-    "titanic-bert": lambda **kwargs: create_bert_for_task(
-        "binary_classification", num_labels=2, **kwargs
-    ),
-    "titanic-modernbert": lambda **kwargs: create_model(
-        "modernbert_with_head",
-        head_type="binary_classification",
-        num_labels=2,
-        **kwargs,
-    ),
-    "titanic-bert-lora": lambda **kwargs: create_kaggle_lora_model(
-        "binary_classification", num_labels=2, **kwargs
-    ),
-    "titanic-modernbert-lora": lambda **kwargs: create_modernbert_with_lora(
-        head_type="binary_classification",
-        lora_preset="balanced",
-        num_labels=2,
-        **kwargs,
     ),
 }
 
@@ -1100,23 +1072,6 @@ def analyze_competition_dataset(
 # === CONVENIENCE FUNCTIONS (absorbed from classification/factory.py) ===
 
 
-def create_titanic_classifier_optimized(**kwargs) -> nn.Module:
-    """Create optimized Titanic classifier using BertWithHead."""
-    return create_bert_with_head(
-        head_type="binary_classification", num_labels=2, **kwargs
-    )
-
-
-def create_multilabel_classifier_optimized(num_labels: int, **kwargs) -> nn.Module:
-    """Create optimized multilabel classifier using BertWithHead."""
-    return create_bert_with_head(
-        head_type="multilabel_classification", num_labels=num_labels, **kwargs
-    )
-
-
-def create_ensemble_classifier_optimized(num_classes: int, **kwargs) -> nn.Module:
-    """Create optimized ensemble classifier using BertWithHead."""
-    return create_bert_with_head(head_type="ensemble", num_labels=num_classes, **kwargs)
 
 
 # === BACKWARD COMPATIBILITY ALIASES ===
@@ -1127,9 +1082,6 @@ create_classifier_advanced = create_kaggle_classifier
 # For factories/kaggle_competition_factory.py compatibility
 create_competition_model = create_competition_classifier
 analyze_dataset = analyze_competition_dataset
-
-# Legacy function names
-create_enhanced_classifier = create_kaggle_classifier
 
 
 # === BACKWARD COMPATIBILITY FOR LORA ===

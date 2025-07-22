@@ -161,7 +161,7 @@ class BERTOptimizer:
             return mx.optimizers.AdamW(learning_rate=base_lr, weight_decay=weight_decay)
 
         # Create layer-wise optimizer
-        from .bert_strategies import BERTLayerManager
+        from models.bert.utils.layer_manager import BERTLayerManager
 
         layer_manager = BERTLayerManager(model)
         param_groups = layer_manager.get_parameter_groups(

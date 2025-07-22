@@ -62,22 +62,6 @@ class KaggleTrainer(BaseTrainer):
         # Add Kaggle-specific callbacks
         callbacks = []
 
-        # TODO: Re-enable when callbacks are properly implemented
-        # callbacks = [
-        #     CompetitionMetrics(
-        #         metric_name=config.kaggle.competition_metric,
-        #         maximize=config.kaggle.maximize_metric,
-        #     ),
-        # ]
-
-        # if config.kaggle.enable_api and config.kaggle.auto_submit:
-        #     callbacks.append(
-        #         KaggleSubmissionCallback(
-        #             competition_name=config.kaggle.competition_name,
-        #             submission_message=config.kaggle.submission_message,
-        #         )
-        #     )
-
         super().__init__(model, config, callbacks)
 
         self.config: KaggleTrainerConfig = config

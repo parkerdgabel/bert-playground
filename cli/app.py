@@ -83,32 +83,6 @@ app.command(name="benchmark", help="Run performance benchmarks")(benchmark_comma
 app.command(name="info", help="Show system information")(info_command)
 app.command(name="run", help="Run project with configuration")(run_command)
 
-# Additional root-level commands (to be implemented)
-# @app.command()
-# def init(
-#     name: str = typer.Argument("my-bert-project", help="Project name"),
-#     template: str = typer.Option("default", help="Project template to use"),
-#     force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing files"),
-# ):
-#     """Initialize a new BERT project with best practices."""
-#     from .commands.core.init import init_project
-#     init_project(name, template, force)
-
-# @app.command()
-# def config(
-#     action: str = typer.Argument(..., help="Action: init, validate, show, edit"),
-#     config_path: Optional[Path] = typer.Option(None, "--config", "-c", help="Config file path"),
-#     interactive: bool = typer.Option(False, "--interactive", "-i", help="Interactive mode"),
-# ):
-#     """Manage project configuration."""
-#     from .commands.core.config import config_command
-#     config_command(action, config_path, interactive)
-
-# @app.command()
-# def interactive():
-#     """Start interactive CLI mode."""
-#     from .commands.core.interactive import interactive_mode
-#     interactive_mode()
 
 if __name__ == "__main__":
     app()
