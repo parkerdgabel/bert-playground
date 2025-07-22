@@ -1,0 +1,110 @@
+# K-BERT Configuration Example
+# This file demonstrates the config-first approach for k-bert
+
+name: titanic-bert
+description: Titanic survival prediction using ModernBERT
+version: 1.0
+competition: titanic
+
+# Model configuration
+models:
+  default_model: answerdotai/ModernBERT-base
+  use_mlx_embeddings: false
+  use_lora: false
+  head:
+    type: binary_classification
+    config:
+      hidden_dim: 256
+      dropout: 0.1
+
+# Data configuration
+data:
+  train_path: data/train.csv
+  val_path: data/val.csv
+  test_path: data/test.csv
+  batch_size: 32
+  eval_batch_size: 64
+  max_length: 256
+  num_workers: 4
+  prefetch_size: 4
+  use_pretokenized: true
+  
+  # Optional augmentation
+  augmenter:
+    type: TabularDataAugmenter
+    config:
+      noise_level: 0.1
+      mask_probability: 0.15
+
+# Training configuration
+training:
+  default_epochs: 5
+  default_batch_size: 32
+  default_learning_rate: 2e-5
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  gradient_accumulation_steps: 1
+  mixed_precision: true
+  early_stopping_patience: 3
+  save_best_only: true
+  save_steps: 100
+  eval_steps: 100
+  logging_steps: 10
+  output_dir: ./outputs
+  seed: 42
+  label_smoothing: 0.0
+
+# MLflow configuration
+mlflow:
+  auto_log: true
+  default_experiment: titanic-bert
+  tracking_uri: ./mlruns
+  artifact_location: ./mlartifacts
+
+# Experiment definitions
+experiments:
+  - name: quick_test
+    description: Quick test run with 1 epoch
+    config:
+      training:
+        default_epochs: 1
+        logging_steps: 1
+      data:
+        batch_size: 8
+
+  - name: baseline
+    description: Baseline configuration
+    # Uses all default settings
+
+  - name: large_batch
+    description: Large batch size experiment
+    config:
+      data:
+        batch_size: 64
+        gradient_accumulation_steps: 2
+      training:
+        default_learning_rate: 5e-5
+
+  - name: long_training
+    description: Extended training with lower learning rate
+    config:
+      training:
+        default_epochs: 10
+        default_learning_rate: 1e-5
+        early_stopping_patience: 5
+
+  - name: lora_efficient
+    description: LoRA fine-tuning for efficiency
+    config:
+      models:
+        use_lora: true
+        lora_preset: balanced
+      training:
+        default_learning_rate: 5e-5
+
+# Custom plugins (if using k-bert project structure)
+plugins:
+  - src/heads
+  - src/augmenters
+  - src/features

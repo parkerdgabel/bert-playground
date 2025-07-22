@@ -8,6 +8,10 @@ from .health import health_command
 from .runs import list_runs_command
 from .server import restart_command, server_command
 from .test import test_command
+from .ui import ui_command
+from .compare import compare_command
+from .export import export_command
+from .import_ import import_command
 
 # Create MLflow sub-app
 mlflow_app = Typer(
@@ -30,5 +34,9 @@ mlflow_app.command("dashboard", help="Launch real-time monitoring dashboard")(
     dashboard_command
 )
 mlflow_app.command("test", help="Run comprehensive MLflow test suite")(test_command)
+mlflow_app.command("ui", help="Start MLflow UI")(ui_command)
+mlflow_app.command("compare", help="Compare experiments")(compare_command)
+mlflow_app.command("export", help="Export runs to file")(export_command)
+mlflow_app.command("import", help="Import run from file")(import_command)
 
 __all__ = ["mlflow_app"]

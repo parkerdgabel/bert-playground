@@ -1,0 +1,44 @@
+# Include the license file
+include LICENSE
+
+# Include the README
+include README.md
+
+# Include CLAUDE.md for documentation
+include CLAUDE.md
+
+# Include all configuration files
+recursive-include configs *.json *.yaml *.yml
+
+# Include example scripts
+recursive-include scripts *.py
+
+# Include test files for development
+recursive-include tests *.py
+
+# Include type stubs if any
+recursive-include cli *.pyi
+recursive-include models *.pyi
+recursive-include data *.pyi
+recursive-include training *.pyi
+recursive-include utils *.pyi
+
+# Exclude compiled Python files
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude __pycache__
+
+# Exclude development and temporary files
+exclude .gitignore
+exclude .ruff_cache
+exclude .mypy_cache
+exclude .pytest_cache
+exclude .coverage
+exclude *.log
+
+# Exclude output directories
+prune output
+prune mlruns
+prune cache
+prune data/.tokenizer_cache
+prune legacy

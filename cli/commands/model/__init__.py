@@ -7,6 +7,7 @@ from .evaluate import evaluate_command
 from .export import export_command
 from .inspect import inspect_command
 from .list import list_models_command
+from .register import register_command
 from .serve import serve_command
 
 # Create model sub-app
@@ -28,5 +29,6 @@ model_app.command("export", help="Export model to different formats")(export_com
 model_app.command("convert", help="Convert between model formats")(convert_command)
 model_app.command("serve", help="Serve model as REST API")(serve_command)
 model_app.command("evaluate", help="Evaluate model performance")(evaluate_command)
+model_app.command("register", help="Register model in MLflow Model Registry")(register_command)
 
 __all__ = ["model_app"]
