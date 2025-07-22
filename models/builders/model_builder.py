@@ -8,8 +8,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional, Union
 
-import mlx.nn as nn
 from loguru import logger
+
+from core.bootstrap import get_service
+from core.ports.compute import ComputeBackend, Module
 
 from ..bert import (
     BertConfig,
@@ -27,18 +29,22 @@ from .validation import ValidationService
 
 @dataclass
 class ModelBuilder:
-    """Builder for creating BERT-based models."""
+    """Builder for creating BERT-based models using hexagonal architecture."""
     
     config_resolver: ConfigResolver
     head_factory: HeadFactory
     validation_service: ValidationService
+    
+    def __post_init__(self):
+        """Initialize compute backend through dependency injection."""
+        self.compute_backend = get_service(ComputeBackend)
     
     def build_core(
         self,
         model_type: str,
         config: Union[dict[str, Any], BertConfig, ModernBertConfig, None] = None,
         **kwargs,
-    ) -> nn.Module:
+    ) -> Module:
         """Build a core BERT model without head.
         
         Args:
@@ -139,11 +145,11 @@ class ModelBuilder:
     
     def _create_head_for_core(
         self,
-        core_model: nn.Module,
+        core_model: Module,
         head_type: Optional[str],
         head_config: Optional[Any],
         num_labels: int,
-    ) -> nn.Module:
+    ) -> Module:
         """Create a head for a core model.
         
         Args:
@@ -188,7 +194,7 @@ class ModelBuilder:
     
     def load_pretrained_weights(
         self,
-        model: nn.Module,
+        model: Module,
         weights_path: Union[str, Path],
     ) -> None:
         """Load pretrained weights into a model.
@@ -198,28 +204,29 @@ class ModelBuilder:
             weights_path: Path to weights file or directory
         """
         weights_path = Path(weights_path)
-        import mlx.core as mx
         
         if weights_path.is_dir():
             # Load from directory
             safetensors_path = weights_path / "model.safetensors"
             if safetensors_path.exists():
-                weights = mx.load(str(safetensors_path))
-                model.load_weights(list(weights.items()))
+                weights = self.compute_backend.load_weights(str(safetensors_path))
+                unflattened_weights = self.compute_backend.tree_unflatten(list(weights.items()))
+                model.update(unflattened_weights)
                 logger.info(f"Loaded weights from {safetensors_path}")
             else:
                 raise ValueError(f"No model.safetensors found in {weights_path}")
                 
         elif weights_path.suffix == ".safetensors":
             # Load safetensors file directly
-            weights = mx.load(str(weights_path))
-            model.load_weights(list(weights.items()))
+            weights = self.compute_backend.load_weights(str(weights_path))
+            unflattened_weights = self.compute_backend.tree_unflatten(list(weights.items()))
+            model.update(unflattened_weights)
             logger.info(f"Loaded weights from {weights_path}")
             
         else:
             raise ValueError(f"Unsupported weights format: {weights_path}")
     
-    def get_parameter_count(self, model: nn.Module) -> dict[str, int]:
+    def get_parameter_count(self, model: Module) -> dict[str, int]:
         """Get parameter count breakdown for a model.
         
         Args:

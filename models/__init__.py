@@ -8,10 +8,12 @@ from .bert import (
     ModernBertConfig,
     ModernBertCore,
 )
-from .factory import (
-    MODEL_REGISTRY,
+from .bert import (
     create_bert_core,
     create_bert_with_head,
+)
+from .factory import (
+    MODEL_REGISTRY,
 )
 from .heads import (
     BaseHead,

@@ -115,7 +115,7 @@ class ApplicationBootstrap:
         logger.debug("Setting up domain services")
         
         # Import domain services here to avoid circular imports
-        from models.factory import ModelFactory
+        from models.factory_facade import ModelFactory
         from data.factory import DatasetFactory
         
         # Register domain factories
