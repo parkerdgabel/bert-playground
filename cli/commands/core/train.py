@@ -4,6 +4,7 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Optional, Dict, Any
 
 import typer
 from loguru import logger
@@ -17,9 +18,52 @@ from ...utils import (
     validate_learning_rate,
     validate_path,
 )
+from ...config import ConfigManager
+from ...plugins import ComponentRegistry
 
 # Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
+
+def _merge_cli_overrides(config: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+    """Merge CLI arguments into configuration as overrides."""
+    overrides = {}
+    
+    # Data overrides
+    if kwargs.get('train_data'):
+        overrides.setdefault('data', {})['train_path'] = str(kwargs['train_data'])
+    if kwargs.get('val_data'):
+        overrides.setdefault('data', {})['val_path'] = str(kwargs['val_data'])
+    if kwargs.get('test_data'):
+        overrides.setdefault('data', {})['test_path'] = str(kwargs['test_data'])
+    
+    # Training overrides
+    if kwargs.get('epochs') is not None:
+        overrides.setdefault('training', {})['default_epochs'] = kwargs['epochs']
+    if kwargs.get('batch_size') is not None:
+        overrides.setdefault('training', {})['default_batch_size'] = kwargs['batch_size']
+    if kwargs.get('learning_rate') is not None:
+        overrides.setdefault('training', {})['default_learning_rate'] = kwargs['learning_rate']
+    if kwargs.get('gradient_accumulation') is not None:
+        overrides.setdefault('training', {})['gradient_accumulation_steps'] = kwargs['gradient_accumulation']
+    if kwargs.get('early_stopping_patience') is not None:
+        overrides.setdefault('training', {})['early_stopping_patience'] = kwargs['early_stopping_patience']
+    
+    # Model overrides
+    if kwargs.get('model_name'):
+        overrides.setdefault('models', {})['default_model'] = kwargs['model_name']
+    if kwargs.get('use_lora') is not None:
+        overrides.setdefault('models', {})['use_lora'] = kwargs['use_lora']
+    if kwargs.get('use_mlx_embeddings') is not None:
+        overrides.setdefault('models', {})['use_mlx_embeddings'] = kwargs['use_mlx_embeddings']
+    
+    # MLflow overrides
+    if kwargs.get('experiment_name'):
+        overrides.setdefault('mlflow', {})['default_experiment'] = kwargs['experiment_name']
+    if kwargs.get('disable_mlflow'):
+        overrides.setdefault('mlflow', {})['auto_log'] = False
+    
+    return overrides
 
 
 @handle_errors
@@ -211,13 +255,71 @@ def train_command(
     # Show concise header
     logger.info("MLX Training Started")
 
-    # Load configuration if provided
-    config_overrides = {}
-    if config and config.exists():
-        from utils.config_loader import ConfigLoader
-
-        config_overrides = ConfigLoader.load(config)
-        logger.debug(f"Loaded config: {config}")
+    # Load configuration using the ConfigManager
+    config_manager = ConfigManager()
+    
+    # Build CLI overrides
+    cli_overrides = _merge_cli_overrides(
+        {},
+        train_data=train_data,
+        val_data=val_data,
+        test_data=test_data,
+        epochs=epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        gradient_accumulation=gradient_accumulation,
+        early_stopping_patience=early_stopping_patience,
+        model_name=model_name,
+        use_lora=use_lora,
+        use_mlx_embeddings=use_mlx_embeddings,
+        experiment_name=experiment_name,
+        disable_mlflow=disable_mlflow,
+        output_dir=output_dir,
+        seed=seed,
+        max_length=max_length,
+        workers=workers,
+        prefetch_size=prefetch_size,
+        use_pretokenized=use_pretokenized,
+        warmup_ratio=warmup_ratio,
+        gradient_clip=gradient_clip,
+        mixed_precision=mixed_precision,
+        save_best_only=save_best_only,
+        label_smoothing=label_smoothing,
+    )
+    
+    # Add data overrides for other parameters
+    cli_overrides.setdefault('data', {}).update({
+        'max_length': max_length,
+        'num_workers': workers,
+        'prefetch_size': prefetch_size,
+        'use_pretokenized': use_pretokenized,
+    })
+    
+    # Add training overrides
+    cli_overrides.setdefault('training', {}).update({
+        'warmup_ratio': warmup_ratio,
+        'max_grad_norm': gradient_clip,
+        'mixed_precision': mixed_precision,
+        'save_best_only': save_best_only,
+        'label_smoothing': label_smoothing,
+        'seed': seed,
+        'output_dir': str(output_dir),
+        'save_steps': save_steps,
+        'eval_steps': eval_steps,
+        'logging_steps': logging_steps,
+    })
+    
+    # Get merged configuration
+    merged_config = config_manager.get_merged_config(
+        cli_overrides=cli_overrides,
+        project_path=config,
+        validate=True
+    )
+    
+    # Extract old-style config_overrides for backward compatibility
+    config_overrides = merged_config.model_dump()
+    
+    logger.debug(f"Using configuration: {merged_config.models.default_model}")
 
     # Create output directory with timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -290,6 +392,16 @@ def train_command(
         prefetch_size = 0
         mlx_prefetch_size = 0
 
+    # Check for custom augmenter from plugins
+    augmenter = None
+    if hasattr(merged_config.data, 'augmenter') and merged_config.data.augmenter:
+        augmenter_type = merged_config.data.augmenter.type
+        if augmenter_type in ComponentRegistry.get_registry()['augmenters']:
+            logger.info(f"Using custom augmenter: {augmenter_type}")
+            augmenter_class = ComponentRegistry.get_component('augmenters', augmenter_type)
+            augmenter_config = merged_config.data.augmenter.config if hasattr(merged_config.data.augmenter, 'config') else {}
+            augmenter = augmenter_class(config=augmenter_config)
+
     # Create training data loader
     train_loader = create_dataloader(
         data_path=train_data,
@@ -303,6 +415,7 @@ def train_command(
         split="train",
         use_pretokenized=use_pretokenized_config,
         max_length=max_length,
+        augmenter=augmenter if augment else None,
     )
 
     # Create validation loader if provided
@@ -399,6 +512,18 @@ def train_command(
     logger.info(f"Model: {model_name} | Epochs: {training_config.training.num_epochs} | Batch: {batch_size_config} | LR: {training_config.optimizer.learning_rate}")
 
     # Create model
+    # Check if we should use a custom head from plugins
+    head_type = merged_config.models.head.type if hasattr(merged_config.models, 'head') else None
+    custom_head = None
+    
+    if head_type and head_type in ComponentRegistry.get_registry()['heads']:
+        # Load custom head from registry
+        logger.info(f"Using custom head: {head_type}")
+        head_class = ComponentRegistry.get_component('heads', head_type)
+        head_config = merged_config.models.head.config if hasattr(merged_config.models.head, 'config') else {}
+        custom_head = head_class(config=head_config)
+        model_desc = f"ModernBERT with custom {head_type}"
+    
     # Create model
     if use_mlx_embeddings:
         # Create MLX embeddings model
@@ -425,12 +550,20 @@ def train_command(
             model = bert_model
     else:
         # Create standard model
-        if use_lora:
+        if custom_head:
+            # Use custom head from plugins
+            bert_model = create_model(
+                model_name=model_name,
+                model_type="modernbert",  # Base model without head
+                custom_head=custom_head
+            )
+            model = bert_model
+        elif use_lora:
             # Create model with LoRA
             from models.factory import create_bert_with_lora
 
             bert_model, lora_adapter = create_bert_with_lora(
-                head_type="binary_classification",
+                head_type=head_type or "binary_classification",
                 num_labels=2,
                 lora_preset="balanced",
             )
@@ -440,7 +573,7 @@ def train_command(
             bert_model = create_model(
                 model_name=model_name,
                 model_type="modernbert_with_head", 
-                head_type="binary_classification", 
+                head_type=head_type or "binary_classification", 
                 num_labels=2
             )
             model = bert_model

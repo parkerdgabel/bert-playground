@@ -6,9 +6,12 @@ from pathlib import Path
 
 import mlx.core as mx
 import typer
+from loguru import logger
 
 from ...utils import get_console, handle_errors
 from ...utils.console import create_table
+from ...config import ConfigManager
+from ...plugins import ComponentRegistry
 
 # Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
@@ -23,6 +26,8 @@ def info_command(
     embeddings: bool = typer.Option(
         False, "--embeddings", help="Show embeddings information"
     ),
+    config: bool = typer.Option(False, "--config", help="Show configuration"),
+    plugins: bool = typer.Option(False, "--plugins", help="Show loaded plugins"),
     all: bool = typer.Option(False, "--all", "-a", help="Show all information"),
 ):
     """Display system and project information.
@@ -63,9 +68,15 @@ def info_command(
 
     if embeddings or all:
         _show_embeddings_info(console)
+    
+    if config or all:
+        _show_config_info(console)
+    
+    if plugins or all:
+        _show_plugins_info(console)
 
     # Show project info if none selected
-    if not any([mlx, models, datasets, mlflow, embeddings, all]):
+    if not any([mlx, models, datasets, mlflow, embeddings, config, plugins, all]):
         _show_project_info(console)
 
 
@@ -316,6 +327,118 @@ def _show_project_info(console):
 
     # Show quick tips
     console.print("\n[bold]Quick Tips:[/bold]")
-    console.print("  • Use [cyan]bert info --all[/cyan] to see all information")
-    console.print("  • Use [cyan]bert init[/cyan] to create a new project")
-    console.print("  • Use [cyan]bert --help[/cyan] for available commands")
+    console.print("  • Use [cyan]k-bert info --all[/cyan] to see all information")
+    console.print("  • Use [cyan]k-bert project init[/cyan] to create a new project")
+    console.print("  • Use [cyan]k-bert --help[/cyan] for available commands")
+
+
+def _show_config_info(console):
+    """Show configuration information."""
+    console.print("\n[bold blue]Configuration[/bold blue]")
+    console.print("=" * 60)
+    
+    try:
+        config_manager = ConfigManager()
+        
+        # Show configuration paths
+        config_table = create_table("Configuration Sources", ["Source", "Path", "Status"])
+        
+        # User config
+        user_config_path = Path.home() / ".k-bert" / "config.yaml"
+        config_table.add_row(
+            "User Config",
+            str(user_config_path),
+            "[green]Found[/green]" if user_config_path.exists() else "[yellow]Not found[/yellow]"
+        )
+        
+        # Project config
+        project_configs = list(Path.cwd().glob("k-bert.{yaml,yml,json}"))
+        if project_configs:
+            config_table.add_row(
+                "Project Config",
+                str(project_configs[0]),
+                "[green]Found[/green]"
+            )
+        else:
+            config_table.add_row(
+                "Project Config",
+                "k-bert.yaml",
+                "[yellow]Not found[/yellow]"
+            )
+        
+        console.print(config_table)
+        
+        # Show merged config summary
+        try:
+            merged_config = config_manager.get_merged_config()
+            
+            console.print("\n[bold]Active Configuration:[/bold]")
+            summary_table = create_table("Configuration Summary", ["Category", "Key Settings"])
+            
+            # Models
+            summary_table.add_row(
+                "Models",
+                f"Default: {merged_config.models.default_model}\n"
+                f"LoRA: {'Enabled' if merged_config.models.use_lora else 'Disabled'}"
+            )
+            
+            # Training
+            summary_table.add_row(
+                "Training",
+                f"Epochs: {merged_config.training.default_epochs}\n"
+                f"Batch Size: {merged_config.training.default_batch_size}\n"
+                f"Learning Rate: {merged_config.training.default_learning_rate}"
+            )
+            
+            # Data
+            summary_table.add_row(
+                "Data",
+                f"Max Length: {merged_config.data.max_length}\n"
+                f"Workers: {merged_config.data.num_workers}"
+            )
+            
+            console.print(summary_table)
+            
+        except Exception as e:
+            console.print(f"[yellow]Could not load merged configuration: {e}[/yellow]")
+            
+    except Exception as e:
+        console.print(f"[red]Error loading configuration: {e}[/red]")
+
+
+def _show_plugins_info(console):
+    """Show loaded plugins information."""
+    console.print("\n[bold blue]Plugins[/bold blue]")
+    console.print("=" * 60)
+    
+    try:
+        registry = ComponentRegistry.get_registry()
+        
+        if not any(registry.values()):
+            console.print("[yellow]No plugins loaded[/yellow]")
+            console.print("\nTo load plugins:")
+            console.print("  1. Create a k-bert project: [cyan]k-bert project init my-project[/cyan]")
+            console.print("  2. Add custom components to src/")
+            console.print("  3. Run from project directory: [cyan]k-bert run[/cyan]")
+            return
+        
+        # Show loaded components by type
+        for component_type, components in registry.items():
+            if components:
+                console.print(f"\n[bold]{component_type.title()}:[/bold]")
+                
+                comp_table = create_table(
+                    f"{component_type.title()} Components",
+                    ["Name", "Module", "Description"]
+                )
+                
+                for name, comp_class in components.items():
+                    module = comp_class.__module__
+                    doc = comp_class.__doc__ or "No description"
+                    doc_first_line = doc.strip().split('\n')[0]
+                    comp_table.add_row(name, module, doc_first_line)
+                
+                console.print(comp_table)
+        
+    except Exception as e:
+        console.print(f"[red]Error loading plugin information: {e}[/red]")

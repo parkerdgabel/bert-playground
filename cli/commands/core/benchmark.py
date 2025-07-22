@@ -4,7 +4,7 @@ import json
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import mlx.core as mx
 import mlx.nn as nn
@@ -20,8 +20,11 @@ from ...utils import (
     print_success,
     track_time,
     validate_batch_size,
+    validate_path,
 )
 from ...utils.console import create_table
+from ...config import ConfigManager
+from ...plugins import ComponentRegistry
 
 # Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
@@ -61,6 +64,16 @@ def benchmark_command(
     export_results: Path | None = typer.Option(
         None, "--export", help="Export results to JSON"
     ),
+    config: Optional[Path] = typer.Option(
+        None,
+        "--config",
+        help="Configuration file to use",
+        callback=lambda p: validate_path(
+            p, must_exist=True, extensions=[".yaml", ".yml", ".json"]
+        )
+        if p
+        else None,
+    ),
 ):
     """Run performance benchmarks.
 
@@ -84,6 +97,27 @@ def benchmark_command(
 
     console.print("\n[bold blue]MLX ModernBERT Benchmark[/bold blue]")
     console.print("=" * 60)
+    
+    # Load configuration
+    config_manager = ConfigManager()
+    merged_config = config_manager.get_merged_config(
+        cli_overrides={
+            'data': {
+                'batch_size': batch_size,
+                'max_length': seq_length,
+            },
+            'models': {
+                'default_model': model_name,
+            }
+        },
+        project_path=config,
+        validate=True
+    )
+    
+    # Extract configuration values
+    batch_size = merged_config.data.batch_size
+    seq_length = merged_config.data.max_length
+    model_name = merged_config.models.default_model
     
     # Configure logging
     from utils.logging_utils import bind_context, log_timing, MetricsLogger, lazy_debug

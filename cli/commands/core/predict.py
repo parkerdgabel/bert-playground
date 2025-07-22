@@ -3,6 +3,7 @@
 import json
 import sys
 from pathlib import Path
+from typing import Optional
 
 import mlx.core as mx
 import pandas as pd
@@ -20,6 +21,8 @@ from ...utils import (
     validate_batch_size,
     validate_path,
 )
+from ...config import ConfigManager
+from ...plugins import ComponentRegistry
 
 # Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
@@ -69,6 +72,16 @@ def predict_command(
     probability: bool = typer.Option(
         False, "--probability", help="Output probabilities instead of classes"
     ),
+    config: Optional[Path] = typer.Option(
+        None,
+        "--config",
+        help="Configuration file to use",
+        callback=lambda p: validate_path(
+            p, must_exist=True, extensions=[".yaml", ".yml", ".json"]
+        )
+        if p
+        else None,
+    ),
 ):
     """Generate predictions using a trained model.
 
@@ -90,6 +103,26 @@ def predict_command(
 
     console.print("\n[bold blue]MLX ModernBERT Prediction[/bold blue]")
     console.print("=" * 60)
+    
+    # Load configuration
+    config_manager = ConfigManager()
+    merged_config = config_manager.get_merged_config(
+        cli_overrides={
+            'data': {
+                'test_path': str(test_data),
+                'batch_size': batch_size,
+                'max_length': max_length,
+                'num_workers': num_workers,
+            }
+        },
+        project_path=config,
+        validate=True
+    )
+    
+    # Extract configuration values
+    batch_size = merged_config.data.batch_size
+    max_length = merged_config.data.max_length
+    num_workers = merged_config.data.num_workers
     
     # Set up logging to file
     from datetime import datetime
