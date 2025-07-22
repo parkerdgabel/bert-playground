@@ -17,7 +17,7 @@ from ...utils import (
     print_info,
 )
 from ...config import ConfigManager
-from ...plugins import ComponentRegistry, load_project_plugins
+from ...plugins import ComponentRegistry, load_project_plugins, get_registry
 
 # Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
@@ -254,11 +254,12 @@ def train_command(
     console.print(f"  Output: {merged_config.training.output_dir}")
     
     # Check for custom components
-    registry = ComponentRegistry.get_registry()
-    if registry.get('heads'):
-        console.print(f"  Custom heads: {', '.join(registry['heads'].keys())}")
-    if registry.get('augmenters'):
-        console.print(f"  Custom augmenters: {', '.join(registry['augmenters'].keys())}")
+    registry = get_registry()
+    components = registry.list_components()
+    if components.get('head'):
+        console.print(f"  Custom heads: {', '.join(components['head'])}")
+    if components.get('augmenter'):
+        console.print(f"  Custom augmenters: {', '.join(components['augmenter'])}")
     
     if dry_run:
         console.print("\n[yellow]Dry run mode - no training performed[/yellow]")

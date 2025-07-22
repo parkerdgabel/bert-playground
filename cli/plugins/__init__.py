@@ -4,7 +4,7 @@ This module provides a plugin architecture that allows users to extend k-bert
 with custom BERT heads, data augmenters, feature extractors, and other components.
 """
 
-from .registry import ComponentRegistry, register_component, get_component
+from .registry import ComponentRegistry, register_component, get_component, get_registry
 from .loader import PluginLoader, load_project_plugins
 from .base import (
     BasePlugin,
@@ -19,6 +19,7 @@ __all__ = [
     "ComponentRegistry",
     "register_component",
     "get_component",
+    "get_registry",
     # Loader
     "PluginLoader",
     "load_project_plugins",

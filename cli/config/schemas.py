@@ -48,6 +48,11 @@ class TrainingConfig(BaseModel):
     seed: int = Field(42, description="Random seed")
     mixed_precision: bool = Field(True, description="Use mixed precision training")
     use_compilation: bool = Field(True, description="Use MLX compilation")
+    weight_decay: float = Field(0.01, description="Weight decay for regularization", ge=0)
+    label_smoothing: float = Field(0.0, description="Label smoothing factor", ge=0, le=1)
+    save_steps: int = Field(500, description="Save model every N steps", ge=1)
+    eval_steps: int = Field(100, description="Evaluate every N steps", ge=1)
+    logging_steps: int = Field(50, description="Log metrics every N steps", ge=1)
 
 
 class MLflowConfig(BaseModel):
@@ -71,6 +76,11 @@ class DataConfig(BaseModel):
     prefetch_size: int = Field(4, description="Prefetch size", ge=0)
     mlx_prefetch_size: Optional[int] = Field(None, description="MLX-specific prefetch size")
     tokenizer_backend: str = Field("auto", description="Tokenizer backend")
+    train_path: Optional[Path] = Field(None, description="Path to training data")
+    val_path: Optional[Path] = Field(None, description="Path to validation data")
+    test_path: Optional[Path] = Field(None, description="Path to test data")
+    batch_size: int = Field(32, description="Training batch size", ge=1)
+    eval_batch_size: Optional[int] = Field(None, description="Evaluation batch size")
     
     @field_validator("augmentation_mode")
     @classmethod
