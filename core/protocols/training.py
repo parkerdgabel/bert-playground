@@ -8,8 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Protocol
 
-import mlx.core as mx
-import mlx.nn as nn
+from core.ports.compute import Array, Module
 
 from .data import DataLoader
 from .models import Model
@@ -138,7 +137,7 @@ class TrainingResult:
 class Optimizer(Protocol):
     """Protocol for optimizers."""
 
-    def update(self, model: nn.Module, gradients: dict[str, mx.array]) -> None:
+    def update(self, model: Module, gradients: dict[str, Array]) -> None:
         """Update model parameters with gradients.
         
         Args:
@@ -278,7 +277,7 @@ class Trainer(Protocol):
         """
         ...
 
-    def predict(self, dataloader: DataLoader) -> mx.array:
+    def predict(self, dataloader: DataLoader) -> Array:
         """Generate predictions for a dataset.
 
         Args:
@@ -335,7 +334,7 @@ class TrainingHook(Protocol):
         ...
 
     def on_batch_begin(
-        self, trainer: Trainer, state: TrainingState, batch: dict[str, mx.array]
+        self, trainer: Trainer, state: TrainingState, batch: dict[str, Array]
     ) -> None:
         """Called before processing each batch."""
         ...
@@ -387,7 +386,7 @@ class Callback(Protocol):
         ...
 
     def on_batch_begin(
-        self, trainer: Trainer, state: TrainingState, batch: dict[str, mx.array]
+        self, trainer: Trainer, state: TrainingState, batch: dict[str, Array]
     ) -> None:
         """Called before processing each batch."""
         ...
@@ -415,7 +414,7 @@ class Metric(Protocol):
         """Name of the metric."""
         ...
 
-    def update(self, predictions: mx.array, targets: mx.array) -> None:
+    def update(self, predictions: Array, targets: Array) -> None:
         """Update metric with batch results.
         
         Args:

@@ -223,3 +223,20 @@ class MLXNeuralOpsAdapter:
             return mx.sum(loss)
         else:  # reduction == "none"
             return loss
+
+    def load_weights(self, path: str) -> dict[str, mx.array]:
+        """Load weights from file using MLX."""
+        return mx.load(path)
+
+    def tree_unflatten(self, items: list[tuple[str, mx.array]]) -> dict[str, Any]:
+        """Unflatten using MLX tree utilities."""
+        from mlx.utils import tree_unflatten
+        return tree_unflatten(items)
+
+    def save_arrays(self, path: str, arrays: dict[str, mx.array]) -> None:
+        """Save arrays using MLX safetensors."""
+        mx.save_safetensors(path, arrays)
+
+    def load_arrays(self, path: str) -> dict[str, mx.array]:
+        """Load arrays using MLX."""
+        return mx.load(path)

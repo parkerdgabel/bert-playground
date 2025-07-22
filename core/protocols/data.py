@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Protocol
 
-import mlx.core as mx
+from core.ports.compute import Array
 
 
 class Dataset(Protocol):
@@ -40,7 +40,7 @@ class Dataset(Protocol):
 class DataLoader(Protocol):
     """Protocol for data loaders."""
 
-    def __iter__(self) -> Iterator[dict[str, mx.array]]:
+    def __iter__(self) -> Iterator[dict[str, Array]]:
         """Iterate over batches.
         
         Returns:
@@ -114,7 +114,7 @@ class DataFormat(Protocol):
 class BatchProcessor(Protocol):
     """Protocol for batch processing."""
 
-    def process_batch(self, batch: list[dict[str, Any]]) -> dict[str, mx.array]:
+    def process_batch(self, batch: list[dict[str, Any]]) -> dict[str, Array]:
         """Process a batch of samples into MLX arrays.
         
         Args:
@@ -125,7 +125,7 @@ class BatchProcessor(Protocol):
         """
         ...
 
-    def collate(self, samples: list[dict[str, Any]]) -> dict[str, mx.array]:
+    def collate(self, samples: list[dict[str, Any]]) -> dict[str, Array]:
         """Collate samples into a batch.
         
         Args:

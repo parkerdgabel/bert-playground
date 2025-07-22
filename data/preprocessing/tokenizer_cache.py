@@ -8,11 +8,13 @@ import hashlib
 import json
 from pathlib import Path
 
-import mlx.core as mx
-
-# Note: numpy is only used for tokenizer output, all storage uses MLX
+# Note: numpy is only used for tokenizer output, all storage uses framework-agnostic arrays
 from loguru import logger
-from transformers import PreTrainedTokenizer
+
+# Import dependency injection and ports
+from core.bootstrap import get_service
+from core.ports.compute import ComputeBackend, Array, DataType
+from core.ports.tokenizer import TokenizerPort
 
 
 class TokenizerCache:
@@ -29,19 +31,22 @@ class TokenizerCache:
         self,
         cache_dir: str | Path = "data/cache/tokenized",
         max_length: int = 256,
-        tokenizer: PreTrainedTokenizer | None = None,
+        tokenizer: TokenizerPort | None = None,
     ):
         """Initialize the tokenizer cache.
 
         Args:
             cache_dir: Directory to store cached tokenized data
             max_length: Maximum sequence length for tokenization
-            tokenizer: Pre-trained tokenizer instance
+            tokenizer: Tokenizer port instance
         """
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.max_length = max_length
         self.tokenizer = tokenizer
+        
+        # Get compute backend through dependency injection
+        self.compute_backend = get_service(ComputeBackend)
 
     def _get_cache_key(
         self,
@@ -67,7 +72,7 @@ class TokenizerCache:
         dataset_path: str | Path | None = None,
         split: str = "train",
         force_rebuild: bool = False,
-    ) -> dict[str, mx.array]:
+    ) -> dict[str, Array]:
         """Pre-tokenize texts and cache as MLX arrays.
 
         Args:
@@ -108,20 +113,20 @@ class TokenizerCache:
             return_tensors="np",  # Still need numpy for tokenizer output
         )
 
-        # Convert to MLX arrays (unified memory)
-        # Note: Tokenizer returns numpy arrays, convert to MLX with int32 dtype for compilation compatibility
+        # Convert to framework arrays using compute backend
+        # Note: Tokenizer returns numpy arrays, convert using compute backend with int32 dtype for compilation compatibility
         tokenized_data = {
-            "input_ids": mx.array(encoded["input_ids"], dtype=mx.int32),
-            "attention_mask": mx.array(encoded["attention_mask"], dtype=mx.int32),
+            "input_ids": self.compute_backend.array(encoded["input_ids"], dtype=DataType.INT32),
+            "attention_mask": self.compute_backend.array(encoded["attention_mask"], dtype=DataType.INT32),
         }
 
         # Add token_type_ids if available
         if "token_type_ids" in encoded:
-            tokenized_data["token_type_ids"] = mx.array(encoded["token_type_ids"], dtype=mx.int32)
+            tokenized_data["token_type_ids"] = self.compute_backend.array(encoded["token_type_ids"], dtype=DataType.INT32)
 
         # Add labels if provided
         if labels is not None:
-            tokenized_data["labels"] = mx.array(labels)
+            tokenized_data["labels"] = self.compute_backend.array(labels)
 
         # Save to cache
         self.save_to_cache(tokenized_data, cache_path)
@@ -134,13 +139,13 @@ class TokenizerCache:
 
         return tokenized_data
 
-    def save_to_cache(self, data: dict[str, mx.array], cache_path: Path):
+    def save_to_cache(self, data: dict[str, Array], cache_path: Path):
         """Save pre-tokenized data to cache.
 
         Uses safetensors format for efficient loading.
         """
-        # Save using MLX's native safetensors format
-        mx.save_safetensors(str(cache_path), data)
+        # Save using compute backend
+        self.compute_backend.save_arrays(str(cache_path), data)
 
         # Also save metadata
         metadata = {
@@ -155,7 +160,7 @@ class TokenizerCache:
         with open(metadata_path, "w") as f:
             json.dump(metadata, f, indent=2)
 
-    def load_from_cache(self, cache_path: Path) -> dict[str, mx.array]:
+    def load_from_cache(self, cache_path: Path) -> dict[str, Array]:
         """Load pre-tokenized data from cache.
 
         Returns MLX arrays in unified memory for zero-copy operations.
@@ -167,8 +172,8 @@ class TokenizerCache:
                 metadata = json.load(f)
             logger.debug(f"Loading cache with metadata: {metadata}")
 
-        # Load safetensors file - returns dict of arrays
-        data = mx.load(str(cache_path))
+        # Load arrays file using compute backend
+        data = self.compute_backend.load_arrays(str(cache_path))
 
         return data
 
@@ -208,7 +213,7 @@ class PreTokenizedDataset:
     without any tokenization overhead during training.
     """
 
-    def __init__(self, tokenized_data: dict[str, mx.array]):
+    def __init__(self, tokenized_data: dict[str, Array]):
         """Initialize with pre-tokenized data.
 
         Args:
@@ -220,11 +225,11 @@ class PreTokenizedDataset:
     def __len__(self) -> int:
         return self.num_samples
 
-    def __getitem__(self, idx: int) -> dict[str, mx.array]:
+    def __getitem__(self, idx: int) -> dict[str, Array]:
         """Get a single sample (zero-copy slice)."""
         return {k: v[idx] for k, v in self.data.items()}
 
-    def get_batch(self, indices: list[int] | mx.array) -> dict[str, mx.array]:
+    def get_batch(self, indices: list[int] | Array) -> dict[str, Array]:
         """Get a batch of samples (zero-copy slice)."""
         return {k: v[indices] for k, v in self.data.items()}
     

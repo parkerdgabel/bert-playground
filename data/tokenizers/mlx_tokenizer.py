@@ -2,8 +2,12 @@
 
 from typing import Any
 
-import mlx.core as mx
 from loguru import logger
+
+# Import dependency injection and ports
+from core.bootstrap import get_service
+from core.ports.tokenizer import TokenizerFactory
+from core.ports.compute import ComputeBackend, Array
 
 
 class MLXTokenizer:
@@ -74,10 +78,12 @@ class MLXTokenizer:
         self._tokenizer = self._model.tokenizer
 
     def _initialize_hf_backend(self) -> None:
-        """Initialize HuggingFace tokenizer backend."""
-        from transformers import AutoTokenizer
-
-        self._tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name)
+        """Initialize HuggingFace tokenizer backend using dependency injection."""
+        tokenizer_factory = get_service(TokenizerFactory)
+        self._tokenizer = tokenizer_factory.create_tokenizer(
+            model_name=self.tokenizer_name,
+            max_length=self.max_length
+        )
 
     def __call__(
         self,

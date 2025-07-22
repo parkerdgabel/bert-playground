@@ -20,9 +20,6 @@ from typing import Any, Literal, Optional
 import pandas as pd
 from loguru import logger
 
-# Import MLX for type annotations (TODO: abstract through ports)
-import mlx.nn as nn
-
 # Import advanced logging features
 from utils.logging_utils import (
     catch_and_log,
@@ -33,7 +30,7 @@ from utils.logging_utils import (
 
 # Import dependency injection and ports
 from core.bootstrap import get_service
-from core.ports.compute import ComputeBackend
+from core.ports.compute import ComputeBackend, Module
 
 # Import BERT configs and classes
 # Import Classic BERT architecture
@@ -142,7 +139,7 @@ def create_model(
     head_type: str | None = None,
     head_config: HeadConfig | dict | None = None,
     **kwargs,
-) -> nn.Module:
+) -> Module:
     """
     Create a model based on type and configuration.
 
@@ -211,13 +208,13 @@ def create_model(
 
 
 def create_model_with_lora(
-    base_model: nn.Module | None = None,
+    base_model: Module | None = None,
     model_type: ModelType | None = None,
     lora_config: LoRAConfig | QLoRAConfig | str | dict | None = None,
     inject_lora: bool = True,
     verbose: bool = False,
     **model_kwargs,
-) -> tuple[nn.Module, LoRAAdapter]:
+) -> tuple[Module, LoRAAdapter]:
     """
     Create a model with LoRA adapters for efficient fine-tuning.
 
@@ -306,7 +303,7 @@ def create_modernbert_with_lora(
     num_labels: int = 2,
     freeze_bert: bool = True,
     **kwargs,
-) -> tuple[nn.Module, LoRAAdapter]:
+) -> tuple[Module, LoRAAdapter]:
     """
     Create a ModernBERT model with head and LoRA adapters.
 
@@ -338,7 +335,7 @@ def create_qlora_model(
     qlora_preset: str = "qlora_memory",
     quantize_base: bool = True,
     **kwargs,
-) -> tuple[nn.Module, LoRAAdapter]:
+) -> tuple[Module, LoRAAdapter]:
     """
     Create a model with QLoRA (quantized base + LoRA adapters).
 
@@ -387,7 +384,7 @@ def create_kaggle_lora_model(
     lora_preset: str | None = None,
     auto_select_preset: bool = True,
     **kwargs,
-) -> tuple[nn.Module, LoRAAdapter]:
+) -> tuple[Module, LoRAAdapter]:
     """
     Create an optimized LoRA model for a Kaggle competition.
 
@@ -456,10 +453,10 @@ def create_kaggle_lora_model(
 
 
 def create_multi_adapter_model(
-    base_model: nn.Module | None = None,
+    base_model: Module | None = None,
     adapter_configs: dict[str, LoRAConfig | dict | str] | None = None,
     **model_kwargs,
-) -> tuple[nn.Module, MultiAdapterManager]:
+) -> tuple[Module, MultiAdapterManager]:
     """
     Create a model with multiple LoRA adapters for multi-task learning.
 
@@ -501,7 +498,7 @@ def create_multi_adapter_model(
     "Failed to load model from checkpoint",
     reraise=True
 )
-def create_model_from_checkpoint(checkpoint_path: str | Path) -> nn.Module:
+def create_model_from_checkpoint(checkpoint_path: str | Path) -> Module:
     """
     Create and load a model from a checkpoint directory.
 
@@ -554,9 +551,8 @@ def create_model_from_checkpoint(checkpoint_path: str | Path) -> nn.Module:
         if not weights_path.exists():
             raise ValueError(f"No model.safetensors found in {checkpoint_path}")
 
-        import mlx.core as mx
-
-        weights = mx.load(str(weights_path))
+        compute_backend = get_service(ComputeBackend)
+        weights = compute_backend.load_weights(str(weights_path))
         weight_keys = list(weights.keys())
 
         # Infer model type from weight keys by checking the number of encoder layers
@@ -598,15 +594,15 @@ def create_model_from_checkpoint(checkpoint_path: str | Path) -> nn.Module:
         )
 
         # Load weights into model using tree_unflatten to restore hierarchical structure
-        from mlx.utils import tree_unflatten
-        unflattened_weights = tree_unflatten(list(weights.items()))
+        compute_backend = get_service(ComputeBackend)
+        unflattened_weights = compute_backend.tree_unflatten(list(weights.items()))
         model.update(unflattened_weights)
         logger.info(f"Loaded weights from {weights_path}")
 
         return model
 
 
-def load_pretrained_weights(model: nn.Module, weights_path: str | Path):
+def load_pretrained_weights(model: Module, weights_path: str | Path):
     """
     Load pretrained weights into a model.
 
@@ -789,7 +785,7 @@ def list_available_models() -> list[str]:
     return registry.list_models()
 
 
-def create_from_registry(model_name: str, **kwargs) -> nn.Module:
+def create_from_registry(model_name: str, **kwargs) -> Module:
     """
     Create a model from the registry by name.
 
@@ -813,7 +809,7 @@ def create_kaggle_classifier(
     num_classes: int | None = None,
     dataset_spec: Optional["KaggleDatasetSpec"] = None,
     **kwargs,
-) -> nn.Module:
+) -> Module:
     """
     Create classifier optimized for Kaggle competitions using BertWithHead.
 
@@ -865,7 +861,7 @@ def create_competition_classifier(
     model_name: str = "answerdotai/ModernBERT-base",
     auto_optimize: bool = True,
     **kwargs,
-) -> tuple[nn.Module, CompetitionAnalysis]:
+) -> tuple[Module, CompetitionAnalysis]:
     """
     Automatically analyze dataset and create optimized classifier.
 

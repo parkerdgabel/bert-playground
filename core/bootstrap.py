@@ -15,10 +15,12 @@ from .ports.compute import ComputeBackend
 from .ports.storage import StorageService, ModelStorageService
 from .ports.config import ConfigurationProvider
 from .ports.monitoring import MonitoringService
+from .ports.tokenizer import TokenizerPort, TokenizerFactory
 from .adapters.mlx_adapter import MLXComputeAdapter
 from .adapters.file_storage import FileStorageAdapter, ModelFileStorageAdapter
 from .adapters.yaml_config import YAMLConfigAdapter
 from .adapters.loguru_monitoring import LoguruMonitoringAdapter
+from .adapters.huggingface_tokenizer import HuggingFaceTokenizerFactory
 from .events.bus import EventBus, GlobalEventBus
 from .plugins.registry import PluginRegistry
 from .plugins.loader import PluginLoader
@@ -102,6 +104,9 @@ class ApplicationBootstrap:
         
         # Monitoring
         self.container.register(MonitoringService, LoguruMonitoringAdapter, singleton=True)
+        
+        # Tokenizer
+        self.container.register(TokenizerFactory, HuggingFaceTokenizerFactory, singleton=True)
         
         logger.debug("Ports and adapters setup complete")
     

@@ -6,13 +6,13 @@ These protocols define the contracts for models, heads, and configurations.
 from pathlib import Path
 from typing import Any, Protocol
 
-import mlx.core as mx
+from core.ports.compute import Array, Module
 
 
 class Model(Protocol):
     """Protocol for models compatible with the training system."""
 
-    def __call__(self, inputs: dict[str, mx.array]) -> dict[str, mx.array]:
+    def __call__(self, inputs: dict[str, Array]) -> dict[str, Array]:
         """Forward pass of the model.
         
         Args:
@@ -23,7 +23,7 @@ class Model(Protocol):
         """
         ...
 
-    def parameters(self) -> dict[str, mx.array]:
+    def parameters(self) -> dict[str, Array]:
         """Get model parameters.
         
         Returns:
@@ -62,11 +62,11 @@ class Head(Protocol):
 
     def __call__(
         self,
-        hidden_states: mx.array,
-        attention_mask: mx.array | None = None,
-        labels: mx.array | None = None,
+        hidden_states: Array,
+        attention_mask: Array | None = None,
+        labels: Array | None = None,
         **kwargs
-    ) -> dict[str, mx.array]:
+    ) -> dict[str, Array]:
         """Forward pass through the head.
         
         Args:
@@ -85,10 +85,10 @@ class Head(Protocol):
 
     def compute_loss(
         self,
-        logits: mx.array,
-        labels: mx.array,
+        logits: Array,
+        labels: Array,
         **kwargs
-    ) -> mx.array:
+    ) -> Array:
         """Compute loss for the head.
         
         Args:

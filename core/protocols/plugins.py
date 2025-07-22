@@ -6,7 +6,7 @@ plugged into k-bert's architecture.
 
 from typing import Any, Protocol
 
-import mlx.core as mx
+from core.ports.compute import Array, Module
 from pydantic import BaseModel
 
 
@@ -49,10 +49,10 @@ class HeadPlugin(Plugin):
     
     def __call__(
         self,
-        hidden_states: mx.array,
-        attention_mask: mx.array | None = None,
+        hidden_states: Array,
+        attention_mask: Array | None = None,
         **kwargs
-    ) -> dict[str, mx.array]:
+    ) -> dict[str, Array]:
         """Forward pass through the head.
         
         Args:
@@ -69,10 +69,10 @@ class HeadPlugin(Plugin):
     
     def compute_loss(
         self,
-        logits: mx.array,
-        labels: mx.array,
+        logits: Array,
+        labels: Array,
         **kwargs
-    ) -> mx.array:
+    ) -> Array:
         """Compute loss for the head.
         
         Args:
@@ -274,8 +274,8 @@ class MetricPlugin(Plugin):
     
     def compute(
         self,
-        predictions: mx.array,
-        labels: mx.array,
+        predictions: Array,
+        labels: Array,
         **kwargs
     ) -> dict[str, float]:
         """Compute metric values.

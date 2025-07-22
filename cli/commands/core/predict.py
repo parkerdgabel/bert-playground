@@ -215,9 +215,14 @@ def predict_command(
         compression="zip"
     )
     
-    # Import components
+    # Import components and initialize DI container
+    from core.bootstrap import initialize_application, get_service
+    from core.ports.tokenizer import TokenizerFactory
+    
     try:
-        from transformers import AutoTokenizer
+        # Initialize application with hexagonal architecture
+        initialize_application()
+        
         from data import create_dataloader
         from models.factory import create_model_from_checkpoint
         
@@ -247,8 +252,9 @@ def predict_command(
         print_error(f"Failed to load model: {str(e)}", title="Model Loading Error")
         raise typer.Exit(1)
     
-    # Create tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    # Create tokenizer using dependency injection
+    tokenizer_factory = get_service(TokenizerFactory)
+    tokenizer = tokenizer_factory.create_tokenizer(model_name)
     
     # Create data loader
     console.print("[dim]Loading test data...[/dim]")

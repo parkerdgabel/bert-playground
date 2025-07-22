@@ -16,6 +16,7 @@ ArrayLike: TypeAlias = np.ndarray | list | tuple | Any
 Device: TypeAlias = str | Any
 DType: TypeAlias = Any
 Shape: TypeAlias = tuple[int, ...]
+Module: TypeAlias = Any  # Framework-specific neural network module
 
 
 class DataType(Enum):
@@ -226,6 +227,48 @@ class ComputeBackend(Protocol):
             
         Returns:
             Function returning (value, gradient)
+        """
+        ...
+
+    def load_weights(self, path: str) -> dict[str, Array]:
+        """Load weights from file.
+        
+        Args:
+            path: Path to weights file
+            
+        Returns:
+            Dictionary of parameter names to arrays
+        """
+        ...
+
+    def tree_unflatten(self, items: list[tuple[str, Array]]) -> dict[str, Any]:
+        """Unflatten a list of (key, value) pairs into nested dictionary.
+        
+        Args:
+            items: List of (key, value) pairs with dot-separated keys
+            
+        Returns:
+            Nested dictionary structure
+        """
+        ...
+
+    def save_arrays(self, path: str, arrays: dict[str, Array]) -> None:
+        """Save arrays to file.
+        
+        Args:
+            path: Path to save file
+            arrays: Dictionary of arrays to save
+        """
+        ...
+
+    def load_arrays(self, path: str) -> dict[str, Array]:
+        """Load arrays from file.
+        
+        Args:
+            path: Path to load file
+            
+        Returns:
+            Dictionary of loaded arrays
         """
         ...
 
