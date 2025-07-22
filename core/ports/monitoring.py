@@ -1,0 +1,290 @@
+"""Monitoring and logging port interface.
+
+This port abstracts monitoring operations, allowing the core domain
+to be independent of specific monitoring/logging implementations.
+"""
+
+from datetime import datetime
+from enum import Enum
+from typing import Any, Callable, Protocol, runtime_checkable
+
+from typing_extensions import TypeAlias
+
+# Type aliases
+MetricValue: TypeAlias = float | int
+Tags: TypeAlias = dict[str, str]
+Context: TypeAlias = dict[str, Any]
+LogLevel: TypeAlias = str
+
+
+class LogSeverity(Enum):
+    """Log severity levels."""
+    
+    TRACE = "TRACE"
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
+
+
+@runtime_checkable
+class MonitoringService(Protocol):
+    """Port for monitoring and logging operations."""
+
+    def log(
+        self,
+        level: LogSeverity | LogLevel,
+        message: str,
+        context: Context | None = None,
+        error: Exception | None = None
+    ) -> None:
+        """Log a message.
+        
+        Args:
+            level: Log severity level
+            message: Log message
+            context: Optional context data
+            error: Optional exception
+        """
+        ...
+
+    def debug(self, message: str, **kwargs: Any) -> None:
+        """Log debug message."""
+        ...
+
+    def info(self, message: str, **kwargs: Any) -> None:
+        """Log info message."""
+        ...
+
+    def warning(self, message: str, **kwargs: Any) -> None:
+        """Log warning message."""
+        ...
+
+    def error(
+        self,
+        message: str,
+        error: Exception | None = None,
+        **kwargs: Any
+    ) -> None:
+        """Log error message."""
+        ...
+
+    def metric(
+        self,
+        name: str,
+        value: MetricValue,
+        tags: Tags | None = None,
+        timestamp: datetime | None = None
+    ) -> None:
+        """Record a metric value.
+        
+        Args:
+            name: Metric name
+            value: Metric value
+            tags: Optional metric tags
+            timestamp: Optional timestamp
+        """
+        ...
+
+    def gauge(
+        self,
+        name: str,
+        value: MetricValue,
+        tags: Tags | None = None
+    ) -> None:
+        """Record a gauge metric (point-in-time value)."""
+        ...
+
+    def counter(
+        self,
+        name: str,
+        value: MetricValue = 1,
+        tags: Tags | None = None
+    ) -> None:
+        """Increment a counter metric."""
+        ...
+
+    def histogram(
+        self,
+        name: str,
+        value: MetricValue,
+        tags: Tags | None = None
+    ) -> None:
+        """Record a histogram metric."""
+        ...
+
+    def timer(
+        self,
+        name: str,
+        tags: Tags | None = None
+    ) -> "Timer":
+        """Create a timer context manager.
+        
+        Args:
+            name: Timer metric name
+            tags: Optional tags
+            
+        Returns:
+            Timer context manager
+        """
+        ...
+
+    def span(
+        self,
+        name: str,
+        context: Context | None = None
+    ) -> "Span":
+        """Create a tracing span.
+        
+        Args:
+            name: Span name
+            context: Optional span context
+            
+        Returns:
+            Span context manager
+        """
+        ...
+
+    def set_context(self, **kwargs: Any) -> None:
+        """Set global context values.
+        
+        Args:
+            **kwargs: Context key-value pairs
+        """
+        ...
+
+    def clear_context(self) -> None:
+        """Clear global context."""
+        ...
+
+
+@runtime_checkable
+class Timer(Protocol):
+    """Timer context manager protocol."""
+
+    def __enter__(self) -> "Timer":
+        """Start the timer."""
+        ...
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Stop the timer and record the metric."""
+        ...
+
+    @property
+    def elapsed(self) -> float:
+        """Get elapsed time in seconds."""
+        ...
+
+
+@runtime_checkable
+class Span(Protocol):
+    """Tracing span protocol."""
+
+    def __enter__(self) -> "Span":
+        """Enter the span."""
+        ...
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Exit the span."""
+        ...
+
+    def set_tag(self, key: str, value: str) -> None:
+        """Set a span tag."""
+        ...
+
+    def log(self, message: str, **kwargs: Any) -> None:
+        """Log within the span context."""
+        ...
+
+    def set_status(self, status: str) -> None:
+        """Set span status."""
+        ...
+
+
+@runtime_checkable
+class ExperimentTracker(Protocol):
+    """Experiment tracking port for ML experiments."""
+
+    def start_run(
+        self,
+        run_name: str | None = None,
+        tags: Tags | None = None,
+        nested: bool = False
+    ) -> str:
+        """Start a new experiment run.
+        
+        Args:
+            run_name: Optional run name
+            tags: Optional run tags
+            nested: Whether this is a nested run
+            
+        Returns:
+            Run ID
+        """
+        ...
+
+    def end_run(self, status: str = "FINISHED") -> None:
+        """End the current run.
+        
+        Args:
+            status: Run status
+        """
+        ...
+
+    def log_params(self, params: dict[str, Any]) -> None:
+        """Log run parameters.
+        
+        Args:
+            params: Parameters to log
+        """
+        ...
+
+    def log_metrics(
+        self,
+        metrics: dict[str, MetricValue],
+        step: int | None = None
+    ) -> None:
+        """Log run metrics.
+        
+        Args:
+            metrics: Metrics to log
+            step: Optional step number
+        """
+        ...
+
+    def log_artifact(
+        self,
+        path: str,
+        artifact_type: str | None = None
+    ) -> None:
+        """Log an artifact file.
+        
+        Args:
+            path: Path to artifact
+            artifact_type: Optional artifact type
+        """
+        ...
+
+    def log_model(
+        self,
+        model: Any,
+        artifact_path: str,
+        metadata: dict[str, Any] | None = None
+    ) -> None:
+        """Log a model artifact.
+        
+        Args:
+            model: Model to log
+            artifact_path: Artifact path in run
+            metadata: Optional model metadata
+        """
+        ...
+
+    def get_run_id(self) -> str | None:
+        """Get current run ID."""
+        ...
+
+    def set_tags(self, tags: Tags) -> None:
+        """Set run tags."""
+        ...
