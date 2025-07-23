@@ -1,12 +1,16 @@
-"""Evaluate command for the CLI.
+"""Thin CLI adapter for evaluate command.
 
-This is a thin adapter that converts CLI arguments to DTOs and delegates
-to the application layer EvaluateModelCommand.
+This adapter is responsible only for:
+1. Parsing command-line arguments
+2. Creating the EvaluationRequestDTO
+3. Calling the EvaluateModelUseCase
+4. Formatting and displaying the response
+
+No business logic should exist in this adapter.
 """
 
 from pathlib import Path
 from typing import Optional
-import asyncio
 
 import typer
 from rich.console import Console
@@ -14,72 +18,103 @@ from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from loguru import logger
 
-from cli.bootstrap import initialize_cli, get_command, shutdown_cli
-from cli.config.loader import ConfigurationLoader
-from application.commands.evaluate import EvaluateModelCommand
 from application.dto.evaluation import EvaluationRequestDTO
+from application.use_cases.evaluate_model import EvaluateModelUseCase
+from infrastructure.bootstrap import get_service
+from ports.secondary.configuration import ConfigurationProvider
 
 
 console = Console()
 
 
-def create_evaluation_request(
-    config: dict,
-    split: str = "test",
+def create_evaluation_request_dto(
+    config_provider: ConfigurationProvider,
+    model: Optional[Path],
+    checkpoint: Optional[Path],
+    data: Optional[Path],
+    split: str,
+    config: Optional[Path],
+    batch_size: Optional[int],
+    output_dir: Optional[Path],
+    metrics: Optional[str],
+    no_save: bool,
 ) -> EvaluationRequestDTO:
-    """Create EvaluationRequestDTO from configuration.
-    
-    Args:
-        config: Configuration dictionary
-        split: Data split to evaluate on
+    """Create EvaluationRequestDTO from CLI arguments and configuration."""
+    # Load configuration file if specified
+    if config:
+        config_provider.load_file(str(config))
+    else:
+        # Look for k-bert.yaml in current directory
+        config_paths = [
+            Path.cwd() / "k-bert.yaml",
+            Path.cwd() / "k-bert.yml",
+            Path.cwd() / ".k-bert.yaml",
+        ]
         
-    Returns:
-        Evaluation request DTO
-    """
-    # Extract configuration
-    model_config = config.get("models", {})
-    data_config = config.get("data", {})
-    eval_config = config.get("evaluation", {})
+        config_file = next((p for p in config_paths if p.exists()), None)
+        if config_file:
+            config_provider.load_file(str(config_file))
     
-    # Determine model path
+    # Apply CLI overrides
+    if model:
+        config_provider.set("models.model_path", str(model))
+    if checkpoint:
+        config_provider.set("training.resume_from_checkpoint", str(checkpoint))
+    if data:
+        config_provider.set(f"data.{split}_path", str(data))
+    if batch_size is not None:
+        config_provider.set("evaluation.batch_size", batch_size)
+    if output_dir:
+        config_provider.set("evaluation.output_dir", str(output_dir))
+    if metrics:
+        config_provider.set("evaluation.metrics", metrics.split(","))
+    if no_save:
+        config_provider.set("evaluation.save_predictions", False)
+        config_provider.set("evaluation.save_confusion_matrix", False)
+    
+    # Determine model/checkpoint path
     model_path = None
     checkpoint_path = None
     
-    if model_config.get("model_path"):
-        model_path = Path(model_config["model_path"])
-    elif config.get("training", {}).get("resume_from_checkpoint"):
-        checkpoint_path = Path(config["training"]["resume_from_checkpoint"])
+    if model_path_str := config_provider.get("models.model_path"):
+        model_path = Path(model_path_str)
+    elif checkpoint_path_str := config_provider.get("training.resume_from_checkpoint"):
+        checkpoint_path = Path(checkpoint_path_str)
+    else:
+        raise ValueError("No model or checkpoint path specified")
     
     # Determine data path based on split
     data_path = None
     if split == "train":
-        data_path = data_config.get("train_path")
-    elif split == "val" or split == "validation":
-        data_path = data_config.get("val_path")
+        data_path = config_provider.get("data.train_path")
+    elif split in ["val", "validation"]:
+        data_path = config_provider.get("data.val_path")
     elif split == "test":
-        data_path = data_config.get("test_path")
+        data_path = config_provider.get("data.test_path")
     
     if not data_path:
         raise ValueError(f"No data path configured for split '{split}'")
     
-    # Create the DTO
+    # Create DTO
     return EvaluationRequestDTO(
         model_path=model_path,
         checkpoint_path=checkpoint_path,
         data_path=Path(data_path),
-        batch_size=eval_config.get("batch_size", data_config.get("batch_size", 32)),
-        metrics=eval_config.get("metrics", ["accuracy", "precision", "recall", "f1"]),
-        num_workers=data_config.get("num_workers", 0),
-        output_dir=Path(eval_config.get("output_dir", "output/evaluation")),
-        save_predictions=eval_config.get("save_predictions", True),
-        save_confusion_matrix=eval_config.get("save_confusion_matrix", True),
-        use_mixed_precision=eval_config.get("use_mixed_precision", False),
-        device=eval_config.get("device"),
+        batch_size=config_provider.get("evaluation.batch_size", 
+                                     config_provider.get("data.batch_size", 32)),
+        metrics=config_provider.get("evaluation.metrics", 
+                                  ["accuracy", "precision", "recall", "f1"]),
+        num_workers=config_provider.get("data.num_workers", 0),
+        output_dir=Path(config_provider.get("evaluation.output_dir", "output/evaluation")),
+        save_predictions=config_provider.get("evaluation.save_predictions", True),
+        save_confusion_matrix=config_provider.get("evaluation.save_confusion_matrix", True),
+        use_mixed_precision=config_provider.get("evaluation.use_mixed_precision", False),
+        device=config_provider.get("evaluation.device"),
     )
 
 
-def display_configuration(request: EvaluationRequestDTO) -> None:
-    """Display evaluation configuration in a table."""
+def display_configuration_summary(request: EvaluationRequestDTO) -> None:
+    """Display evaluation configuration in a formatted table."""
     table = Table(title="Evaluation Configuration", show_header=True)
     table.add_column("Parameter", style="cyan")
     table.add_column("Value", style="green")
@@ -105,8 +140,8 @@ def display_configuration(request: EvaluationRequestDTO) -> None:
     console.print(table)
 
 
-def display_results(response) -> None:
-    """Display evaluation results."""
+def display_evaluation_results(response) -> None:
+    """Display evaluation results in a formatted manner."""
     if not response.success:
         console.print(f"\n[red]Evaluation failed: {response.error_message}[/red]")
         return
@@ -161,7 +196,7 @@ def display_results(response) -> None:
         console.print(class_table)
 
 
-def evaluate(
+async def evaluate_command(
     model: Optional[Path] = typer.Option(
         None,
         "--model", "-m",
@@ -215,7 +250,13 @@ def evaluate(
 ):
     """Evaluate a trained BERT model.
     
-    This command evaluates a trained model on a dataset and computes metrics.
+    This is a thin CLI adapter that:
+    1. Parses arguments
+    2. Creates EvaluationRequestDTO
+    3. Calls EvaluateModelUseCase
+    4. Displays results
+    
+    All business logic is handled by the use case.
     
     Examples:
         # Evaluate on test set
@@ -231,67 +272,28 @@ def evaluate(
     console.print("=" * 60)
     
     try:
-        # Load configuration
-        loader = ConfigurationLoader()
-        configs = []
+        # Get configuration provider
+        config_provider = get_service(ConfigurationProvider)
         
-        # Load user config
-        user_config_path = loader.find_user_config()
-        if user_config_path:
-            configs.append(loader.load_yaml_config(user_config_path))
-        
-        # Load project config
-        project_config_path = loader.find_project_config()
-        if project_config_path:
-            configs.append(loader.load_yaml_config(project_config_path))
-        
-        # Load command config
-        if config:
-            configs.append(loader.load_yaml_config(config))
-        
-        # Merge configurations
-        merged_config = loader.merge_configs(configs) if configs else {}
-        
-        # Apply CLI overrides
-        if model:
-            merged_config.setdefault("models", {})["model_path"] = str(model)
-        if checkpoint:
-            merged_config.setdefault("training", {})["resume_from_checkpoint"] = str(checkpoint)
-        if data:
-            merged_config.setdefault("data", {})[f"{split}_path"] = str(data)
-        if batch_size:
-            merged_config.setdefault("evaluation", {})["batch_size"] = batch_size
-        if output_dir:
-            merged_config.setdefault("evaluation", {})["output_dir"] = str(output_dir)
-        if metrics:
-            merged_config.setdefault("evaluation", {})["metrics"] = metrics.split(",")
-        if no_save:
-            merged_config.setdefault("evaluation", {})["save_predictions"] = False
-            merged_config.setdefault("evaluation", {})["save_confusion_matrix"] = False
-        
-        # Validate configuration
-        errors = loader.validate_config(merged_config, "evaluate")
-        if errors:
-            console.print("[red]Configuration errors:[/red]")
-            for error in errors:
-                console.print(f"  • {error}")
-            raise typer.Exit(1)
-        
-        # Initialize CLI
-        initialize_cli(
-            config_path=config,
-            user_config_path=user_config_path,
-            project_config_path=project_config_path,
+        # Create request DTO
+        request = create_evaluation_request_dto(
+            config_provider=config_provider,
+            model=model,
+            checkpoint=checkpoint,
+            data=data,
+            split=split,
+            config=config,
+            batch_size=batch_size,
+            output_dir=output_dir,
+            metrics=metrics,
+            no_save=no_save,
         )
         
-        # Create evaluation request
-        request = create_evaluation_request(merged_config, split)
-        
         # Display configuration
-        display_configuration(request)
+        display_configuration_summary(request)
         
-        # Get the evaluation command
-        eval_command = get_command(EvaluateModelCommand)
+        # Get use case
+        use_case = get_service(EvaluateModelUseCase)
         
         # Run evaluation with progress indicator
         with Progress(
@@ -301,12 +303,10 @@ def evaluate(
             transient=True,
         ) as progress:
             task = progress.add_task("Evaluating model...", total=None)
-            
-            # Run the async command
-            response = asyncio.run(eval_command.execute(request))
+            response = await use_case.execute(request)
         
         # Display results
-        display_results(response)
+        display_evaluation_results(response)
         
     except ValueError as e:
         console.print(f"\n[red]Configuration error: {e}[/red]")
@@ -320,10 +320,7 @@ def evaluate(
             import traceback
             traceback.print_exc()
         raise typer.Exit(1)
-    finally:
-        # Ensure cleanup
-        shutdown_cli()
 
 
-if __name__ == "__main__":
-    typer.run(evaluate)
+# Create the Typer command
+evaluate = evaluate_command

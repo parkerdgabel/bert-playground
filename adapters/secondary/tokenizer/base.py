@@ -4,8 +4,9 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Optional, Union, Any
 from pathlib import Path
 
-from domain.ports.tokenizer import TokenizerPort
-from domain.entities.dataset import TokenSequence
+from ports.secondary.tokenizer import TokenizerPort
+from .token_sequence import TokenSequence
+
 
 
 class BaseTokenizerAdapter(TokenizerPort, ABC):

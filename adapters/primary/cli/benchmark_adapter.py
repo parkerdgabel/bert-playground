@@ -122,4 +122,4 @@ async def benchmark_command(
 
 
 # Create the Typer command
-benchmark = typer.command()(benchmark_command)
+benchmark = benchmark_command

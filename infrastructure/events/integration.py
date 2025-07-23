@@ -7,7 +7,7 @@ from typing import Any, Optional
 import mlx.core as mx
 from loguru import logger
 
-from infrastructure.protocols.training import TrainingResult, TrainingState
+from domain.protocols.training import TrainingResult, TrainingState
 from training.callbacks.base import Callback
 
 from .bus import EventBus, GlobalEventBus

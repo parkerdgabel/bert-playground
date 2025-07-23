@@ -86,13 +86,13 @@ def test_ports_are_protocols():
     print("\nTesting port definitions...")
     
     from ports.secondary.compute import ComputeBackend
-    from ports.secondary.monitoring import MonitoringPort
-    from ports.secondary.storage import StoragePort, CheckpointPort
+    from ports.secondary.monitoring import MonitoringService
+    from ports.secondary.storage import StorageService
     from ports.secondary.tokenizer import TokenizerPort
     from ports.secondary.data import DataLoaderPort
     
     # Check they are protocols (have __annotations__)
-    ports = [ComputeBackend, MonitoringPort, StoragePort, CheckpointPort, 
+    ports = [ComputeBackend, MonitoringService, StorageService, 
              TokenizerPort, DataLoaderPort]
     
     for port in ports:
@@ -151,10 +151,9 @@ def test_application_layer():
     # Create a simple DTO
     dto = TrainingRequestDTO(
         model_type="bert",
-        model_size="base",
+        model_config={"hidden_size": 768, "num_layers": 12},
         train_data_path=Path("/tmp/data.csv"),
-        output_dir=Path("/tmp/output"),
-        config={"epochs": 1}
+        num_epochs=1
     )
     
     assert dto.model_type == "bert"

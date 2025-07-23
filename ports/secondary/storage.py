@@ -14,6 +14,25 @@ from typing_extensions import TypeAlias
 StorageKey: TypeAlias = str | Path
 StorageValue: TypeAlias = Any
 Metadata: TypeAlias = dict[str, Any]
+StorageMetadata: TypeAlias = dict[str, Any]
+ModelMetadata: TypeAlias = dict[str, Any]
+
+# Data classes for structured types
+from dataclasses import dataclass
+from datetime import datetime
+
+@dataclass
+class ModelCheckpoint:
+    """Represents a saved model checkpoint."""
+    path: Path
+    step: int
+    epoch: int
+    train_loss: float
+    val_loss: float | None
+    metrics: dict[str, float]
+    created_at: datetime
+    size_bytes: int
+    is_best: bool = False
 
 
 @runtime_checkable

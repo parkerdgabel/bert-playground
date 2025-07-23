@@ -5,10 +5,10 @@ from dataclasses import dataclass
 from domain.entities.model import BertModel
 from domain.entities.dataset import Dataset, DataBatch
 from domain.entities.metrics import EvaluationMetrics
-from domain.ports.compute import ComputePort
-from domain.ports.data import DataLoaderPort
-from domain.ports.monitoring import MonitoringPort
-from domain.ports.metrics import MetricsCalculatorPort
+from ports.secondary.compute import ComputeBackend as ComputePort
+from ports.secondary.data import DataLoaderPort
+from ports.secondary.monitoring import MonitoringService as MonitoringPort
+from ports.secondary.metrics import MetricsCalculatorPort
 
 
 @dataclass

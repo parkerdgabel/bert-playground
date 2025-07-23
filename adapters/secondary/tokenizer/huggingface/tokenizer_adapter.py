@@ -1,9 +1,10 @@
+from ..token_sequence import TokenSequence
 """HuggingFace tokenizer adapter implementation."""
 
 from typing import List, Dict, Optional, Union, Any
 from pathlib import Path
 
-from domain.entities.dataset import TokenSequence
+
 from adapters.secondary.tokenizer.base import BaseTokenizerAdapter
 
 

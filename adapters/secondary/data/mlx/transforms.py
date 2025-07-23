@@ -4,7 +4,8 @@ from typing import Any, List, Optional, Dict
 import mlx.core as mx
 import numpy as np
 
-from domain.entities.dataset import DataBatch, TokenSequence
+from domain.entities.dataset import DataBatch
+from .token_sequence import TokenSequence
 
 
 class MLXTransform:

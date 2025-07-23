@@ -1,4 +1,4 @@
-"""Console/Rich implementation of MonitoringPort."""
+"""Console/Rich implementation of MonitoringService."""
 
 import sys
 from typing import Dict, Any, Optional, List
@@ -8,12 +8,12 @@ import uuid
 
 from ..base import BaseMonitoringAdapter, BaseProgressBar
 from .formatters import MetricsFormatter, TableFormatter
-from domain.ports.monitoring import ProgressBarPort
+# object removed - not defined in ports
 from domain.entities.training import TrainingSession
 
 
 class ConsoleMonitoringAdapter(BaseMonitoringAdapter):
-    """Console implementation of the MonitoringPort using Rich for beautiful output."""
+    """Console implementation of the MonitoringService using Rich for beautiful output."""
     
     def __init__(self, verbosity: str = "normal", use_rich: bool = True):
         """Initialize console monitoring adapter.
@@ -327,7 +327,7 @@ class ConsoleMonitoringAdapter(BaseMonitoringAdapter):
         total: int,
         description: str,
         unit: str = "it",
-    ) -> ProgressBarPort:
+    ) -> object:
         """Create a progress bar.
         
         Args:

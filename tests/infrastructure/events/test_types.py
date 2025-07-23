@@ -10,7 +10,7 @@ from infrastructure.events.types import (
     EventType,
     TrainingEvent,
 )
-from infrastructure.protocols.training import TrainingState
+from domain.protocols.training import TrainingState
 
 
 class TestEventPriority:

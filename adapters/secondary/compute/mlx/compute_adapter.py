@@ -1,4 +1,4 @@
-"""MLX implementation of the ComputePort."""
+"""MLX implementation of the ComputeBackend."""
 
 from typing import Any, Dict, Tuple, Optional, List
 from contextlib import contextmanager
@@ -8,7 +8,7 @@ import mlx.nn as nn
 
 from domain.entities.model import BertModel
 from domain.entities.dataset import DataBatch
-from domain.ports.compute import ComputePort
+from ports.secondary.compute import ComputeBackend
 from adapters.secondary.compute.base import BaseComputeAdapter
 from .model_adapter import MLXModelAdapter
 from .optimization import MLXOptimizer, MLXOptimizerState

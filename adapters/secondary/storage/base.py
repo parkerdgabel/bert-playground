@@ -7,12 +7,13 @@ import pickle
 from pathlib import Path
 from datetime import datetime
 
-from domain.ports.storage import StoragePort, CheckpointPort
-from domain.entities.model import BertModel
-from domain.entities.training import TrainingState
+from ports.secondary.storage import StorageService
+from ports.secondary.checkpointing import CheckpointManager
+from domain.protocols.models import Model
+from domain.protocols.training import TrainingState
 
 
-class BaseStorageAdapter(StoragePort, ABC):
+class BaseStorageAdapter(StorageService, ABC):
     """Base storage adapter with common functionality."""
     
     def __init__(self, base_path: Optional[str] = None):
@@ -111,10 +112,10 @@ class BaseStorageAdapter(StoragePort, ABC):
             return pickle.loads(data)
 
 
-class BaseCheckpointAdapter(CheckpointPort, ABC):
+class BaseCheckpointAdapter(CheckpointManager, ABC):
     """Base checkpoint adapter with common functionality."""
     
-    def __init__(self, storage: StoragePort):
+    def __init__(self, storage: StorageService):
         """Initialize checkpoint adapter.
         
         Args:
@@ -124,7 +125,7 @@ class BaseCheckpointAdapter(CheckpointPort, ABC):
     
     def _create_checkpoint_metadata(
         self,
-        model: BertModel,
+        model: Model,
         training_state: TrainingState,
         optimizer_state: Dict[str, Any],
         metadata: Optional[Dict[str, Any]] = None,

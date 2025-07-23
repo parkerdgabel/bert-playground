@@ -8,13 +8,12 @@ import json
 import shutil
 
 from application.dto.export import ExportRequestDTO, ExportResponseDTO
-from domain.entities.model import Model
+from domain.entities.model import BertModel
 from domain.services import TokenizationService
-from domain.ports import (
-    ComputePort,
-    MonitoringPort,
-    StoragePort
-)
+from domain.protocols.models import Model
+from ports.secondary.compute import ComputeBackend as ComputePort
+from ports.secondary.monitoring import MonitoringService as MonitoringPort
+from ports.secondary.storage import StorageService as StoragePort
 
 
 @dataclass

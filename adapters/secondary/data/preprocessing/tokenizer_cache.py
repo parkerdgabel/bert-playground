@@ -13,7 +13,8 @@ from loguru import logger
 
 # Import dependency injection and ports
 from infrastructure.bootstrap import get_service
-from ports.secondary.compute import ComputeBackend, Array, DataType
+from domain.protocols.compute import Array, DataType
+from ports.secondary.compute import ComputeBackend
 from ports.secondary.tokenizer import TokenizerPort
 
 

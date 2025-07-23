@@ -8,7 +8,7 @@ from ports.secondary.compute import ComputeBackend
 
 
 class BaseComputeAdapter(ABC, ComputeBackend):
-    """Base implementation of ComputePort with common functionality."""
+    """Base implementation of ComputeBackend with common functionality."""
     
     def __init__(self):
         """Initialize base compute adapter."""

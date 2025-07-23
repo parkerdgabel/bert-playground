@@ -10,7 +10,7 @@ import mlx.nn as nn
 from loguru import logger
 
 from infrastructure.plugins import PluginBase, PluginContext, PluginError
-from infrastructure.protocols.plugins import HeadPlugin
+from ports.secondary.plugins import HeadPlugin
 
 
 class CustomHeadPlugin(PluginBase, HeadPlugin):

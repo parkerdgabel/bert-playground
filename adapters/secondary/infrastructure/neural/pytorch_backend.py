@@ -12,7 +12,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ports.secondary.compute import Array, ArrayLike, DataType, Device, DType, Shape
+from domain.protocols.compute import Array, DataType
+from ports.secondary.compute import ArrayLike, Device, DType, Shape
 from ports.secondary.neural import (
     ActivationType,
     GradientDict,

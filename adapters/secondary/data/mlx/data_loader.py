@@ -5,8 +5,9 @@ import random
 import mlx.core as mx
 import numpy as np
 
-from domain.entities.dataset import Dataset, DataBatch, TokenSequence
-from domain.ports.data import DataLoaderPort
+from domain.entities.dataset import Dataset, DataBatch
+from .token_sequence import TokenSequence
+from ports.secondary.data import DataLoaderPort
 from adapters.secondary.data.base import BaseDataAdapter
 from .dataset import MLXDatasetWrapper
 from .transforms import MLXPaddingTransform

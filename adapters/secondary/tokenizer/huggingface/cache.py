@@ -1,3 +1,4 @@
+from ..token_sequence import TokenSequence
 """Tokenizer caching functionality for HuggingFace tokenizers."""
 
 import hashlib
@@ -7,7 +8,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
 import time
 
-from domain.entities.dataset import TokenSequence
+
 
 
 class TokenizerCache:

@@ -1,4 +1,4 @@
-"""TensorBoard implementation of MonitoringPort."""
+"""TensorBoard implementation of MonitoringService."""
 
 import os
 from typing import Dict, Any, Optional, List
@@ -7,12 +7,12 @@ import json
 
 from ..base import BaseMonitoringAdapter, BaseProgressBar
 from .writer import TensorBoardWriter
-from domain.ports.monitoring import ProgressBarPort
+# object removed - not defined in ports
 from domain.entities.training import TrainingSession
 
 
 class TensorBoardMonitoringAdapter(BaseMonitoringAdapter):
-    """TensorBoard implementation of the MonitoringPort."""
+    """TensorBoard implementation of the MonitoringService."""
     
     def __init__(self, log_dir: str = "./runs", tag_prefix: str = ""):
         """Initialize TensorBoard monitoring adapter.
@@ -280,7 +280,7 @@ class TensorBoardMonitoringAdapter(BaseMonitoringAdapter):
         total: int,
         description: str,
         unit: str = "it",
-    ) -> ProgressBarPort:
+    ) -> object:
         """Create a progress bar.
         
         Args:

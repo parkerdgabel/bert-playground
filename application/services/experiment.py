@@ -8,7 +8,8 @@ import json
 import pandas as pd
 from enum import Enum
 
-from domain.ports import StoragePort, MonitoringPort
+from ports.secondary.storage import StorageService as StoragePort
+from ports.secondary.monitoring import MonitoringService as MonitoringPort
 
 
 class ExperimentStatus(Enum):

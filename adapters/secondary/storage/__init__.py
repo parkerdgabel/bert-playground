@@ -2,6 +2,7 @@
 
 from .base import BaseStorageAdapter, BaseCheckpointAdapter
 from .filesystem import FilesystemStorageAdapter, FilesystemCheckpointAdapter
+from .file_storage import FileStorageAdapter, ModelFileStorageAdapter
 from .cloud import (
     S3StorageAdapter,
     S3CheckpointAdapter,
@@ -16,6 +17,8 @@ __all__ = [
     # Filesystem adapters
     "FilesystemStorageAdapter",
     "FilesystemCheckpointAdapter",
+    "FileStorageAdapter",
+    "ModelFileStorageAdapter",
     # Cloud adapters
     "S3StorageAdapter",
     "S3CheckpointAdapter",

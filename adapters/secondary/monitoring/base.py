@@ -2,12 +2,12 @@
 
 from typing import Dict, Any, Optional, List
 from abc import ABC
-from domain.ports.monitoring import MonitoringPort, ProgressBarPort
+from ports.secondary.monitoring import MonitoringService
 from domain.entities.metrics import TrainingMetrics, EvaluationMetrics
 from domain.entities.training import TrainingSession
 
 
-class BaseMonitoringAdapter(MonitoringPort, ABC):
+class BaseMonitoringAdapter(MonitoringService, ABC):
     """Base class for monitoring adapters with common functionality."""
     
     def __init__(self):
@@ -103,7 +103,7 @@ class BaseMonitoringAdapter(MonitoringPort, ABC):
             )
 
 
-class BaseProgressBar(ProgressBarPort):
+class BaseProgressBar(object):
     """Base progress bar implementation."""
     
     def __init__(self, total: int, description: str):

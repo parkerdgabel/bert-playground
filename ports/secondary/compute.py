@@ -5,30 +5,19 @@ to perform ML computations. It's a driven port implemented by adapters
 for different ML frameworks (MLX, PyTorch, JAX, etc.).
 """
 
-from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Protocol, Sequence, Tuple, runtime_checkable
 
 import numpy as np
 from typing_extensions import TypeAlias
 
-# Type aliases for framework-agnostic arrays
-Array: TypeAlias = Any  # Framework-specific array type
+# Import domain types
+from domain.protocols.compute import Array, Module, DataType
+
+# Additional type aliases specific to compute backends
 ArrayLike: TypeAlias = np.ndarray | list | tuple | Any
 Device: TypeAlias = str | Any
 DType: TypeAlias = Any
 Shape: TypeAlias = tuple[int, ...]
-Module: TypeAlias = Any  # Framework-specific neural network module
-
-
-class DataType(Enum):
-    """Framework-agnostic data types."""
-    
-    FLOAT32 = "float32"
-    FLOAT16 = "float16"
-    BFLOAT16 = "bfloat16"
-    INT32 = "int32"
-    INT64 = "int64"
-    BOOL = "bool"
 
 
 @runtime_checkable

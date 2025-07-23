@@ -7,15 +7,15 @@ from typing import Optional, List, Dict, Any, Callable
 import asyncio
 from enum import Enum
 
-from domain.entities.training import TrainingSession, TrainingMetrics
-from domain.entities.model import Model
+from domain.entities.training import TrainingSession
+from domain.entities.metrics import TrainingMetrics
+from domain.entities.model import BertModel
 from domain.services import ModelTrainingService, EvaluationService
-from domain.ports import (
-    ComputePort,
-    MonitoringPort,
-    CheckpointPort,
-    MetricsCalculatorPort
-)
+from ports.secondary.compute import ComputeBackend as ComputePort
+from ports.secondary.monitoring import MonitoringService as MonitoringPort
+from ports.secondary.checkpointing import CheckpointManager as CheckpointPort
+from ports.secondary.metrics import MetricsCollector as MetricsCalculatorPort
+from domain.protocols.models import Model
 
 
 class TrainingPhase(Enum):

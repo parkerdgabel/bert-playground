@@ -1,6 +1,11 @@
-"""Info command for the CLI.
+"""Thin CLI adapter for info command.
 
-This command displays system and configuration information.
+This adapter is responsible only for:
+1. Parsing command-line arguments
+2. Gathering system/configuration information
+3. Formatting and displaying the information
+
+No business logic should exist in this adapter.
 """
 
 from pathlib import Path
@@ -15,129 +20,11 @@ from rich.panel import Panel
 from rich.syntax import Syntax
 from loguru import logger
 
-from cli.bootstrap import initialize_cli, get_service, get_config, shutdown_cli
-from cli.config.loader import ConfigurationLoader
+from infrastructure.bootstrap import get_service
+from ports.secondary.configuration import ConfigurationProvider
 
 
 console = Console()
-
-
-def info(
-    config: bool = typer.Option(
-        False,
-        "--config", "-c",
-        help="Show current configuration",
-    ),
-    system: bool = typer.Option(
-        False,
-        "--system", "-s",
-        help="Show system information",
-    ),
-    models: bool = typer.Option(
-        False,
-        "--models", "-m",
-        help="Show available models",
-    ),
-    adapters: bool = typer.Option(
-        False,
-        "--adapters", "-a",
-        help="Show registered adapters",
-    ),
-    run: Optional[str] = typer.Option(
-        None,
-        "--run", "-r",
-        help="Show information about a specific run",
-    ),
-    all: bool = typer.Option(
-        False,
-        "--all",
-        help="Show all available information",
-    ),
-    json_output: bool = typer.Option(
-        False,
-        "--json",
-        help="Output in JSON format",
-    ),
-):
-    """Display system and configuration information.
-    
-    This command shows various information about the K-BERT system,
-    including configuration, available models, and system capabilities.
-    
-    Examples:
-        # Show all information
-        k-bert info --all
-        
-        # Show current configuration
-        k-bert info --config
-        
-        # Show system information
-        k-bert info --system
-        
-        # Show specific run details
-        k-bert info --run run_20250723_120000
-    """
-    # If no specific option is selected, default to system info
-    if not any([config, system, models, adapters, run, all]):
-        system = True
-    
-    # Initialize CLI (lightweight mode for info command)
-    try:
-        loader = ConfigurationLoader()
-        user_config_path = loader.find_user_config()
-        project_config_path = loader.find_project_config()
-        
-        initialize_cli(
-            user_config_path=user_config_path,
-            project_config_path=project_config_path,
-        )
-    except Exception as e:
-        # Continue even if initialization fails
-        logger.warning(f"Failed to initialize CLI: {e}")
-    
-    info_data = {}
-    
-    try:
-        # Collect system information
-        if system or all:
-            info_data["system"] = get_system_info()
-            if not json_output:
-                display_system_info(info_data["system"])
-        
-        # Collect configuration information
-        if config or all:
-            info_data["configuration"] = get_configuration_info()
-            if not json_output:
-                display_configuration_info(info_data["configuration"])
-        
-        # Collect model information
-        if models or all:
-            info_data["models"] = get_models_info()
-            if not json_output:
-                display_models_info(info_data["models"])
-        
-        # Collect adapter information
-        if adapters or all:
-            info_data["adapters"] = get_adapters_info()
-            if not json_output:
-                display_adapters_info(info_data["adapters"])
-        
-        # Show specific run information
-        if run:
-            info_data["run"] = get_run_info(run)
-            if not json_output:
-                display_run_info(info_data["run"], run)
-        
-        # Output JSON if requested
-        if json_output:
-            console.print_json(data=info_data)
-        
-    except Exception as e:
-        console.print(f"[red]Error collecting information: {e}[/red]")
-        raise typer.Exit(1)
-    finally:
-        # Ensure cleanup
-        shutdown_cli()
 
 
 def get_system_info() -> dict:
@@ -182,28 +69,40 @@ def get_system_info() -> dict:
     return info
 
 
-def get_configuration_info() -> dict:
+def get_configuration_info(config_provider: ConfigurationProvider) -> dict:
     """Collect configuration information."""
-    loader = ConfigurationLoader()
-    
     info = {
-        "config_files": {
-            "user_config": str(path) if (path := loader.find_user_config()) else None,
-            "project_config": str(path) if (path := loader.find_project_config()) else None,
-        },
+        "config_files": {},
         "current_config": {}
     }
     
-    # Load and include current configuration
+    # Check for configuration files
+    config_paths = [
+        ("user_config", Path.home() / ".k-bert" / "config.yaml"),
+        ("project_config", Path.cwd() / "k-bert.yaml"),
+        ("project_config_alt1", Path.cwd() / "k-bert.yml"),
+        ("project_config_alt2", Path.cwd() / ".k-bert.yaml"),
+    ]
+    
+    for name, path in config_paths:
+        if path.exists():
+            key = name.split("_alt")[0]  # Remove _alt suffix
+            info["config_files"][key] = str(path)
+    
+    # Get current configuration
     try:
-        configs = []
-        if info["config_files"]["user_config"]:
-            configs.append(loader.load_yaml_config(Path(info["config_files"]["user_config"])))
-        if info["config_files"]["project_config"]:
-            configs.append(loader.load_yaml_config(Path(info["config_files"]["project_config"])))
+        # Load any existing config
+        if project_config := info["config_files"].get("project_config"):
+            config_provider.load_file(project_config)
         
-        if configs:
-            info["current_config"] = loader.merge_configs(configs)
+        # Get all configuration as dict
+        all_config = {}
+        for section in ["models", "data", "training", "evaluation", "mlflow", "logging"]:
+            section_config = config_provider.get(section, {})
+            if section_config:
+                all_config[section] = section_config
+        
+        info["current_config"] = all_config
     except Exception as e:
         info["config_error"] = str(e)
     
@@ -356,11 +255,11 @@ def display_configuration_info(info: dict):
     
     table.add_row(
         "User Config",
-        info['config_files']['user_config'] or "[dim]Not found[/dim]"
+        info['config_files'].get('user_config', "[dim]Not found[/dim]")
     )
     table.add_row(
         "Project Config",
-        info['config_files']['project_config'] or "[dim]Not found[/dim]"
+        info['config_files'].get('project_config', "[dim]Not found[/dim]")
     )
     
     console.print(table)
@@ -474,5 +373,115 @@ def display_run_info(info: dict, run_id: str):
         console.print(f"\nLog file: [cyan]{info['log_file']}[/cyan]")
 
 
-if __name__ == "__main__":
-    typer.run(info)
+def info_command(
+    config: bool = typer.Option(
+        False,
+        "--config", "-c",
+        help="Show current configuration",
+    ),
+    system: bool = typer.Option(
+        False,
+        "--system", "-s",
+        help="Show system information",
+    ),
+    models: bool = typer.Option(
+        False,
+        "--models", "-m",
+        help="Show available models",
+    ),
+    adapters: bool = typer.Option(
+        False,
+        "--adapters", "-a",
+        help="Show registered adapters",
+    ),
+    run: Optional[str] = typer.Option(
+        None,
+        "--run", "-r",
+        help="Show information about a specific run",
+    ),
+    all: bool = typer.Option(
+        False,
+        "--all",
+        help="Show all available information",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Output in JSON format",
+    ),
+):
+    """Display system and configuration information.
+    
+    This command shows various information about the K-BERT system,
+    including configuration, available models, and system capabilities.
+    
+    Examples:
+        # Show all information
+        k-bert info --all
+        
+        # Show current configuration
+        k-bert info --config
+        
+        # Show system information
+        k-bert info --system
+        
+        # Show specific run details
+        k-bert info --run run_20250723_120000
+    """
+    # If no specific option is selected, default to system info
+    if not any([config, system, models, adapters, run, all]):
+        system = True
+    
+    info_data = {}
+    
+    try:
+        # Get configuration provider for config info
+        config_provider = None
+        if config or all:
+            try:
+                config_provider = get_service(ConfigurationProvider)
+            except Exception:
+                # Service might not be available
+                pass
+        
+        # Collect system information
+        if system or all:
+            info_data["system"] = get_system_info()
+            if not json_output:
+                display_system_info(info_data["system"])
+        
+        # Collect configuration information
+        if (config or all) and config_provider:
+            info_data["configuration"] = get_configuration_info(config_provider)
+            if not json_output:
+                display_configuration_info(info_data["configuration"])
+        
+        # Collect model information
+        if models or all:
+            info_data["models"] = get_models_info()
+            if not json_output:
+                display_models_info(info_data["models"])
+        
+        # Collect adapter information
+        if adapters or all:
+            info_data["adapters"] = get_adapters_info()
+            if not json_output:
+                display_adapters_info(info_data["adapters"])
+        
+        # Show specific run information
+        if run:
+            info_data["run"] = get_run_info(run)
+            if not json_output:
+                display_run_info(info_data["run"], run)
+        
+        # Output JSON if requested
+        if json_output:
+            console.print_json(data=info_data)
+        
+    except Exception as e:
+        console.print(f"[red]Error collecting information: {e}[/red]")
+        raise typer.Exit(1)
+
+
+# Create the Typer command
+info = info_command

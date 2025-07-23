@@ -276,7 +276,7 @@ class TrainModelCommand:
     
     async def _save_artifacts(
         self,
-        model: Model,
+        model: BertModel,
         result: Any,
         output_dir: Path,
         run_id: str

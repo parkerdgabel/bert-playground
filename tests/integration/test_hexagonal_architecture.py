@@ -8,7 +8,7 @@ from typing import Dict, Any
 # Domain imports
 from domain.entities.model import BertModel, ModelArchitecture, ModelWeights
 from domain.entities.training import TrainingConfig, TrainingSession
-from domain.entities.dataset import Dataset, DataBatch, TokenSequence
+from domain.entities.dataset import Dataset, DataBatch
 from domain.services.training import ModelTrainingService
 from domain.services.tokenization import TokenizationService
 
@@ -171,7 +171,7 @@ def test_hexagonal_principles():
     print("✓ Domain has no framework dependencies")
     
     # Test 2: Ports are defined as protocols
-    from domain.ports.compute import ComputePort
+    from ports.secondary.compute import ComputePort
     assert hasattr(ComputePort, '__annotations__')
     print("✓ Ports are properly defined as protocols")
     

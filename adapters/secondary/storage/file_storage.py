@@ -18,13 +18,13 @@ from safetensors.mlx import save_file
 from ports.secondary.storage import (
     ModelCheckpoint,
     ModelMetadata,
-    ModelStoragePort,
+    ModelStorageService,
     StorageMetadata,
-    StoragePort,
+    StorageService,
 )
 
 
-class FileStorageAdapter(StoragePort):
+class FileStorageAdapter(StorageService):
     """File system implementation of the StoragePort."""
 
     def __init__(self, base_path: Path | str | None = None):
@@ -184,7 +184,7 @@ class FileStorageAdapter(StoragePort):
         return None
 
 
-class ModelFileStorageAdapter(ModelStoragePort):
+class ModelFileStorageAdapter(ModelStorageService):
     """File system implementation of the ModelStoragePort."""
 
     def __init__(self, base_path: Path | str | None = None):

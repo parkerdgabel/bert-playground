@@ -12,7 +12,8 @@ import mlx.nn as nn
 import mlx.optimizers as optim
 import numpy as np
 
-from ports.secondary.compute import Array, ArrayLike, DataType, Device, DType, Shape
+from domain.protocols.compute import Array, DataType
+from ports.secondary.compute import ArrayLike, Device, DType, Shape
 from ports.secondary.neural import (
     ActivationType,
     GradientDict,

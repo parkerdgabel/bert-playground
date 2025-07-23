@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional, List
 import logging
 from contextlib import contextmanager
 
-from domain.ports.monitoring import MonitoringPort, ProgressBarPort
+from ports.secondary.monitoring import MonitoringService
 from domain.entities.metrics import TrainingMetrics, EvaluationMetrics
 from domain.entities.training import TrainingSession
 
@@ -12,10 +12,10 @@ from domain.entities.training import TrainingSession
 logger = logging.getLogger(__name__)
 
 
-class MultiMonitorAdapter(MonitoringPort):
+class MultiMonitorAdapter(MonitoringService):
     """Composite adapter that uses multiple monitoring adapters simultaneously."""
     
-    def __init__(self, adapters: List[MonitoringPort], fail_fast: bool = False):
+    def __init__(self, adapters: List[MonitoringService], fail_fast: bool = False):
         """Initialize multi-monitor adapter.
         
         Args:
@@ -178,7 +178,7 @@ class MultiMonitorAdapter(MonitoringPort):
         total: int,
         description: str,
         unit: str = "it",
-    ) -> ProgressBarPort:
+    ) -> object:
         """Create a composite progress bar.
         
         Args:
@@ -275,10 +275,10 @@ class MultiMonitorAdapter(MonitoringPort):
                             raise
 
 
-class CompositeProgressBar(ProgressBarPort):
+class CompositeProgressBar(object):
     """Composite progress bar that updates multiple progress bars."""
     
-    def __init__(self, progress_bars: List[ProgressBarPort], fail_fast: bool = False):
+    def __init__(self, progress_bars: List[object], fail_fast: bool = False):
         """Initialize composite progress bar.
         
         Args:

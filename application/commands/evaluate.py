@@ -6,17 +6,16 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 from application.dto.evaluation import EvaluationRequestDTO, EvaluationResponseDTO
-from domain.entities.model import Model
+from domain.entities.model import BertModel
 from domain.entities.dataset import Dataset
-from domain.entities.metrics import MetricType, EvaluationMetrics
+from domain.entities.metrics import EvaluationMetrics
+from ports.secondary.metrics import MetricType
 from domain.services import EvaluationService
-from domain.ports import (
-    DataLoaderPort,
-    ComputePort,
-    MonitoringPort,
-    StoragePort,
-    MetricsCalculatorPort
-)
+from ports.secondary.data import DataLoaderPort
+from ports.secondary.compute import ComputeBackend as ComputePort
+from ports.secondary.monitoring import MonitoringService as MonitoringPort
+from ports.secondary.storage import StorageService as StoragePort
+from ports.secondary.metrics import MetricsCollector as MetricsCalculatorPort
 
 
 @dataclass
@@ -141,14 +140,14 @@ class EvaluateModelCommand:
         finally:
             await self.monitoring_port.end_run()
     
-    async def _load_model(self, model_path: Path) -> Model:
+    async def _load_model(self, model_path: Path) -> BertModel:
         """Load model from checkpoint or saved model directory."""
         # Check if it's a checkpoint or final model
         if (model_path / "checkpoint.json").exists():
             # Load from checkpoint
             checkpoint_data = await self.storage_port.load_json(model_path / "checkpoint.json")
             model_config = checkpoint_data["model_config"]
-            model = Model.from_config(model_config)
+            model = BertModel.from_config(model_config)
             model.load_state(checkpoint_data["model_state"])
         else:
             # Load from saved model directory
@@ -203,7 +202,7 @@ class EvaluateModelCommand:
     
     async def _compute_confidence_metrics(
         self,
-        model: Model,
+        model: BertModel,
         data_loader: Any,
         eval_results: EvaluationMetrics
     ) -> Dict[str, float]:

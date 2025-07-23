@@ -22,7 +22,7 @@ from loguru import logger
 from application.dto.training import TrainingRequestDTO
 from application.use_cases.train_model import TrainModelUseCase
 from infrastructure.bootstrap import get_service
-from infrastructure.ports.config import ConfigurationProvider
+from ports.secondary.configuration import ConfigurationProvider
 
 
 console = Console()
@@ -332,5 +332,5 @@ async def train_command(
         raise typer.Exit(1)
 
 
-# Create the Typer command
-train = typer.command()(train_command)
+# Export the command function
+train = train_command

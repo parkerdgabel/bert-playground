@@ -1,10 +1,11 @@
+from ..token_sequence import TokenSequence
 """MLX-native tokenizer adapter implementation."""
 
 from typing import List, Dict, Optional, Union, Any
 from pathlib import Path
 import json
 
-from domain.entities.dataset import TokenSequence
+
 from adapters.secondary.tokenizer.base import BaseTokenizerAdapter
 
 

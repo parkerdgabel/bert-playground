@@ -7,15 +7,14 @@ from typing import Optional, List, Dict, Any, Union
 import pandas as pd
 
 from application.dto.prediction import PredictionRequestDTO, PredictionResponseDTO
-from domain.entities.model import Model
+from domain.entities.model import BertModel
 from domain.entities.dataset import Dataset
 from domain.services import TokenizationService
-from domain.ports import (
-    DataLoaderPort,
-    ComputePort,
-    MonitoringPort,
-    StoragePort
-)
+from domain.protocols.models import Model
+from ports.secondary.data import DataLoaderPort
+from ports.secondary.compute import ComputeBackend as ComputePort
+from ports.secondary.monitoring import MonitoringService as MonitoringPort
+from ports.secondary.storage import StorageService as StoragePort
 
 
 @dataclass

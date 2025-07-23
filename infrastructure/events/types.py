@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import Enum, auto
 from typing import Any, Optional
 
-from infrastructure.protocols.training import TrainingState
+from domain.protocols.training import TrainingState
 
 
 class EventType(Enum):

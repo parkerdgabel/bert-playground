@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
-from infrastructure.protocols.models import Model
+from domain.protocols.models import Model
 
 
 @dataclass

@@ -1,12 +1,13 @@
-"""Model-related protocols for k-bert.
+"""Domain model protocols - Core model abstractions.
 
-These protocols define the contracts for models, heads, and configurations.
+These protocols define the fundamental model contracts used throughout
+the system. They are independent of any specific implementation.
 """
 
 from pathlib import Path
 from typing import Any, Protocol
 
-from ports.secondary.compute import Array, Module
+from .compute import Array, Module
 
 
 class Model(Protocol):
@@ -118,53 +119,33 @@ class Head(Protocol):
         ...
 
 
-class ModelConfig(Protocol):
-    """Protocol for model configuration."""
-
-    @property
-    def model_type(self) -> str:
-        """Type of model (e.g., 'bert', 'modernbert')."""
-        ...
-
-    @property
-    def hidden_size(self) -> int:
-        """Size of hidden layers."""
-        ...
-
-    @property
-    def num_hidden_layers(self) -> int:
-        """Number of hidden layers."""
-        ...
-
-    @property
-    def num_attention_heads(self) -> int:
-        """Number of attention heads."""
-        ...
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert configuration to dictionary.
-        
-        Returns:
-            Configuration as dictionary
-        """
-        ...
-
-    @classmethod
-    def from_dict(cls, config: dict[str, Any]) -> "ModelConfig":
-        """Create configuration from dictionary.
+class ModelFactory(Protocol):
+    """Protocol for model factories."""
+    
+    def create_model(self, config: dict[str, Any]) -> Model:
+        """Create a model from configuration.
         
         Args:
-            config: Configuration dictionary
+            config: Model configuration
             
         Returns:
-            Model configuration instance
+            Created model instance
         """
         ...
-
-    def validate(self) -> list[str]:
-        """Validate configuration.
+    
+    def register_model(self, name: str, model_class: type[Model]) -> None:
+        """Register a new model type.
+        
+        Args:
+            name: Name to register model under
+            model_class: Model class to register
+        """
+        ...
+    
+    def list_models(self) -> list[str]:
+        """List available model types.
         
         Returns:
-            List of validation errors (empty if valid)
+            List of registered model names
         """
         ...

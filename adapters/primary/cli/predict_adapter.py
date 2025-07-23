@@ -238,4 +238,4 @@ async def predict_command(
 
 
 # Create the Typer command
-predict = typer.command()(predict_command)
+predict = predict_command

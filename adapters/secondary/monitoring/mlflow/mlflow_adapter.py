@@ -1,4 +1,4 @@
-"""MLflow implementation of MonitoringPort."""
+"""MLflow implementation of MonitoringService."""
 
 import os
 import tempfile
@@ -8,12 +8,12 @@ from contextlib import contextmanager
 
 from ..base import BaseMonitoringAdapter, BaseProgressBar
 from .config import MLflowConfig
-from domain.ports.monitoring import ProgressBarPort
+# object removed - not defined in ports
 from domain.entities.training import TrainingSession
 
 
 class MLflowMonitoringAdapter(BaseMonitoringAdapter):
-    """MLflow implementation of the MonitoringPort."""
+    """MLflow implementation of the MonitoringService."""
     
     def __init__(self, config: Optional[MLflowConfig] = None):
         """Initialize MLflow monitoring adapter.
@@ -272,7 +272,7 @@ class MLflowMonitoringAdapter(BaseMonitoringAdapter):
         total: int,
         description: str,
         unit: str = "it",
-    ) -> ProgressBarPort:
+    ) -> object:
         """Create a progress bar.
         
         Args:

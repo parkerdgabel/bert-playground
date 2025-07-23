@@ -12,8 +12,8 @@ import shutil
 from pathlib import Path
 from unittest.mock import Mock, patch, mock_open
 
-from infrastructure.adapters.file_storage import FileStorageAdapter, ModelCheckpointAdapter
-from infrastructure.ports.storage import StorageKey, StorageValue, Metadata
+from adapters.secondary.storage.file_storage import FileStorageAdapter, ModelFileStorageAdapter
+from ports.secondary.storage import StorageKey, StorageValue, Metadata
 
 
 class TestFileStorageAdapter:
@@ -317,7 +317,7 @@ class MockMLXModule:
         self.state = params
 
 
-class TestModelCheckpointAdapter:
+class TestModelFileStorageAdapter:
     """Test model checkpoint adapter."""
     
     @pytest.fixture
@@ -330,11 +330,11 @@ class TestModelCheckpointAdapter:
     @pytest.fixture
     def checkpoint_adapter(self, temp_dir):
         """Create checkpoint adapter with temporary directory."""
-        return ModelCheckpointAdapter(checkpoint_dir=temp_dir)
+        return ModelFileStorageAdapter(checkpoint_dir=temp_dir)
     
     def test_initialization(self, temp_dir):
         """Test checkpoint adapter initialization."""
-        adapter = ModelCheckpointAdapter(checkpoint_dir=temp_dir)
+        adapter = ModelFileStorageAdapter(checkpoint_dir=temp_dir)
         assert adapter.checkpoint_dir == temp_dir
         assert adapter.use_safetensors is True
     
