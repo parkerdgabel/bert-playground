@@ -12,7 +12,7 @@ from pathlib import Path
 from loguru import logger
 
 # Import dependency injection and ports
-from core.bootstrap import get_service
+from infrastructure.bootstrap import get_service
 from ports.secondary.compute import ComputeBackend, Array, DataType
 from ports.secondary.tokenizer import TokenizerPort
 

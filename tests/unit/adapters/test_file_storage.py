@@ -12,8 +12,8 @@ import shutil
 from pathlib import Path
 from unittest.mock import Mock, patch, mock_open
 
-from core.adapters.file_storage import FileStorageAdapter, ModelCheckpointAdapter
-from core.ports.storage import StorageKey, StorageValue, Metadata
+from infrastructure.adapters.file_storage import FileStorageAdapter, ModelCheckpointAdapter
+from infrastructure.ports.storage import StorageKey, StorageValue, Metadata
 
 
 class TestFileStorageAdapter:

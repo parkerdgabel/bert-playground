@@ -6,8 +6,8 @@ import pytest
 from pathlib import Path
 import tempfile
 
-from core.bootstrap import ApplicationBootstrap, initialize_application, get_service
-from core.di.container import Container
+from infrastructure.bootstrap import ApplicationBootstrap, initialize_application, get_service
+from infrastructure.di.container import Container
 from ports.secondary.monitoring import MonitoringService
 
 
@@ -50,7 +50,7 @@ def test_service_resolution():
     # Import services to check
     from ports.secondary.compute import ComputeBackend
     from ports.secondary.storage import StorageService
-    from core.events.bus import EventBus
+    from infrastructure.events.bus import EventBus
     
     # Should be able to resolve
     compute = container.resolve(ComputeBackend)

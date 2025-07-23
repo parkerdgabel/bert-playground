@@ -4,7 +4,19 @@ This package contains the concrete implementations of domain interfaces
 using specific technologies like MLX, file system, caching, etc.
 """
 
-# Adapter implementations
+# Base adapters
+from .base import BaseDataAdapter
+
+# MLX data adapters
+from .mlx import (
+    MLXDataLoader,
+    MLXDatasetWrapper,
+    MLXTokenTransform,
+    MLXPaddingTransform,
+    MLXTruncationTransform,
+)
+
+# Existing adapter implementations
 from .data_adapter import (
     FileSystemDataRepository,
     MLXTokenizerAdapter, 
@@ -21,12 +33,22 @@ from .data_adapter import (
 )
 
 # Infrastructure components  
-from .loaders.mlx_loader import MLXDataLoader, MLXLoaderConfig
+from .loaders.mlx_loader import MLXDataLoader as LegacyMLXDataLoader, MLXLoaderConfig
 from .tokenizers.mlx_tokenizer import MLXTokenizer
 from .cache.factory import create_cache
 from .preprocessing.tokenizer_cache import TokenizerCache, PreTokenizedDataset
 
 __all__ = [
+    # Base adapters
+    "BaseDataAdapter",
+    
+    # MLX data adapters
+    "MLXDataLoader",
+    "MLXDatasetWrapper",
+    "MLXTokenTransform",
+    "MLXPaddingTransform",
+    "MLXTruncationTransform",
+    
     # Adapter implementations
     "FileSystemDataRepository",
     "MLXTokenizerAdapter",
@@ -43,7 +65,7 @@ __all__ = [
     "create_filesystem_adapter",
     
     # Infrastructure components
-    "MLXDataLoader",
+    "LegacyMLXDataLoader",
     "MLXLoaderConfig",
     "MLXTokenizer",
     "create_cache",

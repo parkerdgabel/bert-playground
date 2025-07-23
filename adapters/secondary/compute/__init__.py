@@ -6,6 +6,20 @@ This package contains implementations of compute backends:
 - PyTorch: Support for PyTorch models (future)
 """
 
-from .mlx import MLXComputeAdapter, MLXNeuralBackend
+from .base import BaseComputeAdapter
+from .mlx import (
+    MLXComputeAdapter,
+    MLXModelAdapter,
+    MLXOptimizer,
+)
 
-__all__ = ["MLXComputeAdapter", "MLXNeuralBackend"]
+# Keep backward compatibility
+from .mlx import MLXComputeAdapter as MLXNeuralBackend
+
+__all__ = [
+    "BaseComputeAdapter",
+    "MLXComputeAdapter",
+    "MLXModelAdapter", 
+    "MLXOptimizer",
+    "MLXNeuralBackend",  # For backward compatibility
+]

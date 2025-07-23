@@ -6,8 +6,8 @@ to execute training operations. It's a driving port in hexagonal architecture.
 
 from typing import Any, Protocol, runtime_checkable, Optional
 
-from core.protocols.models import Model
-from core.protocols.data import DataLoader
+from infrastructure.protocols.models import Model
+from infrastructure.protocols.data import DataLoader
 
 
 @runtime_checkable

@@ -13,13 +13,13 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from core.bootstrap import initialize_application, get_service
-from core.ports.compute import ComputeBackend
-from core.ports.storage import StorageService
-from core.ports.config import ConfigurationProvider
-from core.ports.monitoring import MonitoringService
-from core.events.bus import get_event_bus
-from core.events.events import ApplicationEvent
+from infrastructure.bootstrap import initialize_application, get_service
+from infrastructure.ports.compute import ComputeBackend
+from infrastructure.ports.storage import StorageService
+from infrastructure.ports.config import ConfigurationProvider
+from infrastructure.ports.monitoring import MonitoringService
+from infrastructure.events.bus import get_event_bus
+from infrastructure.events.events import ApplicationEvent
 from models.factory_facade import ModelFactory
 from training.commands.train import TrainCommand
 

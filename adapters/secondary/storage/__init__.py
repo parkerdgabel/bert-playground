@@ -1,12 +1,24 @@
-"""
-Storage backend adapters for persisting data and models.
+"""Storage adapters for persistence operations."""
 
-This package contains implementations of storage backends:
-- FileSystem: Local file system storage
-- S3: Amazon S3 storage (future)
-- GCS: Google Cloud Storage (future)
-"""
+from .base import BaseStorageAdapter, BaseCheckpointAdapter
+from .filesystem import FilesystemStorageAdapter, FilesystemCheckpointAdapter
+from .cloud import (
+    S3StorageAdapter,
+    S3CheckpointAdapter,
+    GCSStorageAdapter,
+    GCSCheckpointAdapter,
+)
 
-from .filesystem import FileStorageAdapter, ModelFileStorageAdapter
-
-__all__ = ["FileStorageAdapter", "ModelFileStorageAdapter"]
+__all__ = [
+    # Base classes
+    "BaseStorageAdapter",
+    "BaseCheckpointAdapter",
+    # Filesystem adapters
+    "FilesystemStorageAdapter",
+    "FilesystemCheckpointAdapter",
+    # Cloud adapters
+    "S3StorageAdapter",
+    "S3CheckpointAdapter",
+    "GCSStorageAdapter",
+    "GCSCheckpointAdapter",
+]

@@ -13,8 +13,8 @@ from unittest.mock import Mock, patch
 import yaml
 
 from cli.app import app
-from core.bootstrap import initialize_application, get_service
-from core.ports.monitoring import MonitoringService
+from infrastructure.bootstrap import initialize_application, get_service
+from infrastructure.ports.monitoring import MonitoringService
 
 
 class TestCLIIntegration:

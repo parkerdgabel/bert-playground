@@ -10,16 +10,16 @@ from pathlib import Path
 import tempfile
 from unittest.mock import Mock, patch
 
-from core.bootstrap import ApplicationBootstrap, get_bootstrap, initialize_application, get_service
-from core.di.container import Container
-from core.ports.compute import ComputeBackend
-from core.ports.storage import StorageService, ModelStorageService
-from core.ports.config import ConfigurationProvider
-from core.ports.monitoring import MonitoringService
-from core.ports.tokenizer import TokenizerFactory
-from core.events.bus import EventBus
-from core.plugins.registry import PluginRegistry
-from core.plugins.loader import PluginLoader
+from infrastructure.bootstrap import ApplicationBootstrap, get_bootstrap, initialize_application, get_service
+from infrastructure.di.container import Container
+from infrastructure.ports.compute import ComputeBackend
+from infrastructure.ports.storage import StorageService, ModelStorageService
+from infrastructure.ports.config import ConfigurationProvider
+from infrastructure.ports.monitoring import MonitoringService
+from infrastructure.ports.tokenizer import TokenizerFactory
+from infrastructure.events.bus import EventBus
+from infrastructure.plugins.registry import PluginRegistry
+from infrastructure.plugins.loader import PluginLoader
 
 
 class TestApplicationBootstrap:

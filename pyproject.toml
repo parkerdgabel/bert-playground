@@ -68,9 +68,9 @@ Documentation = "https://github.com/parkergabel/mlx-bert/blob/main/README.md"
 "Bug Tracker" = "https://github.com/parkergabel/mlx-bert/issues"
 
 [project.scripts]
-k-bert = "cli:main"
-kbert = "cli:main"  # Alias without hyphen
-bert = "cli:main"  # Short alias for convenience
+k-bert = "cli.main:main"
+kbert = "cli.main:main"  # Alias without hyphen
+bert = "cli.main:main"  # Short alias for convenience
 
 [project.optional-dependencies]
 dev = [
@@ -137,7 +137,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["cli*", "models*", "data*", "training*", "utils*", "core*", "adapters*", "bert_playground*"]
+include = ["cli*", "models*", "data*", "training*", "utils*", "core*", "adapters*", "bert_playground*", "application*", "domain*", "infrastructure*", "ports*"]
 exclude = ["tests*", "cache*", "output*", "mlruns*"]
 
 [tool.setuptools.package-data]

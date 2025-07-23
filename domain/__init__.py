@@ -10,66 +10,192 @@ The domain layer follows hexagonal architecture principles:
 - Focuses on the "what" not the "how"
 
 Structure:
-- models/: Core domain models (BERT architecture, configurations, outputs)
-- services/: Domain services (training logic, evaluation logic)
-- data/: Data domain models and processing logic
+- entities/: Core domain entities (models, training, datasets, metrics)
+- services/: Domain services (training, evaluation, tokenization, checkpointing)
+- ports/: Port interfaces for external dependencies
+- exceptions/: Domain-specific exceptions
+- models/: Legacy domain models (BERT architecture, configurations)
+- data/: Legacy data domain models
 
 All framework-specific implementations are handled by adapters in the
 infrastructure layer that implement the domain's port interfaces.
 """
 
-# Re-export main domain components for convenience
-from .models import (
-    BertDomainConfig,
-    BertConfigPresets,
-    BertDomainOutput,
-    HeadOutput,
-    TaskType,
-    HeadConfig,
-    HeadFactory,
+# New architecture imports
+from .entities import (
+    BertModel,
+    ModelArchitecture,
+    ModelWeights,
+    TrainingSession,
+    TrainingConfig as NewTrainingConfig,
+    TrainingState as NewTrainingState,
+    Dataset,
+    DataBatch,
+    TokenSequence,
+    TrainingMetrics,
+    EvaluationMetrics,
 )
 
 from .services import (
-    TrainingConfig,
-    TrainingState,
-    TrainingService,
-    EvaluationConfig,
-    EvaluationResult,
-    EvaluationService,
+    ModelTrainingService,
+    EvaluationService as NewEvaluationService,
+    TokenizationService,
+    CheckpointingService,
 )
 
-from .data import (
-    DataConfig,
-    DatasetType,
-    TaskDataType,
-    TextExample,
-    DataService,
-    DataPipeline,
+from .ports import (
+    ComputePort,
+    DataLoaderPort,
+    DatasetPort,
+    TokenizerPort,
+    MonitoringPort,
+    StoragePort,
+    CheckpointPort,
+    MetricsCalculatorPort,
 )
 
-__all__ = [
-    # Models
-    "BertDomainConfig",
-    "BertConfigPresets",
-    "BertDomainOutput",
-    "HeadOutput",
-    "TaskType",
-    "HeadConfig",
-    "HeadFactory",
+from .exceptions import (
+    TrainingError,
+    ModelNotInitializedError,
+    CheckpointError,
+    InvalidConfigurationError,
+    DataError,
+    MetricsError,
+    EarlyStoppingError,
+)
+
+# Legacy imports for backward compatibility
+try:
+    from .models import (
+        BertDomainConfig,
+        BertConfigPresets,
+        BertDomainOutput,
+        HeadOutput,
+        TaskType,
+        HeadConfig,
+        HeadFactory,
+    )
     
-    # Services
-    "TrainingConfig",
-    "TrainingState",
-    "TrainingService",
-    "EvaluationConfig",
-    "EvaluationResult",
-    "EvaluationService",
+    from .services import (
+        TrainingConfig,
+        TrainingState,
+        TrainingService,
+        EvaluationConfig,
+        EvaluationResult,
+        EvaluationService,
+    )
     
-    # Data
-    "DataConfig",
-    "DatasetType",
-    "TaskDataType",
-    "TextExample",
-    "DataService",
-    "DataPipeline",
-]
+    from .data import (
+        DataConfig,
+        DatasetType,
+        TaskDataType,
+        TextExample,
+        DataService,
+        DataPipeline,
+    )
+    
+    __all__ = [
+        # New entities
+        "BertModel",
+        "ModelArchitecture",
+        "ModelWeights",
+        "TrainingSession",
+        "NewTrainingConfig",
+        "NewTrainingState",
+        "Dataset",
+        "DataBatch",
+        "TokenSequence",
+        "TrainingMetrics",
+        "EvaluationMetrics",
+        
+        # New services
+        "ModelTrainingService",
+        "NewEvaluationService",
+        "TokenizationService",
+        "CheckpointingService",
+        
+        # Ports
+        "ComputePort",
+        "DataLoaderPort",
+        "DatasetPort",
+        "TokenizerPort",
+        "MonitoringPort",
+        "StoragePort",
+        "CheckpointPort",
+        "MetricsCalculatorPort",
+        
+        # Exceptions
+        "TrainingError",
+        "ModelNotInitializedError",
+        "CheckpointError",
+        "InvalidConfigurationError",
+        "DataError",
+        "MetricsError",
+        "EarlyStoppingError",
+        
+        # Legacy models
+        "BertDomainConfig",
+        "BertConfigPresets",
+        "BertDomainOutput",
+        "HeadOutput",
+        "TaskType",
+        "HeadConfig",
+        "HeadFactory",
+        
+        # Legacy services
+        "TrainingConfig",
+        "TrainingState",
+        "TrainingService",
+        "EvaluationConfig",
+        "EvaluationResult",
+        "EvaluationService",
+        
+        # Legacy data
+        "DataConfig",
+        "DatasetType",
+        "TaskDataType",
+        "TextExample",
+        "DataService",
+        "DataPipeline",
+    ]
+except ImportError:
+    # If legacy modules don't exist, export only new components
+    __all__ = [
+        # Entities
+        "BertModel",
+        "ModelArchitecture",
+        "ModelWeights",
+        "TrainingSession",
+        "NewTrainingConfig",
+        "NewTrainingState",
+        "Dataset",
+        "DataBatch",
+        "TokenSequence",
+        "TrainingMetrics",
+        "EvaluationMetrics",
+        
+        # Services
+        "ModelTrainingService",
+        "NewEvaluationService",
+        "TokenizationService",
+        "CheckpointingService",
+        
+        # Ports
+        "ComputePort",
+        "DataLoaderPort",
+        "DatasetPort",
+        "TokenizerPort",
+        "MonitoringPort",
+        "StoragePort",
+        "CheckpointPort",
+        "MetricsCalculatorPort",
+        
+        # Exceptions
+        "TrainingError",
+        "ModelNotInitializedError",
+        "CheckpointError",
+        "InvalidConfigurationError",
+        "DataError",
+        "MetricsError",
+        "EarlyStoppingError",
+    ]

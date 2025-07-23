@@ -37,10 +37,10 @@ k-bert train  # Uses k-bert.yaml
 ### 4. Files Created/Modified
 
 #### New Files:
-- `cli/commands/core/train_refactored.py` - Refactored train command
-- `cli/commands/core/predict_refactored.py` - Refactored predict command  
-- `cli/commands/core/benchmark_refactored.py` - Refactored benchmark command
-- `cli/commands/core/train_v2.py` - Simplified train implementation
+- `cli/commands/infrastructure/train_refactored.py` - Refactored train command
+- `cli/commands/infrastructure/predict_refactored.py` - Refactored predict command  
+- `cli/commands/infrastructure/benchmark_refactored.py` - Refactored benchmark command
+- `cli/commands/infrastructure/train_v2.py` - Simplified train implementation
 - `configs/templates/k-bert.template.yaml` - Comprehensive config template
 - `k-bert.example.yaml` - Simple example configuration
 - `docs/config-first-cli.md` - User documentation

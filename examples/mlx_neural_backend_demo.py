@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import mlx.core as mx
 import numpy as np
 
-from core.ports.neural import ActivationType, create_neural_backend
+from infrastructure.ports.neural import ActivationType, create_neural_backend
 
 
 def demo_basic_layers():
@@ -66,7 +66,7 @@ def demo_attention():
     print(f"MHA output shape: {attn_out.shape}")
     
     # Create custom flash attention from modules
-    from core.adapters.neural.mlx_modules import MLXFlashAttention
+    from infrastructure.adapters.neural.mlx_modules import MLXFlashAttention
     
     flash_attn = MLXFlashAttention(
         embed_dim=64,
@@ -180,7 +180,7 @@ def demo_advanced_features():
     print(f"Rotated K shape: {k_rot.shape}")
     
     # Test custom modules
-    from core.adapters.neural.mlx_modules import MLXGeGLU, MLXGroupedQueryAttention
+    from infrastructure.adapters.neural.mlx_modules import MLXGeGLU, MLXGroupedQueryAttention
     
     # GeGLU activation
     geglu = MLXGeGLU(input_dim=64, hidden_dim=128)

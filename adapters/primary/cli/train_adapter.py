@@ -21,8 +21,8 @@ from loguru import logger
 
 from application.dto.training import TrainingRequestDTO
 from application.use_cases.train_model import TrainModelUseCase
-from core.bootstrap import get_service
-from core.ports.config import ConfigurationProvider
+from infrastructure.bootstrap import get_service
+from infrastructure.ports.config import ConfigurationProvider
 
 
 console = Console()

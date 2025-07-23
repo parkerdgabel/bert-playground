@@ -51,8 +51,8 @@ The K-BERT project has been successfully restructured to use hexagonal architect
 ### 1. Dependency Injection
 
 ```python
-from core.bootstrap import initialize_application, get_service
-from core.ports.compute import ComputeBackend
+from infrastructure.bootstrap import initialize_application, get_service
+from infrastructure.ports.compute import ComputeBackend
 
 # Initialize application
 container = initialize_application()
@@ -89,7 +89,7 @@ class TrainCommand:
 ### 4. Event-Driven Communication
 
 ```python
-from core.events.bus import get_event_bus
+from infrastructure.events.bus import get_event_bus
 event_bus = get_event_bus()
 event_bus.publish(TrainingStartedEvent(...))
 ```

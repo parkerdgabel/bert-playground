@@ -16,7 +16,7 @@ from rich.table import Table
 
 from application.dto.prediction import PredictionRequestDTO, PredictionFormat
 from application.use_cases.predict import PredictUseCase
-from core.bootstrap import get_service
+from infrastructure.bootstrap import get_service
 from adapters.primary.cli.base import CLIAdapter, ProgressContext, format_time
 
 

@@ -12,8 +12,8 @@ from rich.syntax import Syntax
 from rich.panel import Panel
 import yaml
 
-from core.bootstrap import get_service
-from core.ports.config import ConfigurationProvider
+from infrastructure.bootstrap import get_service
+from infrastructure.ports.config import ConfigurationProvider
 from adapters.primary.cli.base import CLIAdapter
 
 

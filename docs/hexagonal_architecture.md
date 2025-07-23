@@ -69,7 +69,7 @@ Adapters provide concrete implementations of port interfaces:
 ### Basic Usage
 
 ```python
-from core.factory import get_context
+from infrastructure.factory import get_context
 
 # Get adapter context
 context = get_context()
@@ -111,8 +111,8 @@ loaded_model, metadata = factory.load_model(Path("./model_checkpoint"))
 ### Custom Adapter Registration
 
 ```python
-from core.factory import get_factory, register_adapter
-from core.ports import ComputeBackend
+from infrastructure.factory import get_factory, register_adapter
+from infrastructure.ports import ComputeBackend
 
 # Create custom compute adapter
 class PyTorchComputeAdapter:
@@ -230,7 +230,7 @@ class MyServiceAdapter:
 
 3. **Register the adapter**:
 ```python
-from core.factory import register_adapter
+from infrastructure.factory import register_adapter
 
 register_adapter(MyServicePort, MyServiceAdapter(config))
 ```
@@ -305,7 +305,7 @@ def test_adapter_protocol_compliance():
 Configure adapters through the factory:
 
 ```python
-from core.factory import configure_adapters
+from infrastructure.factory import configure_adapters
 
 config = {
     "storage": {
@@ -331,7 +331,7 @@ Use environment variables for deployment-specific settings:
 
 ```python
 import os
-from core.factory import configure_adapters
+from infrastructure.factory import configure_adapters
 
 config = {
     "storage": {
@@ -420,7 +420,7 @@ def create_weights():
 
 After (using ports):
 ```python
-from core.factory import get_context
+from infrastructure.factory import get_context
 
 def create_weights():
     compute = get_context().compute

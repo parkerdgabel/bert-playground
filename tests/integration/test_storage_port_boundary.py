@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Any, Dict
 from unittest.mock import Mock, patch
 
-from core.ports.storage import StoragePort, ModelStoragePort
-from core.adapters.file_storage import FileStorageAdapter, ModelCheckpointAdapter
+from infrastructure.ports.storage import StoragePort, ModelStoragePort
+from infrastructure.adapters.file_storage import FileStorageAdapter, ModelCheckpointAdapter
 
 
 class TestStoragePortIntegration:

@@ -15,8 +15,8 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from loguru import logger
-from core.bootstrap import initialize_application, get_service
-from core.ports.monitoring import MonitoringService
+from infrastructure.bootstrap import initialize_application, get_service
+from infrastructure.ports.monitoring import MonitoringService
 
 
 def setup_logging():

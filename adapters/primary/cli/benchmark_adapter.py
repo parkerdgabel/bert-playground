@@ -10,7 +10,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from core.bootstrap import get_service
+from infrastructure.bootstrap import get_service
 from adapters.primary.cli.base import CLIAdapter, ProgressContext, format_time, format_size
 
 

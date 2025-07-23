@@ -1,16 +1,51 @@
 """Application layer - orchestrates domain services and ports.
 
 This layer contains:
-- Use cases that orchestrate business logic
+- Commands (write operations) that orchestrate business logic
+- Queries (read operations) for retrieving information
+- Services for complex orchestration and coordination
 - DTOs for data transfer between layers
-- Orchestration logic for complex workflows
 """
 
-from .dto import *
-from .use_cases import *
-from .orchestration import *
+from .commands import (
+    TrainModelCommand,
+    EvaluateModelCommand,
+    PredictCommand,
+    ExportModelCommand,
+)
+from .queries import (
+    GetModelInfoQuery,
+    GetTrainingMetricsQuery,
+)
+from .services import (
+    TrainingOrchestrator,
+    DataPipelineService,
+    ExperimentTracker,
+)
+from .dto import (
+    TrainingRequestDTO,
+    TrainingResponseDTO,
+    EvaluationRequestDTO,
+    EvaluationResponseDTO,
+    PredictionRequestDTO,
+    PredictionResponseDTO,
+    ExportRequestDTO,
+    ExportResponseDTO,
+)
 
 __all__ = [
+    # Commands
+    "TrainModelCommand",
+    "EvaluateModelCommand",
+    "PredictCommand",
+    "ExportModelCommand",
+    # Queries
+    "GetModelInfoQuery",
+    "GetTrainingMetricsQuery",
+    # Services
+    "TrainingOrchestrator",
+    "DataPipelineService",
+    "ExperimentTracker",
     # DTOs
     "TrainingRequestDTO",
     "TrainingResponseDTO",
@@ -18,13 +53,6 @@ __all__ = [
     "EvaluationResponseDTO",
     "PredictionRequestDTO",
     "PredictionResponseDTO",
-    
-    # Use cases
-    "TrainModelUseCase",
-    "EvaluateModelUseCase",
-    "PredictUseCase",
-    
-    # Orchestration
-    "TrainingOrchestrator",
-    "WorkflowOrchestrator",
+    "ExportRequestDTO",
+    "ExportResponseDTO",
 ]

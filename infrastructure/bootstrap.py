@@ -206,7 +206,7 @@ class ApplicationBootstrap:
         
         # Add monitoring service if available
         try:
-            from core.ports.monitoring import MonitoringService
+            from infrastructure.ports.monitoring import MonitoringService
             critical_services.append(("MonitoringService", MonitoringService))
         except ImportError:
             pass

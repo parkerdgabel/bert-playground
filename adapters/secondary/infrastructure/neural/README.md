@@ -32,7 +32,7 @@ The MLX adapter (`mlx_backend.py`) provides a complete implementation of the neu
 ### Usage Example
 
 ```python
-from core.ports.neural import create_neural_backend
+from infrastructure.ports.neural import create_neural_backend
 
 # Create MLX backend
 backend = create_neural_backend("mlx")

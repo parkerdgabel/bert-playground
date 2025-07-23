@@ -21,7 +21,7 @@ k-bert is a state-of-the-art BERT implementation using Apple's MLX framework, de
 bert-playground/
 ├── cli/                     # CLI application (k-bert command)
 │   ├── commands/           # Command implementations
-│   │   ├── core/          # train, predict, benchmark, info
+│   │   ├── train, predict, benchmark, info  # Core commands
 │   │   ├── config/        # Configuration management
 │   │   ├── project/       # Project scaffolding
 │   │   └── competition/   # Kaggle integration (future)
@@ -34,12 +34,12 @@ bert-playground/
 │   ├── lora/              # LoRA adapters
 │   └── factory.py         # Model creation
 ├── data/                   # Data pipeline
-│   ├── core/              # Protocols and base classes
+│   ├── base/              # Base classes and protocols
 │   ├── loaders/           # MLX-optimized data loading
 │   ├── templates/         # Text conversion templates
 │   └── factory.py         # Dataset creation
 ├── training/              # Training infrastructure
-│   ├── core/              # Base trainer
+│   ├── base/              # Base trainer classes
 │   ├── callbacks/         # Training callbacks
 │   └── metrics/           # Evaluation metrics
 ├── configs/               # Example configurations

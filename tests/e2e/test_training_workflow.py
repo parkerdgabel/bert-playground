@@ -14,9 +14,9 @@ from datetime import datetime
 
 from application.use_cases.train_model import TrainModelUseCase
 from application.dto.training import TrainingRequestDTO
-from core.adapters.file_storage import FileStorageAdapter, ModelCheckpointAdapter
-from core.adapters.loguru_monitoring import LoguruMonitoringAdapter
-from core.adapters.yaml_config import YamlConfigurationAdapter
+from infrastructure.adapters.file_storage import FileStorageAdapter, ModelCheckpointAdapter
+from infrastructure.adapters.loguru_monitoring import LoguruMonitoringAdapter
+from infrastructure.adapters.yaml_config import YamlConfigurationAdapter
 from domain.services.training_service import TrainingService, TrainingConfig
 
 

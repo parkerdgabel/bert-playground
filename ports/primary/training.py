@@ -8,8 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable, Optional
 
-from core.protocols.data import DataLoader
-from core.protocols.models import Model
+from infrastructure.protocols.data import DataLoader
+from infrastructure.protocols.models import Model
 
 
 @dataclass

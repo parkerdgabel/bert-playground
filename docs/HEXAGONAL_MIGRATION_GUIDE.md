@@ -24,8 +24,8 @@ from bert_playground.training.trainer import Trainer
 
 **New:**
 ```python
-from core.bootstrap import get_service
-from core.ports.compute import ComputeBackend
+from infrastructure.bootstrap import get_service
+from infrastructure.ports.compute import ComputeBackend
 from models.factory_facade import ModelFactory
 from training.components.training_orchestrator import TrainingOrchestrator
 ```
@@ -42,7 +42,7 @@ trainer = Trainer(config)
 
 **New (Dependency Injection):**
 ```python
-from core.bootstrap import initialize_application, get_service
+from infrastructure.bootstrap import initialize_application, get_service
 
 # Initialize application once
 container = initialize_application()
@@ -63,7 +63,7 @@ merged_config = ConfigManager().merge_configs(base, override)
 
 **New:**
 ```python
-from core.ports.config import ConfigurationProvider
+from infrastructure.ports.config import ConfigurationProvider
 
 config_provider = get_service(ConfigurationProvider)
 config = config_provider.load_config("config.yaml")
@@ -109,8 +109,8 @@ ModelFactory.register_head("custom", CustomHead)
 
 **New (Plugin System):**
 ```python
-from core.plugins.base import Plugin
-from core.plugins.decorators import plugin
+from infrastructure.plugins.base import Plugin
+from infrastructure.plugins.decorators import plugin
 
 @plugin(
     name="custom_head",
@@ -136,7 +136,7 @@ except Exception as e:
 
 **New:**
 ```python
-from core.exceptions import ApplicationError, handle_errors
+from infrastructure.exceptions import ApplicationError, handle_errors
 
 @handle_errors(ApplicationError)
 def some_operation():
@@ -148,8 +148,8 @@ def some_operation():
 
 **New Feature - Event-Driven Communication:**
 ```python
-from core.events.bus import get_event_bus
-from core.events.events import TrainingStartedEvent
+from infrastructure.events.bus import get_event_bus
+from infrastructure.events.events import TrainingStartedEvent
 
 # Subscribe to events
 event_bus = get_event_bus()
@@ -169,7 +169,7 @@ Replace all old imports with new port/adapter imports:
 # Replace direct imports
 - from bert_playground.training.trainer import Trainer
 + from training.components.training_orchestrator import TrainingOrchestrator
-+ from core.bootstrap import get_service
++ from infrastructure.bootstrap import get_service
 ```
 
 ### Step 2: Initialize Application
@@ -177,7 +177,7 @@ Replace all old imports with new port/adapter imports:
 Add application initialization at the start of your script:
 
 ```python
-from core.bootstrap import initialize_application
+from infrastructure.bootstrap import initialize_application
 
 # Initialize once at startup
 container = initialize_application()
@@ -248,9 +248,9 @@ trainer.train()
 **New Architecture:**
 ```python
 from pathlib import Path
-from core.bootstrap import initialize_application, get_service
+from infrastructure.bootstrap import initialize_application, get_service
 from training.commands.train import TrainCommand
-from core.ports.config import ConfigurationProvider
+from infrastructure.ports.config import ConfigurationProvider
 
 # Initialize application
 container = initialize_application()
@@ -282,8 +282,8 @@ k-bert predict --model model.safetensors --data test.csv
 
 ```python
 import pytest
-from core.di.container import Container
-from core.testing import create_test_container
+from infrastructure.di.container import Container
+from infrastructure.testing import create_test_container
 
 def test_training_command():
     # Create test container with mocks

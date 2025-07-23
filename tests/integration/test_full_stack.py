@@ -11,12 +11,12 @@ import tempfile
 import yaml
 from unittest.mock import Mock, patch
 
-from core.bootstrap import ApplicationBootstrap, initialize_application, get_service
-from core.di.container import Container
-from core.ports.compute import ComputeBackend
-from core.ports.storage import StorageService, ModelStorageService
-from core.ports.config import ConfigurationProvider
-from core.ports.monitoring import MonitoringService
+from infrastructure.bootstrap import ApplicationBootstrap, initialize_application, get_service
+from infrastructure.di.container import Container
+from infrastructure.ports.compute import ComputeBackend
+from infrastructure.ports.storage import StorageService, ModelStorageService
+from infrastructure.ports.config import ConfigurationProvider
+from infrastructure.ports.monitoring import MonitoringService
 from cli.app import app
 from training.commands.train import TrainCommand
 from models.factory_facade import ModelFactory
@@ -210,8 +210,8 @@ class TestFullStackIntegration:
     
     def test_plugin_system_integration(self, temp_dir):
         """Test that the plugin system integrates correctly."""
-        from core.plugins.registry import PluginRegistry
-        from core.plugins.base import Plugin
+        from infrastructure.plugins.registry import PluginRegistry
+        from infrastructure.plugins.base import Plugin
         
         # Create a test plugin
         class TestPlugin(Plugin):
@@ -238,8 +238,8 @@ class TestFullStackIntegration:
     
     def test_event_system_integration(self):
         """Test that the event system works across components."""
-        from core.events.bus import get_event_bus
-        from core.events.events import ApplicationEvent
+        from infrastructure.events.bus import get_event_bus
+        from infrastructure.events.events import ApplicationEvent
         
         # Initialize application
         container = initialize_application()
