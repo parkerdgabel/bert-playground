@@ -17,8 +17,8 @@ from application.dto.training import TrainingRequestDTO, TrainingResponseDTO
 from application.dto.evaluation import EvaluationRequestDTO, EvaluationResponseDTO
 from application.use_cases.train_model import TrainModelUseCase
 from application.use_cases.evaluate_model import EvaluateModelUseCase
-from ports.secondary.monitoring import MonitoringPort
-from ports.secondary.storage import StoragePort
+from ports.secondary.monitoring import MonitoringService
+from ports.secondary.storage import StorageService
 
 
 @dataclass
@@ -59,8 +59,8 @@ class TrainingOrchestrator:
         self,
         train_use_case: TrainModelUseCase,
         evaluate_use_case: EvaluateModelUseCase,
-        monitoring_port: MonitoringPort,
-        storage_port: StoragePort,
+        monitoring_port: MonitoringService,
+        storage_port: StorageService,
     ):
         """Initialize the orchestrator.
         

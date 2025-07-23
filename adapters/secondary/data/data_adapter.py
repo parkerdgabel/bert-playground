@@ -118,19 +118,34 @@ class MLXDataLoaderAdapter(DataLoader):
     def __init__(self, dataset: Dataset, config: MLXLoaderConfig, tokenizer: Optional[TokenizerAdapter] = None):
         """Initialize MLX data loader."""
         # Convert domain dataset to infrastructure format
-        from data.factory import CSVDataset
-        
         if isinstance(dataset.spec.dataset_path, Path):
             path = str(dataset.spec.dataset_path)
         else:
             path = dataset.spec.dataset_path
             
+        # Create a simple dataset wrapper for MLX loader
+        class SimpleDataset:
+            def __init__(self, csv_path, text_column, label_column):
+                self.df = pd.read_csv(csv_path)
+                self.text_column = text_column
+                self.label_column = label_column
+                
+            def __len__(self):
+                return len(self.df)
+                
+            def __getitem__(self, idx):
+                row = self.df.iloc[idx]
+                return {
+                    "text": row[self.text_column] if self.text_column else "",
+                    "label": row[self.label_column] if self.label_column else None,
+                    "metadata": {"idx": idx}
+                }
+        
         # Create infrastructure dataset
-        infrastructure_dataset = CSVDataset(
+        infrastructure_dataset = SimpleDataset(
             csv_path=path,
             text_column=dataset.spec.text_columns[0] if dataset.spec.text_columns else None,
-            label_column=dataset.spec.target_column,
-            split=dataset.split
+            label_column=dataset.spec.target_column
         )
         
         # Create MLX loader
@@ -275,16 +290,8 @@ class SimpleDatasetFactory(DatasetFactory):
         cache: Optional[DataCache] = None
     ) -> Dataset:
         """Create dataset from specification."""
-        # This would create a concrete dataset implementation
-        # For now, return a simple implementation
-        from data.factory import CSVDataset
-        
-        return CSVDataset(
-            csv_path=spec.dataset_path,
-            text_column=spec.text_columns[0] if spec.text_columns else None,
-            label_column=spec.target_column,
-            split=split
-        )
+        # Return the domain Dataset model directly
+        return Dataset(spec=spec, split=split)
     
     def create_dataloader(
         self,

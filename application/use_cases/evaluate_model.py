@@ -10,9 +10,9 @@ from typing import Optional, Dict, Any, List
 
 from application.dto.evaluation import EvaluationRequestDTO, EvaluationResponseDTO
 from domain.services.evaluation_service import EvaluationService
-from ports.secondary.storage import StoragePort
-from ports.secondary.monitoring import MonitoringPort
-from ports.secondary.metrics import MetricsPort
+from ports.secondary.storage import StorageService
+from ports.secondary.monitoring import MonitoringService
+from ports.secondary.metrics import MetricsCollector
 
 
 class EvaluateModelUseCase:
@@ -29,9 +29,9 @@ class EvaluateModelUseCase:
     def __init__(
         self,
         evaluation_service: EvaluationService,
-        storage_port: StoragePort,
-        monitoring_port: MonitoringPort,
-        metrics_port: MetricsPort,
+        storage_port: StorageService,
+        monitoring_port: MonitoringService,
+        metrics_port: MetricsCollector,
     ):
         """Initialize the use case with required dependencies.
         

@@ -11,8 +11,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from data.core.base import CompetitionType, DatasetSpec
-from data.core.metadata import CompetitionMetadata
+from domain.data.models import DatasetSpec, CompetitionType
 
 
 @pytest.fixture(scope="session")
@@ -163,18 +162,16 @@ def house_prices_dataset_spec():
 @pytest.fixture
 def sample_competition_metadata():
     """Create sample competition metadata."""
-    return CompetitionMetadata(
-        competition_name="test_competition",
-        competition_type=CompetitionType.BINARY_CLASSIFICATION,
-        auto_detected=True,
-        confidence_score=0.95,
-        train_file="train.csv",
-        test_file="test.csv",
-        submission_file="sample_submission.csv",
-        dataset_size_mb=10.5,
-        recommended_batch_size=32,
-        recommended_max_length=256,
-    )
+    # Return a simple dict for now as CompetitionMetadata is removed
+    return {
+        "competition_name": "test_competition",
+        "competition_type": CompetitionType.BINARY_CLASSIFICATION,
+        "train_file": "train.csv",
+        "test_file": "test.csv",
+        "submission_file": "sample_submission.csv",
+        "recommended_batch_size": 32,
+        "recommended_max_length": 256,
+    }
 
 
 @pytest.fixture

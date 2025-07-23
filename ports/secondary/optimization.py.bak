@@ -47,11 +47,11 @@ class SchedulerConfig:
     scheduler_type: str = "constant"
     warmup_steps: int = 0
     warmup_ratio: float = 0.0
-    num_training_steps: Optional[int] = None
+    num_training_steps: int | None = None
     num_cycles: float = 0.5
     power: float = 1.0
     min_lr: float = 0.0
-    max_lr: Optional[float] = None
+    max_lr: float | None = None
     
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -155,7 +155,7 @@ class LRScheduler(Protocol):
     strategies. The application core depends on this for LR scheduling.
     """
 
-    def step(self, metrics: Optional[dict[str, float]] = None) -> float:
+    def step(self, metrics: dict[str, float] | None = None) -> float:
         """Update learning rate and return new value.
         
         Args:

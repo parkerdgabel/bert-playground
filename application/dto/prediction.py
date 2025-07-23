@@ -24,10 +24,12 @@ class PredictionRequestDTO:
     
     # Model specification
     model_path: Path
-    model_type: Optional[str] = None
     
     # Data specification
     data_path: Path
+    
+    # Optional fields
+    model_type: Optional[str] = None
     data_format: Optional[str] = None  # Auto-detect if not specified
     
     # Prediction configuration

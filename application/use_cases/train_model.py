@@ -14,11 +14,11 @@ from domain.services.training_service import (
     OptimizerType, SchedulerType
 )
 from ports.primary.training import TrainingResult
-from ports.secondary.storage import StoragePort
-from ports.secondary.monitoring import MonitoringPort
-from ports.secondary.configuration import ConfigurationPort
-from ports.secondary.checkpointing import CheckpointingPort
-from ports.secondary.metrics import MetricsPort
+from ports.secondary.storage import StorageService
+from ports.secondary.monitoring import MonitoringService
+from ports.secondary.configuration import ConfigurationProvider
+from ports.secondary.checkpointing import CheckpointManager
+from ports.secondary.metrics import MetricsCollector
 
 
 class TrainModelUseCase:
@@ -35,11 +35,11 @@ class TrainModelUseCase:
     def __init__(
         self,
         training_service: TrainingService,
-        storage_port: StoragePort,
-        monitoring_port: MonitoringPort,
-        config_port: ConfigurationPort,
-        checkpoint_port: CheckpointingPort,
-        metrics_port: MetricsPort,
+        storage_port: StorageService,
+        monitoring_port: MonitoringService,
+        config_port: ConfigurationProvider,
+        checkpoint_port: CheckpointManager,
+        metrics_port: MetricsCollector,
     ):
         """Initialize the use case with required dependencies.
         

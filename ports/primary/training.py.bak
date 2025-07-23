@@ -6,7 +6,7 @@ use to train models. It's a driving port in hexagonal architecture.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable, Optional
+from typing import Any, Protocol, runtime_checkable
 
 from core.protocols.data import DataLoader
 from core.protocols.models import Model
@@ -96,19 +96,19 @@ class TrainingResult:
     val_history: list[dict[str, float]]
 
     # Model paths
-    final_model_path: Optional[Path] = None
-    best_model_path: Optional[Path] = None
+    final_model_path: Path | None = None
+    best_model_path: Path | None = None
 
     # Metadata
     total_epochs: int = 0
     total_steps: int = 0
     total_time: float = 0.0
     early_stopped: bool = False
-    stop_reason: Optional[str] = None
+    stop_reason: str | None = None
 
     # Tracking
-    run_id: Optional[str] = None
-    experiment_id: Optional[str] = None
+    run_id: str | None = None
+    experiment_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert result to dictionary."""
@@ -191,8 +191,8 @@ class Trainer(Protocol):
     def train(
         self,
         train_dataloader: DataLoader,
-        val_dataloader: Optional[DataLoader] = None,
-        resume_from: Optional[Path] = None,
+        val_dataloader: DataLoader | None = None,
+        resume_from: Path | None = None,
     ) -> TrainingResult:
         """Run the training loop.
 
@@ -303,8 +303,8 @@ def train_model(
     model: Model,
     train_data: DataLoader,
     config: TrainerConfig,
-    val_data: Optional[DataLoader] = None,
-    strategy: Optional[TrainingStrategy] = None,
+    val_data: DataLoader | None = None,
+    strategy: TrainingStrategy | None = None,
 ) -> TrainingResult:
     """High-level function to train a model.
     
@@ -328,7 +328,7 @@ def train_model(
 def evaluate_model(
     model: Model,
     data: DataLoader,
-    metrics: Optional[list[str]] = None,
+    metrics: list[str] | None = None,
 ) -> dict[str, float]:
     """Evaluate a model on a dataset.
     
@@ -347,7 +347,7 @@ def evaluate_model(
 def predict_with_model(
     model: Model,
     data: DataLoader,
-    batch_size: Optional[int] = None,
+    batch_size: int | None = None,
 ) -> Any:
     """Generate predictions with a model.
     

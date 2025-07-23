@@ -17,7 +17,7 @@ from typing import Any
 import mlx.core as mx
 from loguru import logger
 
-from data.core.base import KaggleDataset
+# Remove old import - KaggleDataset is no longer used
 from ..preprocessing.tokenizer_cache import PreTokenizedDataset
 
 
@@ -59,7 +59,7 @@ class MLXDataLoader:
 
     def __init__(
         self,
-        dataset: KaggleDataset,
+        dataset: Any,  # Generic dataset interface
         config: MLXLoaderConfig | None = None,
         tokenizer=None,
         pretokenized_data: PreTokenizedDataset | None = None,

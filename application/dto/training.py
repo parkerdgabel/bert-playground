@@ -13,12 +13,12 @@ class TrainingRequestDTO:
     This is what external actors (CLI, API) provide to initiate training.
     """
     
-    # Model configuration
+    # Required fields first
     model_type: str
     model_config: Dict[str, Any]
-    
-    # Data configuration
     train_data_path: Path
+    
+    # Optional fields
     val_data_path: Optional[Path] = None
     test_data_path: Optional[Path] = None
     

@@ -7,7 +7,7 @@ by adapters for different frameworks (MLX, PyTorch, JAX, etc.).
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Protocol, runtime_checkable, Callable, Optional
+from typing import Any, Protocol, runtime_checkable, Callable
 
 from typing_extensions import TypeAlias
 
@@ -92,7 +92,7 @@ class AttentionConfig:
     rotary_base: float = 10000.0
     rotary_interleaved: bool = False
     use_flash_attention: bool = False
-    attention_scale: Optional[float] = None
+    attention_scale: float | None = None
 
 
 @dataclass
@@ -115,7 +115,7 @@ class EmbeddingConfig:
     max_position_embeddings: int
     position_encoding: PositionalEncoding = PositionalEncoding.LEARNED
     dropout: float = 0.0
-    padding_idx: Optional[int] = None
+    padding_idx: int | None = None
     scale_embeddings: bool = True
 
 
@@ -124,8 +124,8 @@ class TransformerLayerOutput:
     """Output from a single transformer layer."""
     
     hidden_states: Array
-    attention_weights: Optional[Array] = None
-    cross_attention_weights: Optional[Array] = None
+    attention_weights: Array | None = None
+    cross_attention_weights: Array | None = None
 
 
 @dataclass
@@ -133,9 +133,9 @@ class TransformerOutput:
     """Output from a full transformer model."""
     
     last_hidden_state: Array
-    hidden_states: Optional[list[Array]] = None
-    attentions: Optional[list[Array]] = None
-    cross_attentions: Optional[list[Array]] = None
+    hidden_states: list[Array] | None = None
+    attentions: list[Array] | None = None
+    cross_attentions: list[Array] | None = None
 
 
 @dataclass
@@ -143,8 +143,8 @@ class AttentionMask:
     """Attention mask configuration."""
     
     mask_type: AttentionMaskType
-    mask: Optional[Array] = None
-    prefix_length: Optional[int] = None
+    mask: Array | None = None
+    prefix_length: int | None = None
 
 
 @runtime_checkable

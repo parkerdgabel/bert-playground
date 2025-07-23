@@ -15,8 +15,8 @@ from application.dto.prediction import (
     PredictionResponseDTO,
     PredictionFormat
 )
-from ports.secondary.storage import StoragePort
-from ports.secondary.monitoring import MonitoringPort
+from ports.secondary.storage import StorageService
+from ports.secondary.monitoring import MonitoringService
 
 
 class PredictUseCase:
@@ -32,8 +32,8 @@ class PredictUseCase:
     
     def __init__(
         self,
-        storage_port: StoragePort,
-        monitoring_port: MonitoringPort,
+        storage_port: StorageService,
+        monitoring_port: MonitoringService,
     ):
         """Initialize the use case with required dependencies.
         

@@ -24,7 +24,7 @@ def test_basic_bootstrap():
     assert monitoring is not None
     
     # Should be able to log
-    monitoring.log_info("Test message")
+    monitoring.log("INFO", "Test message")
 
 
 def test_bootstrap_with_config():

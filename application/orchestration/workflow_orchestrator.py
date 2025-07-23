@@ -16,8 +16,8 @@ from application.dto.prediction import PredictionRequestDTO, PredictionResponseD
 from application.use_cases.train_model import TrainModelUseCase
 from application.use_cases.evaluate_model import EvaluateModelUseCase
 from application.use_cases.predict import PredictUseCase
-from ports.secondary.monitoring import MonitoringPort
-from ports.secondary.storage import StoragePort
+from ports.secondary.monitoring import MonitoringService
+from ports.secondary.storage import StorageService
 
 
 class WorkflowStage(Enum):
@@ -115,8 +115,8 @@ class WorkflowOrchestrator:
         train_use_case: TrainModelUseCase,
         evaluate_use_case: EvaluateModelUseCase,
         predict_use_case: PredictUseCase,
-        monitoring_port: MonitoringPort,
-        storage_port: StoragePort,
+        monitoring_port: MonitoringService,
+        storage_port: StorageService,
     ):
         """Initialize the orchestrator.
         

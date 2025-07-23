@@ -111,13 +111,12 @@ class ApplicationBootstrap:
         """Setup domain-specific services."""
         logger.debug("Setting up domain services")
         
-        # Import domain services here to avoid circular imports
-        from models.factory_facade import ModelFactory
-        from data.factory import DatasetFactory
+        # Import domain services from new architecture
+        from domain.data.interfaces import DatasetFactory
+        from adapters.secondary.data.data_adapter import SimpleDatasetFactory
         
-        # Register domain factories
-        self.container.register(ModelFactory, singleton=True)
-        self.container.register(DatasetFactory, singleton=True)
+        # Register domain factories with their implementations
+        self.container.register(DatasetFactory, SimpleDatasetFactory, singleton=True)
         
         logger.debug("Domain services setup complete")
     
@@ -125,18 +124,10 @@ class ApplicationBootstrap:
         """Setup application-level services."""
         logger.debug("Setting up application services")
         
-        # Import application services
-        from training.components.training_orchestrator import TrainingOrchestrator
-        from training.components.training_loop import TrainingLoop
-        from training.components.evaluation_loop import EvaluationLoop
-        from training.components.checkpoint_manager import CheckpointManager
-        from training.components.metrics_tracker import MetricsTracker
+        # Import application services from new architecture
+        from application.orchestration.training_orchestrator import TrainingOrchestrator
         
-        # Register training components (transient - new instance per request)
-        self.container.register(TrainingLoop)
-        self.container.register(EvaluationLoop)
-        self.container.register(CheckpointManager)
-        self.container.register(MetricsTracker)
+        # Register application services (transient - new instance per request)
         self.container.register(TrainingOrchestrator)
         
         logger.debug("Application services setup complete")
@@ -145,11 +136,8 @@ class ApplicationBootstrap:
         """Setup CLI layer with dependency injection."""
         logger.debug("Setting up CLI layer")
         
-        # Import CLI components
-        from cli.factory import CommandFactory
-        
-        # Register CLI infrastructure
-        self.container.register(CommandFactory, singleton=True)
+        # CLI is now a thin adapter layer in the new architecture
+        # No need to register old CLI factory
         
         logger.debug("CLI layer setup complete")
     
