@@ -367,11 +367,14 @@ class InfrastructureContainer:
                 
     def _register_compute_port(self) -> None:
         """Register compute port with configured adapter."""
-        # Use existing compute adapters to avoid import issues
+        # Register MLXComputeAdapter for low-level tensor operations only
         try:
             from ports.secondary.compute import ComputeBackend
             from adapters.secondary.compute.mlx.compute_adapter import MLXComputeAdapter
+            
+            # Register the compute adapter (tensor operations only)
             self.core_container.register(ComputeBackend, MLXComputeAdapter, singleton=True)
+            
         except ImportError:
             pass
                 
@@ -452,10 +455,26 @@ class InfrastructureContainer:
     def _register_neural_port(self) -> None:
         """Register neural port with configured adapter."""
         try:
-            from ports.secondary.neural import NeuralPort
+            from ports.secondary.neural import NeuralBackend
             from adapters.secondary.neural.mlx_backend import MLXNeuralBackend
+            from adapters.secondary.neural.mlx_adapter import MLXNeuralAdapter
+            from ports.secondary.compute import ComputeBackend
             
-            self.core_container.register(NeuralPort, MLXNeuralBackend, singleton=True)
+            # Register the neural backend (low-level neural operations)
+            self.core_container.register(NeuralBackend, MLXNeuralBackend, singleton=True)
+            
+            # Register the neural adapter with dependencies using factory pattern as singleton
+            def neural_adapter_factory(container):
+                neural_backend = container.resolve(NeuralBackend)
+                compute_backend = container.resolve(ComputeBackend)
+                return MLXNeuralAdapter(neural_backend, compute_backend)
+            
+            self.core_container.register_factory(MLXNeuralAdapter, neural_adapter_factory)
+            self.core_container._singleton_types.add(MLXNeuralAdapter)
+            
+            # Register adapter info for monitoring
+            self.adapter_registry.register_adapter("neural", "mlx", MLXNeuralAdapter)
+            
         except ImportError:
             pass
     

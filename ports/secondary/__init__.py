@@ -18,7 +18,6 @@ from .compute import (
     Shape,
     Module,
     DataType,
-    NeuralOps,
 )
 from .storage import (
     StorageService,
@@ -92,7 +91,6 @@ __all__ = [
     "Shape",
     "Module",
     "DataType",
-    "NeuralOps",
     # Storage
     "StorageService",
     "ModelStorageService",

@@ -28,7 +28,6 @@ from .primary import (
 from .secondary import (
     # Compute
     ComputeBackend,
-    NeuralOps,
     # Storage
     StorageService,
     ModelStorageService,
@@ -67,7 +66,6 @@ __all__ = [
     # "ModelInfo",  # Not yet implemented
     # Secondary ports
     "ComputeBackend",
-    "NeuralOps",
     "StorageService",
     "ModelStorageService",
     "MonitoringService",

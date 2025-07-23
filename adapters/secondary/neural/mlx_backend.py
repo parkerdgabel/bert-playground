@@ -5,7 +5,7 @@ enabling framework-agnostic neural network operations using Apple's MLX framewor
 """
 
 from contextlib import contextmanager
-from typing import Any, Callable, Iterator, Sequence
+from typing import Any, Callable, Iterator, Sequence, Dict, Tuple
 
 import mlx.core as mx
 import mlx.nn as nn
@@ -16,14 +16,21 @@ from domain.protocols.compute import Array, DataType
 from ports.secondary.compute import ArrayLike, Device, DType, Shape
 from ports.secondary.neural import (
     ActivationType,
+    AttentionConfig,
+    AttentionMask,
+    EmbeddingConfig,
+    FeedForwardConfig,
     GradientDict,
+    InitializationType,
     LossType,
     Module,
     ModuleInfo,
     NeuralBackend,
+    NeuralModule,
     NormalizationType,
     Parameter,
     ParameterDict,
+    PositionalEncoding,
 )
 
 
@@ -313,39 +320,55 @@ class MLXNeuralBackend(NeuralBackend):
     
     # Layer creation methods
     
-    def linear(
+    def create_linear(
         self,
         in_features: int,
         out_features: int,
         bias: bool = True,
-        dtype: DType | None = None
-    ) -> Module:
-        """Create a linear layer."""
-        return MLXLinear(in_features, out_features, bias=bias)
-    
-    def embedding(
-        self,
-        num_embeddings: int,
-        embedding_dim: int,
-        padding_idx: int | None = None,
-        max_norm: float | None = None,
-        norm_type: float = 2.0,
-        scale_grad_by_freq: bool = False,
-        sparse: bool = False,
-        dtype: DType | None = None
-    ) -> Module:
-        """Create an embedding layer."""
-        # Note: MLX doesn't support all PyTorch embedding features
-        if padding_idx is not None:
-            print(f"Warning: MLX embeddings don't support padding_idx")
-        if max_norm is not None:
-            print(f"Warning: MLX embeddings don't support max_norm")
-        if scale_grad_by_freq:
-            print(f"Warning: MLX embeddings don't support scale_grad_by_freq")
-        if sparse:
-            print(f"Warning: MLX embeddings don't support sparse gradients")
+        init_type: InitializationType = InitializationType.XAVIER_UNIFORM
+    ) -> NeuralModule:
+        """Create linear layer.
+        
+        Args:
+            in_features: Input features
+            out_features: Output features
+            bias: Whether to use bias
+            init_type: Weight initialization type
             
-        return MLXEmbedding(num_embeddings, embedding_dim)
+        Returns:
+            Linear module
+        """
+        linear = MLXLinear(in_features, out_features, bias=bias)
+        # Initialize weights according to init_type
+        self.initialize_weights(linear, init_type)
+        return linear
+    
+    def create_embeddings(
+        self,
+        config: EmbeddingConfig
+    ) -> NeuralModule:
+        """Create embedding layers.
+        
+        Args:
+            config: Embedding configuration
+            
+        Returns:
+            Embedding module
+        """
+        # Note: MLX doesn't support all PyTorch embedding features
+        if config.padding_idx is not None:
+            print(f"Warning: MLX embeddings don't support padding_idx")
+        if not config.scale_embeddings:
+            print(f"Warning: MLX embeddings don't support disabling scale_embeddings")
+            
+        embedding = MLXEmbedding(config.vocab_size, config.embedding_dim)
+        
+        # Apply dropout if specified
+        if config.dropout > 0:
+            dropout = MLXDropout(config.dropout)
+            return MLXSequential(embedding, dropout)
+        
+        return embedding
     
     def layer_norm(
         self,
@@ -373,78 +396,165 @@ class MLXNeuralBackend(NeuralBackend):
             print("Warning: MLX RMSNorm doesn't support bias")
         return MLXRMSNorm(dims, eps=eps)
     
-    def dropout(
+    def create_dropout(
         self,
-        p: float = 0.5,
-        inplace: bool = False
-    ) -> Module:
-        """Create dropout module."""
-        if inplace:
-            print("Warning: MLX dropout doesn't support inplace operations")
+        p: float = 0.5
+    ) -> NeuralModule:
+        """Create dropout layer.
+        
+        Args:
+            p: Dropout probability
+            
+        Returns:
+            Dropout module
+        """
         return MLXDropout(p=p)
     
-    def multi_head_attention(
+    def create_attention(
         self,
-        embed_dim: int,
-        num_heads: int,
-        dropout: float = 0.0,
-        bias: bool = True,
-        add_bias_kv: bool = False,
-        add_zero_attn: bool = False,
-        kdim: int | None = None,
-        vdim: int | None = None,
-        batch_first: bool = True,
-        dtype: DType | None = None
-    ) -> Module:
-        """Create multi-head attention."""
-        if add_bias_kv:
-            print("Warning: MLX MHA doesn't support add_bias_kv")
-        if add_zero_attn:
-            print("Warning: MLX MHA doesn't support add_zero_attn")
-        if not batch_first:
-            print("Warning: MLX MHA expects batch_first format")
+        config: AttentionConfig,
+        is_cross_attention: bool = False
+    ) -> NeuralModule:
+        """Create attention layer.
+        
+        Args:
+            config: Attention configuration
+            is_cross_attention: Whether this is cross-attention
+            
+        Returns:
+            Attention module
+        """
+        embed_dim = config.num_heads * config.head_dim
+        
+        if config.use_flash_attention:
+            print("Warning: MLX doesn't have native flash attention support")
+        if is_cross_attention:
+            print("Warning: MLX MHA cross-attention may need special handling")
             
         return MLXMultiHeadAttention(
             dims=embed_dim,
-            num_heads=num_heads,
+            num_heads=config.num_heads,
             query_input_dims=embed_dim,
-            key_input_dims=kdim or embed_dim,
-            value_input_dims=vdim or embed_dim,
-            bias=bias
+            key_input_dims=embed_dim,
+            value_input_dims=embed_dim,
+            bias=config.use_bias
         )
+    
+    def create_normalization(
+        self,
+        dim: int,
+        norm_type: NormalizationType = NormalizationType.LAYER,
+        eps: float = 1e-5
+    ) -> NeuralModule:
+        """Create normalization layer.
+        
+        Args:
+            dim: Dimension to normalize
+            norm_type: Type of normalization
+            eps: Epsilon for numerical stability
+            
+        Returns:
+            Normalization module
+        """
+        if norm_type == NormalizationType.LAYER:
+            return MLXLayerNorm(dim, eps=eps)
+        elif norm_type == NormalizationType.RMS:
+            return MLXRMSNorm(dim, eps=eps)
+        elif norm_type == NormalizationType.BATCH:
+            print("Warning: MLX doesn't have native batch normalization")
+            # Fall back to layer norm
+            return MLXLayerNorm(dim, eps=eps)
+        elif norm_type == NormalizationType.GROUP:
+            print("Warning: MLX doesn't have native group normalization")
+            # Fall back to layer norm
+            return MLXLayerNorm(dim, eps=eps)
+        else:
+            raise ValueError(f"Unsupported normalization type: {norm_type}")
     
     # Activation functions
     
-    def activation(
+    def create_activation(
         self,
-        activation_type: ActivationType,
-        **kwargs
-    ) -> Module:
-        """Create an activation module."""
+        activation_type: ActivationType
+    ) -> NeuralModule:
+        """Create activation function.
+        
+        Args:
+            activation_type: Type of activation
+            
+        Returns:
+            Activation module
+        """
         if activation_type == ActivationType.RELU:
-            return self.relu(**kwargs)
+            return MLXActivation(nn.relu)
         elif activation_type == ActivationType.GELU:
-            return self.gelu(**kwargs)
+            return MLXActivation(nn.gelu)
         elif activation_type == ActivationType.SILU:
-            return self.silu(**kwargs)
+            return MLXActivation(nn.silu)
         elif activation_type == ActivationType.TANH:
             return MLXActivation(mx.tanh)
         elif activation_type == ActivationType.SIGMOID:
             return MLXActivation(mx.sigmoid)
-        elif activation_type == ActivationType.LEAKY_RELU:
-            negative_slope = kwargs.get("negative_slope", 0.01)
-            return MLXActivation(lambda x: nn.leaky_relu(x, negative_slope))
-        elif activation_type == ActivationType.ELU:
-            alpha = kwargs.get("alpha", 1.0)
-            return MLXActivation(lambda x: nn.elu(x, alpha))
         elif activation_type == ActivationType.SOFTMAX:
-            dim = kwargs.get("dim", -1)
-            return MLXActivation(lambda x: mx.softmax(x, axis=dim))
-        elif activation_type == ActivationType.LOG_SOFTMAX:
-            dim = kwargs.get("dim", -1)
-            return MLXActivation(lambda x: mx.log_softmax(x, axis=dim))
+            return MLXActivation(lambda x: mx.softmax(x, axis=-1))
+        elif activation_type == ActivationType.SWIGLU:
+            # SwiGLU needs special handling - it takes two inputs
+            return MLXActivation(lambda x: self._swiglu_activation(x))
+        elif activation_type == ActivationType.GEGLU:
+            # GeGLU needs special handling - it takes two inputs  
+            return MLXActivation(lambda x: self._geglu_activation(x))
         else:
             raise ValueError(f"Unsupported activation type: {activation_type}")
+    
+    def _swiglu_activation(self, x: mx.array) -> mx.array:
+        """SwiGLU activation - splits input in half and applies SwiGLU."""
+        # Split input in half along last dimension
+        gate, input_part = mx.split(x, 2, axis=-1)
+        return nn.silu(gate) * input_part
+    
+    def _geglu_activation(self, x: mx.array) -> mx.array:
+        """GeGLU activation - splits input in half and applies GeGLU."""
+        # Split input in half along last dimension
+        gate, input_part = mx.split(x, 2, axis=-1)
+        return nn.gelu(gate) * input_part
+    
+    def create_feed_forward(
+        self,
+        config: FeedForwardConfig
+    ) -> NeuralModule:
+        """Create feed-forward layer.
+        
+        Args:
+            config: Feed-forward configuration
+            
+        Returns:
+            Feed-forward module
+        """
+        if config.use_gated:
+            # For gated feed-forward (SwiGLU/GeGLU), we need to double the hidden dimension
+            # because we split it in half for gating
+            gate_linear = MLXLinear(config.hidden_dim, config.hidden_dim * 2, bias=config.use_bias)
+            activation = self.create_activation(config.activation)
+            down_linear = MLXLinear(config.hidden_dim, config.hidden_dim, bias=config.use_bias)
+            
+            layers = [gate_linear, activation]
+            if config.dropout > 0:
+                layers.append(MLXDropout(config.dropout))
+            layers.append(down_linear)
+            
+            return MLXSequential(*layers)
+        else:
+            # Standard feed-forward
+            up_linear = MLXLinear(config.hidden_dim, config.hidden_dim, bias=config.use_bias)
+            activation = self.create_activation(config.activation)
+            down_linear = MLXLinear(config.hidden_dim, config.hidden_dim, bias=config.use_bias)
+            
+            layers = [up_linear, activation]
+            if config.dropout > 0:
+                layers.append(MLXDropout(config.dropout))
+            layers.append(down_linear)
+            
+            return MLXSequential(*layers)
     
     def gelu(self, approximate: str = "none") -> Module:
         """Create GELU activation."""
@@ -546,6 +656,146 @@ class MLXNeuralBackend(NeuralBackend):
             return loss
         
         return loss_fn
+    
+    def create_loss_function(
+        self,
+        loss_type: LossType,
+        **kwargs: Any
+    ) -> Callable[[Array, Array], Array]:
+        """Create loss function.
+        
+        Args:
+            loss_type: Type of loss
+            **kwargs: Loss-specific arguments
+            
+        Returns:
+            Loss function
+        """
+        if loss_type == LossType.CROSS_ENTROPY:
+            return self.cross_entropy_loss(
+                reduction=kwargs.get("reduction", "mean"),
+                ignore_index=kwargs.get("ignore_index", -100),
+                label_smoothing=kwargs.get("label_smoothing", 0.0),
+                weight=kwargs.get("weight", None)
+            )
+        elif loss_type == LossType.MSE:
+            return self.mse_loss(reduction=kwargs.get("reduction", "mean"))
+        elif loss_type == LossType.MAE:
+            def mae_loss_fn(predictions: mx.array, targets: mx.array) -> mx.array:
+                loss = mx.abs(predictions - targets)
+                reduction = kwargs.get("reduction", "mean")
+                if reduction == "mean":
+                    return mx.mean(loss)
+                elif reduction == "sum":
+                    return mx.sum(loss)
+                else:
+                    return loss
+            return mae_loss_fn
+        elif loss_type == LossType.HUBER:
+            def huber_loss_fn(predictions: mx.array, targets: mx.array) -> mx.array:
+                delta = kwargs.get("delta", 1.0)
+                diff = mx.abs(predictions - targets)
+                loss = mx.where(
+                    diff < delta,
+                    0.5 * diff ** 2,
+                    delta * (diff - 0.5 * delta)
+                )
+                reduction = kwargs.get("reduction", "mean")
+                if reduction == "mean":
+                    return mx.mean(loss)
+                elif reduction == "sum":
+                    return mx.sum(loss)
+                else:
+                    return loss
+            return huber_loss_fn
+        elif loss_type == LossType.COSINE_SIMILARITY:
+            def cosine_loss_fn(predictions: mx.array, targets: mx.array) -> mx.array:
+                dot_product = mx.sum(predictions * targets, axis=-1)
+                norm_pred = mx.linalg.norm(predictions, axis=-1)
+                norm_target = mx.linalg.norm(targets, axis=-1)
+                similarity = dot_product / (norm_pred * norm_target + 1e-8)
+                loss = 1.0 - similarity
+                reduction = kwargs.get("reduction", "mean")
+                if reduction == "mean":
+                    return mx.mean(loss)
+                elif reduction == "sum":
+                    return mx.sum(loss)
+                else:
+                    return loss
+            return cosine_loss_fn
+        else:
+            raise ValueError(f"Unsupported loss type: {loss_type}")
+    
+    def create_position_encoding(
+        self,
+        max_length: int,
+        dim: int,
+        encoding_type: PositionalEncoding
+    ) -> Array | NeuralModule:
+        """Create positional encoding.
+        
+        Args:
+            max_length: Maximum sequence length
+            dim: Embedding dimension
+            encoding_type: Type of encoding
+            
+        Returns:
+            Position encoding (array or module)
+        """
+        if encoding_type == PositionalEncoding.SINUSOIDAL:
+            # Create sinusoidal position encoding
+            position = mx.arange(max_length)[:, None]
+            div_term = mx.exp(mx.arange(0, dim, 2) * -(mx.log(mx.array(10000.0)) / dim))
+            
+            # Create sin and cos components
+            sin_part = mx.sin(position * div_term)
+            cos_part = mx.cos(position * div_term)
+            
+            # Interleave sin and cos
+            pe_parts = []
+            for i in range(dim // 2):
+                pe_parts.append(sin_part[:, i:i+1])
+                pe_parts.append(cos_part[:, i:i+1])
+            
+            # Handle odd dimensions
+            if dim % 2 == 1:
+                pe_parts.append(mx.zeros((max_length, 1)))
+            
+            pe = mx.concatenate(pe_parts, axis=1)
+            return pe
+        elif encoding_type == PositionalEncoding.LEARNED:
+            # Create learnable position embeddings
+            return MLXEmbedding(max_length, dim)
+        elif encoding_type == PositionalEncoding.ROPE:
+            # Create RoPE embeddings
+            return MLXRotaryEmbedding(dim)
+        elif encoding_type == PositionalEncoding.ALIBI:
+            print("Warning: ALiBi position encoding not implemented in MLX")
+            # Fall back to sinusoidal
+            position = mx.arange(max_length)[:, None]
+            div_term = mx.exp(mx.arange(0, dim, 2) * -(mx.log(mx.array(10000.0)) / dim))
+            
+            # Create sin and cos components
+            sin_part = mx.sin(position * div_term)
+            cos_part = mx.cos(position * div_term)
+            
+            # Interleave sin and cos
+            pe_parts = []
+            for i in range(dim // 2):
+                pe_parts.append(sin_part[:, i:i+1])
+                pe_parts.append(cos_part[:, i:i+1])
+            
+            # Handle odd dimensions
+            if dim % 2 == 1:
+                pe_parts.append(mx.zeros((max_length, 1)))
+            
+            pe = mx.concatenate(pe_parts, axis=1)
+            return pe
+        elif encoding_type == PositionalEncoding.NONE:
+            # Return zeros
+            return mx.zeros((max_length, dim))
+        else:
+            raise ValueError(f"Unsupported position encoding type: {encoding_type}")
     
     # Tensor operations
     
@@ -787,3 +1037,396 @@ class MLXNeuralBackend(NeuralBackend):
     ) -> Array:
         """Create ones array."""
         return mx.ones(shape, dtype=dtype)
+    
+    # Module management methods
+    
+    def initialize_weights(
+        self,
+        module: NeuralModule,
+        init_type: InitializationType,
+        **kwargs: Any
+    ) -> None:
+        """Initialize module weights.
+        
+        Args:
+            module: Module to initialize
+            init_type: Initialization type
+            **kwargs: Initialization-specific arguments
+        """
+        if not isinstance(module, MLXModule):
+            print(f"Warning: Cannot initialize weights for non-MLX module: {type(module)}")
+            return
+        
+        # MLX modules are typically initialized automatically by the framework
+        # For now, we'll provide a warning that initialization is handled automatically
+        if init_type != InitializationType.XAVIER_UNIFORM:
+            print(f"Warning: MLX modules use automatic initialization, ignoring {init_type}")
+    
+    def count_parameters(
+        self,
+        module: NeuralModule,
+        trainable_only: bool = True
+    ) -> int:
+        """Count module parameters.
+        
+        Args:
+            module: Module to count parameters for
+            trainable_only: Whether to count only trainable parameters
+            
+        Returns:
+            Parameter count
+        """
+        if not isinstance(module, MLXModule):
+            print(f"Warning: Cannot count parameters for non-MLX module: {type(module)}")
+            return 0
+        
+        total_params = 0
+        for param in module.parameters():
+            if isinstance(param, mx.array):
+                total_params += param.size
+            else:
+                # Fallback for other parameter types
+                total_params += 1
+        
+        return total_params
+    
+    def freeze_module(
+        self,
+        module: NeuralModule,
+        freeze: bool = True
+    ) -> None:
+        """Freeze or unfreeze module parameters.
+        
+        Args:
+            module: Module to freeze/unfreeze
+            freeze: Whether to freeze
+        """
+        if not isinstance(module, MLXModule):
+            print(f"Warning: Cannot freeze non-MLX module: {type(module)}")
+            return
+        
+        # MLX doesn't have a direct freeze mechanism like PyTorch
+        # This would need to be handled at the optimizer level
+        print(f"Warning: MLX doesn't support direct parameter freezing, handle at optimizer level")
+    
+    def get_module_device(
+        self,
+        module: NeuralModule
+    ) -> str:
+        """Get device of module.
+        
+        Args:
+            module: Module to check
+            
+        Returns:
+            Device string
+        """
+        # MLX automatically handles device placement
+        return "mlx"
+    
+    def move_module_to_device(
+        self,
+        module: NeuralModule,
+        device: str
+    ) -> NeuralModule:
+        """Move module to device.
+        
+        Args:
+            module: Module to move
+            device: Target device
+            
+        Returns:
+            Module on new device
+        """
+        # MLX automatically handles device placement
+        if device != "mlx":
+            print(f"Warning: MLX doesn't support moving to device '{device}', using MLX device")
+        return module
+    
+    def apply_attention_mask(
+        self,
+        attention_scores: Array,
+        mask: AttentionMask
+    ) -> Array:
+        """Apply attention mask to scores.
+        
+        Args:
+            attention_scores: Raw attention scores
+            mask: Attention mask configuration
+            
+        Returns:
+            Masked attention scores
+        """
+        if mask.mask is not None:
+            # Use provided mask
+            return self.masked_fill(attention_scores, mask.mask, -1e9)
+        
+        # Generate mask based on type
+        seq_len = attention_scores.shape[-1]
+        
+        if mask.mask_type.value == "causal":
+            # Create causal mask (lower triangular)
+            causal_mask = mx.triu(mx.ones((seq_len, seq_len)), k=1).astype(mx.bool_)
+            return self.masked_fill(attention_scores, causal_mask, -1e9)
+        elif mask.mask_type.value == "bidirectional":
+            # No masking for bidirectional
+            return attention_scores
+        elif mask.mask_type.value == "prefix_lm":
+            if mask.prefix_length is None:
+                print("Warning: prefix_lm mask requires prefix_length")
+                return attention_scores
+            # Create prefix mask
+            prefix_mask = mx.ones((seq_len, seq_len), dtype=mx.bool_)
+            
+            # Allow attention within prefix and from prefix to all (set to False)
+            prefix_part = mx.zeros((mask.prefix_length, seq_len), dtype=mx.bool_)
+            
+            # Create causal mask for the non-prefix part
+            remaining_len = seq_len - mask.prefix_length
+            if remaining_len > 0:
+                causal_part = mx.triu(mx.ones((remaining_len, remaining_len)), k=1).astype(mx.bool_)
+                # Combine with zeros for the prefix columns
+                prefix_zeros = mx.zeros((remaining_len, mask.prefix_length), dtype=mx.bool_)
+                suffix_part = mx.concatenate([prefix_zeros, causal_part], axis=1)
+            else:
+                suffix_part = mx.zeros((0, seq_len), dtype=mx.bool_)
+            
+            # Combine prefix and suffix parts
+            prefix_mask = mx.concatenate([prefix_part, suffix_part], axis=0)
+            return self.masked_fill(attention_scores, prefix_mask, -1e9)
+        else:
+            # Custom or unknown mask type
+            print(f"Warning: Unknown mask type {mask.mask_type}, no masking applied")
+            return attention_scores
+    
+    # Methods moved from compute port to neural port
+    
+    def cross_entropy(
+        self,
+        input: Array,
+        target: Array,
+        reduction: str = "mean",
+        ignore_index: int = -100
+    ) -> Array:
+        """Cross entropy loss.
+        
+        Args:
+            input: Predictions [batch_size, num_classes]
+            target: Targets [batch_size]
+            reduction: Reduction method ('none', 'mean', 'sum')
+            ignore_index: Index to ignore
+            
+        Returns:
+            Loss value
+        """
+        # Use the existing cross_entropy_loss function
+        loss_fn = self.cross_entropy_loss(reduction=reduction, ignore_index=ignore_index)
+        return loss_fn(input, target)
+    
+    def attention(
+        self,
+        query: Array,
+        key: Array,
+        value: Array,
+        mask: Array | None = None,
+        dropout_p: float = 0.0,
+        scale: float | None = None,
+        training: bool = True,
+    ) -> tuple[Array, Array | None]:
+        """Scaled dot-product attention.
+        
+        Args:
+            query: Query tensor [batch, seq_len, d_k]
+            key: Key tensor [batch, seq_len, d_k]
+            value: Value tensor [batch, seq_len, d_v]
+            mask: Optional attention mask
+            dropout_p: Dropout probability
+            scale: Optional scale factor (default: 1/sqrt(d_k))
+            training: Whether in training mode
+            
+        Returns:
+            Tuple of (attention output, attention weights)
+        """
+        batch_size, seq_len, d_k = query.shape
+        
+        # Compute attention scores
+        if scale is None:
+            scale = 1.0 / mx.sqrt(mx.array(d_k, dtype=query.dtype))
+        
+        scores = mx.matmul(query, mx.transpose(key, axes=[0, 2, 1])) * scale
+        
+        # Apply mask if provided
+        if mask is not None:
+            scores = self.masked_fill(scores, mask, -1e9)
+        
+        # Apply softmax
+        attn_weights = mx.softmax(scores, axis=-1)
+        
+        # Apply dropout if in training mode
+        if training and dropout_p > 0:
+            dropout = MLXDropout(dropout_p)
+            attn_weights = dropout(attn_weights)
+        
+        # Compute attention output
+        attn_output = mx.matmul(attn_weights, value)
+        
+        return attn_output, attn_weights
+    
+    def swiglu(self, input: Array, gate: Array) -> Array:
+        """SwiGLU activation function.
+        
+        Args:
+            input: Input array
+            gate: Gate array
+            
+        Returns:
+            SwiGLU output
+        """
+        # SwiGLU = SiLU(gate) * input
+        return mx.nn.silu(gate) * input
+    
+    def forward_pass(
+        self,
+        model: Module,
+        inputs: dict[str, Array],
+        training: bool = False,
+    ) -> dict[str, Array]:
+        """Perform forward pass through model.
+        
+        Args:
+            model: Neural network model
+            inputs: Input data as dictionary of arrays
+            training: Whether in training mode
+            
+        Returns:
+            Dictionary containing outputs (logits, loss, hidden_states, etc.)
+        """
+        # Set training mode
+        model.train(training)
+        
+        # Ensure model is MLXModule
+        if not isinstance(model, MLXModule):
+            raise TypeError(f"Expected MLXModule, got {type(model)}")
+        
+        # Forward pass
+        outputs = model(**inputs)
+        
+        # Ensure outputs is a dictionary
+        if not isinstance(outputs, dict):
+            outputs = {"output": outputs}
+        
+        return outputs
+    
+    def compute_loss(
+        self,
+        predictions: Array,
+        targets: Array,
+        loss_type: LossType = LossType.CROSS_ENTROPY,
+        **kwargs: Any,
+    ) -> Array:
+        """Compute loss between predictions and targets.
+        
+        Args:
+            predictions: Model predictions
+            targets: Ground truth targets
+            loss_type: Type of loss function
+            **kwargs: Additional loss-specific parameters
+            
+        Returns:
+            Loss value
+        """
+        if loss_type == LossType.CROSS_ENTROPY:
+            return self.cross_entropy(predictions, targets, **kwargs)
+        elif loss_type == LossType.MSE:
+            loss_fn = self.mse_loss(**kwargs)
+            return loss_fn(predictions, targets)
+        elif loss_type == LossType.MAE:
+            # MAE loss
+            return mx.mean(mx.abs(predictions - targets))
+        elif loss_type == LossType.HUBER:
+            # Huber loss
+            delta = kwargs.get("delta", 1.0)
+            diff = mx.abs(predictions - targets)
+            return mx.mean(
+                mx.where(
+                    diff < delta,
+                    0.5 * diff ** 2,
+                    delta * (diff - 0.5 * delta)
+                )
+            )
+        elif loss_type == LossType.COSINE_SIMILARITY:
+            # Cosine similarity loss
+            dot_product = mx.sum(predictions * targets, axis=-1)
+            norm_pred = mx.linalg.norm(predictions, axis=-1)
+            norm_target = mx.linalg.norm(targets, axis=-1)
+            return 1.0 - mx.mean(dot_product / (norm_pred * norm_target + 1e-8))
+        else:
+            raise ValueError(f"Unsupported loss type: {loss_type}")
+    
+    def backward_pass(
+        self,
+        loss: Array,
+        model: Module,
+        retain_graph: bool = False,
+    ) -> dict[str, Array]:
+        """Perform backward pass to compute gradients.
+        
+        Args:
+            loss: Loss value to backpropagate
+            model: Neural network model
+            retain_graph: Whether to retain computation graph
+            
+        Returns:
+            Dictionary of gradients
+        """
+        # In MLX, gradients are computed using mx.grad
+        # This requires the forward pass to be wrapped in a function
+        # For now, we'll return a placeholder
+        # The actual gradient computation should be done in optimize_step
+        # using mx.value_and_grad
+        return {}
+    
+    def optimize_step(
+        self,
+        model_params: dict[str, Array],
+        gradients: dict[str, Array],
+        optimizer_state: dict[str, Any],
+        learning_rate: float,
+        **kwargs: Any,
+    ) -> tuple[dict[str, Array], dict[str, Any]]:
+        """Perform optimization step.
+        
+        Args:
+            model_params: Current model parameters
+            gradients: Computed gradients
+            optimizer_state: Current optimizer state
+            learning_rate: Learning rate
+            **kwargs: Additional optimizer parameters
+            
+        Returns:
+            Tuple of (updated_parameters, updated_optimizer_state)
+        """
+        # Get optimizer type
+        optimizer_type = optimizer_state.get("type", "adamw")
+        
+        # Create optimizer if not in state
+        if "optimizer" not in optimizer_state:
+            if optimizer_type == "adam":
+                optimizer = optim.Adam(learning_rate=learning_rate)
+            elif optimizer_type == "adamw":
+                optimizer = optim.AdamW(learning_rate=learning_rate)
+            elif optimizer_type == "sgd":
+                optimizer = optim.SGD(learning_rate=learning_rate)
+            else:
+                raise ValueError(f"Unsupported optimizer type: {optimizer_type}")
+            
+            optimizer_state["optimizer"] = optimizer
+        else:
+            optimizer = optimizer_state["optimizer"]
+            # Update learning rate
+            optimizer.learning_rate = learning_rate
+        
+        # Apply gradients
+        updated_params = optimizer.apply_gradients(gradients, model_params)
+        
+        return updated_params, optimizer_state

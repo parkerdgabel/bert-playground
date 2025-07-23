@@ -266,271 +266,109 @@ class ComputeBackend(Protocol):
         """
         ...
     
-    # Model-specific operations
+    # Basic tensor operations
     
-    def forward_pass(
-        self,
-        model_spec: Dict[str, Any],
-        inputs: Dict[str, Array],
-        training: bool = False,
-    ) -> Dict[str, Array]:
-        """Perform forward pass through model.
+    def matmul(self, a: Array, b: Array) -> Array:
+        """Matrix multiplication.
         
         Args:
-            model_spec: Model specification (architecture, weights, etc.)
-            inputs: Input data as dictionary of arrays
-            training: Whether in training mode
+            a: First array
+            b: Second array
             
         Returns:
-            Dictionary containing outputs (logits, loss, hidden_states, etc.)
+            Matrix product
         """
         ...
     
-    def compute_loss(
-        self,
-        predictions: Array,
-        targets: Array,
-        loss_type: str = "cross_entropy",
-        **kwargs: Any,
-    ) -> Array:
-        """Compute loss between predictions and targets.
+    def transpose(self, array: Array, axes: Sequence[int] | None = None) -> Array:
+        """Transpose array dimensions.
         
         Args:
-            predictions: Model predictions
-            targets: Ground truth targets
-            loss_type: Type of loss function
-            **kwargs: Additional loss-specific parameters
+            array: Input array
+            axes: Permutation of axes (None for reverse)
             
         Returns:
-            Loss value
+            Transposed array
         """
         ...
     
-    def backward_pass(
-        self,
-        loss: Array,
-        model_spec: Dict[str, Any],
-        retain_graph: bool = False,
-    ) -> Dict[str, Array]:
-        """Perform backward pass to compute gradients.
+    def reshape(self, array: Array, shape: Shape) -> Array:
+        """Reshape array.
         
         Args:
-            loss: Loss value to backpropagate
-            model_spec: Model specification
-            retain_graph: Whether to retain computation graph
+            array: Input array
+            shape: New shape
             
         Returns:
-            Dictionary of gradients
+            Reshaped array
         """
         ...
     
-    def optimize_step(
-        self,
-        model_params: Dict[str, Array],
-        gradients: Dict[str, Array],
-        optimizer_state: Dict[str, Any],
-        learning_rate: float,
-        **kwargs: Any,
-    ) -> Tuple[Dict[str, Array], Dict[str, Any]]:
-        """Perform optimization step.
+    def concatenate(
+        self, arrays: Sequence[Array], axis: int = 0
+    ) -> Array:
+        """Concatenate arrays along axis.
         
         Args:
-            model_params: Current model parameters
-            gradients: Computed gradients
-            optimizer_state: Current optimizer state
-            learning_rate: Learning rate
-            **kwargs: Additional optimizer parameters
+            arrays: Arrays to concatenate
+            axis: Axis to concatenate along
             
         Returns:
-            Tuple of (updated_parameters, updated_optimizer_state)
+            Concatenated array
         """
         ...
     
-    def count_parameters(
-        self,
-        model_spec: Dict[str, Any],
-        trainable_only: bool = False,
-    ) -> int:
-        """Count model parameters.
+    def split(
+        self, array: Array, indices_or_sections: int | Sequence[int], axis: int = 0
+    ) -> list[Array]:
+        """Split array along axis.
         
         Args:
-            model_spec: Model specification
-            trainable_only: Whether to count only trainable parameters
+            array: Array to split
+            indices_or_sections: Split indices or number of sections
+            axis: Axis to split along
             
         Returns:
-            Number of parameters
+            List of split arrays
         """
         ...
-
-
-@runtime_checkable
-class NeuralOps(Protocol):
-    """Neural network operations - a specialized compute port.
     
-    This provides higher-level neural network operations that
-    the application core uses. Implemented by framework-specific adapters.
-    """
-
-    def linear(
-        self,
-        input: Array,
-        weight: Array,
-        bias: Array | None = None
-    ) -> Array:
-        """Linear transformation (fully connected layer).
+    def mean(self, array: Array, axis: int | Sequence[int] | None = None, keepdims: bool = False) -> Array:
+        """Compute mean along axis.
         
         Args:
-            input: Input array [*, in_features]
-            weight: Weight matrix [out_features, in_features]
-            bias: Optional bias [out_features]
+            array: Input array
+            axis: Axis or axes to reduce
+            keepdims: Whether to keep reduced dimensions
             
         Returns:
-            Output array [*, out_features]
+            Mean array
+        """
+        ...
+    
+    def sum(self, array: Array, axis: int | Sequence[int] | None = None, keepdims: bool = False) -> Array:
+        """Compute sum along axis.
+        
+        Args:
+            array: Input array
+            axis: Axis or axes to reduce
+            keepdims: Whether to keep reduced dimensions
+            
+        Returns:
+            Sum array
+        """
+        ...
+    
+    def cast(self, array: Array, dtype: DataType | DType) -> Array:
+        """Cast array to different data type.
+        
+        Args:
+            array: Input array
+            dtype: Target data type
+            
+        Returns:
+            Cast array
         """
         ...
 
-    def embedding(
-        self,
-        input: Array,
-        weight: Array,
-        padding_idx: int | None = None
-    ) -> Array:
-        """Embedding lookup.
-        
-        Args:
-            input: Input indices [*]
-            weight: Embedding matrix [num_embeddings, embedding_dim]
-            padding_idx: Optional padding index
-            
-        Returns:
-            Embeddings [*, embedding_dim]
-        """
-        ...
 
-    def layer_norm(
-        self,
-        input: Array,
-        normalized_shape: Shape,
-        weight: Array | None = None,
-        bias: Array | None = None,
-        eps: float = 1e-5
-    ) -> Array:
-        """Layer normalization.
-        
-        Args:
-            input: Input array
-            normalized_shape: Shape to normalize over
-            weight: Optional scale parameter
-            bias: Optional shift parameter
-            eps: Epsilon for numerical stability
-            
-        Returns:
-            Normalized array
-        """
-        ...
-
-    def dropout(
-        self,
-        input: Array,
-        p: float = 0.5,
-        training: bool = True,
-        seed: int | None = None
-    ) -> Array:
-        """Dropout regularization.
-        
-        Args:
-            input: Input array
-            p: Dropout probability
-            training: Whether in training mode
-            seed: Random seed
-            
-        Returns:
-            Array with dropout applied
-        """
-        ...
-
-    def softmax(
-        self,
-        input: Array,
-        dim: int = -1
-    ) -> Array:
-        """Softmax activation.
-        
-        Args:
-            input: Input array
-            dim: Dimension to apply softmax over
-            
-        Returns:
-            Softmax output
-        """
-        ...
-
-    def cross_entropy(
-        self,
-        input: Array,
-        target: Array,
-        reduction: str = "mean",
-        ignore_index: int = -100
-    ) -> Array:
-        """Cross entropy loss.
-        
-        Args:
-            input: Predictions [batch_size, num_classes]
-            target: Targets [batch_size]
-            reduction: Reduction method ('none', 'mean', 'sum')
-            ignore_index: Index to ignore
-            
-        Returns:
-            Loss value
-        """
-        ...
-
-    def attention(
-        self,
-        query: Array,
-        key: Array,
-        value: Array,
-        mask: Array | None = None,
-        dropout_p: float = 0.0,
-        scale: float | None = None,
-        training: bool = True,
-    ) -> tuple[Array, Array | None]:
-        """Scaled dot-product attention.
-        
-        Args:
-            query: Query tensor [batch, seq_len, d_k]
-            key: Key tensor [batch, seq_len, d_k]
-            value: Value tensor [batch, seq_len, d_v]
-            mask: Optional attention mask
-            dropout_p: Dropout probability
-            scale: Optional scale factor (default: 1/sqrt(d_k))
-            training: Whether in training mode
-            
-        Returns:
-            Tuple of (attention output, attention weights)
-        """
-        ...
-
-    def gelu(self, input: Array, approximate: bool = False) -> Array:
-        """GELU activation function.
-        
-        Args:
-            input: Input array
-            approximate: Whether to use approximate version
-            
-        Returns:
-            GELU output
-        """
-        ...
-
-    def swiglu(self, input: Array, gate: Array) -> Array:
-        """SwiGLU activation function.
-        
-        Args:
-            input: Input array
-            gate: Gate array
-            
-        Returns:
-            SwiGLU output
-        """
-        ...
