@@ -5,23 +5,26 @@ This component is responsible for:
 - Managing gradient accumulation
 - Applying gradient clipping
 - Updating model parameters
+
+This implementation uses the hexagonal architecture pattern with framework
+adapters to avoid direct framework dependencies.
 """
 
-from typing import Callable, Protocol, Tuple, Dict, Any
-import mlx.core as mx
+from typing import Callable, Protocol, Tuple, Dict, Any, Optional
 from loguru import logger
 
-from core.protocols.training import Optimizer, TrainingState
+from core.protocols.training import Optimizer, TrainingState, FrameworkAdapter as IFrameworkAdapter
 from core.protocols.data import DataLoader
 from core.protocols.models import Model
-from training.core.optimization import GradientAccumulator, clip_gradients
+from training.core.optimization import GradientAccumulator
 from training.core.config import TrainingConfig
+from training.adapters import get_framework_adapter
 
 
 class TrainingStepFunction(Protocol):
     """Protocol for training step functions."""
     
-    def __call__(self, batch: dict[str, mx.array]) -> tuple[float, dict[str, mx.array]]:
+    def __call__(self, batch: dict[str, Any]) -> tuple[float, dict[str, Any]]:
         """Execute a single training step."""
         ...
 
@@ -44,6 +47,7 @@ class TrainingLoop:
         gradient_accumulator: GradientAccumulator | None = None,
         max_grad_norm: float = 0.0,
         batch_size: int = 32,
+        framework: str = "mlx",
     ):
         """Initialize the training loop.
         
@@ -60,8 +64,15 @@ class TrainingLoop:
         self.config = config
         self.max_grad_norm = max_grad_norm
         self.batch_size = batch_size
-        self.gradient_accumulator = gradient_accumulator or GradientAccumulator(
-            config.gradient_accumulation_steps
+        
+        # Get framework adapter
+        self.adapter = get_framework_adapter(framework)
+        logger.info(f"Using {self.adapter.name} framework adapter")
+        
+        # Create gradient accumulator with adapter
+        from training.components.training_loop_refactored import GradientAccumulator as AdapterGradientAccumulator
+        self.gradient_accumulator = gradient_accumulator or AdapterGradientAccumulator(
+            config.gradient_accumulation_steps, self.adapter
         )
         
         # Create training step function
@@ -86,10 +97,7 @@ class TrainingLoop:
             
             # Apply mixed precision if enabled
             if self.config.mixed_precision:
-                model_inputs = {
-                    k: v.astype(mx.bfloat16) if v.dtype == mx.float32 else v
-                    for k, v in model_inputs.items()
-                }
+                model_inputs = self.adapter.apply_mixed_precision(model_inputs)
             
             # Forward pass
             try:
@@ -104,24 +112,30 @@ class TrainingLoop:
             
             # Apply label smoothing if configured
             if self.config.label_smoothing > 0:
-                loss = loss * (1 - self.config.label_smoothing)
+                loss = self.adapter.tensor_multiply(
+                    loss, 1 - self.config.label_smoothing
+                )
                 
             return loss, outputs
         
-        # Create value and grad function
-        value_and_grad_fn = mx.value_and_grad(loss_fn)
+        # Create value and grad function using adapter
+        value_and_grad_fn = self.adapter.create_value_and_grad_fn(
+            self.model, loss_fn
+        )
         
-        def train_step(batch: dict[str, mx.array]) -> tuple[float, dict[str, mx.array]]:
+        def train_step(batch: dict[str, Any]) -> tuple[float, dict[str, Any]]:
             """Single training step."""
             (loss, outputs), grads = value_and_grad_fn(self.model, batch)
             
             # Force evaluation of gradients
-            mx.eval(grads)
+            self.adapter.evaluate_tensors(grads)
             
             # Gradient clipping
             grad_norm = None
             if self.max_grad_norm > 0:
-                grads, grad_norm = clip_gradients(grads, self.max_grad_norm)
+                grads, grad_norm = self.adapter.clip_gradients_by_norm(
+                    grads, self.max_grad_norm
+                )
             
             # Accumulate gradients
             should_update = self.gradient_accumulator.accumulate(grads)
@@ -142,14 +156,14 @@ class TrainingLoop:
                 
             # Add other outputs
             for k, v in outputs.items():
-                if k != "loss":
-                    metrics[k] = v
+                if k != "loss" and v is not None:
+                    metrics[k] = self.adapter.to_python(v)
                     
             return loss, metrics
         
         return train_step
     
-    def train_batch(self, batch: dict[str, mx.array]) -> tuple[mx.array, dict[str, mx.array]]:
+    def train_batch(self, batch: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
         """Process a single training batch.
         
         Args:
@@ -181,7 +195,7 @@ class TrainingLoop:
         """
         # Initialize metrics
         epoch_loss = 0.0
-        epoch_metrics: dict[str, mx.array] = {}
+        epoch_metrics: dict[str, float] = {}
         num_batches = 0
         
         # Process batches
@@ -200,33 +214,30 @@ class TrainingLoop:
             loss, metrics = self.train_batch(batch)
             
             # Force evaluation to prevent graph buildup
-            mx.eval(loss, self.model.parameters(), self.optimizer.state)
+            model_params = self.adapter.get_model_parameters(self.model)
+            optimizer_state = getattr(self.optimizer, 'state', {})
+            self.adapter.evaluate_tensors(loss, model_params, optimizer_state)
             
             # Update state
             if "grad_norm" in metrics and metrics["grad_norm"] is not None:
-                if hasattr(metrics["grad_norm"], "item"):
-                    state.grad_norm = float(metrics["grad_norm"].item())
-                else:
-                    state.grad_norm = float(metrics["grad_norm"])
+                state.grad_norm = float(metrics["grad_norm"])
             
             # Accumulate metrics
-            if epoch_loss == 0.0:
-                epoch_loss = loss
-            else:
-                epoch_loss = epoch_loss + loss
+            loss_value = self.adapter.to_python(loss)
+            epoch_loss += loss_value
                 
             for k, v in metrics.items():
                 if k == "loss" or v is None:
                     continue
                     
                 # Skip non-scalar metrics
-                if hasattr(v, "shape") and v.size > 1:
+                if isinstance(v, (list, dict)):
                     continue
                     
                 if k not in epoch_metrics:
                     epoch_metrics[k] = v
                 else:
-                    epoch_metrics[k] = epoch_metrics[k] + v
+                    epoch_metrics[k] += v
                     
             num_batches += 1
             
@@ -234,21 +245,16 @@ class TrainingLoop:
             if callbacks:
                 for callback in callbacks:
                     if hasattr(callback, "on_batch_end"):
-                        callback(state, loss)
+                        callback(state, loss_value)
         
         # Average metrics
-        mx.eval(epoch_loss)
-        avg_loss = float(epoch_loss.item()) / num_batches if hasattr(epoch_loss, "item") else float(epoch_loss) / num_batches
+        avg_loss = epoch_loss / num_batches if num_batches > 0 else 0.0
         
         avg_metrics = {"loss": avg_loss}
         
         # Average other metrics
         for k, v in epoch_metrics.items():
-            if hasattr(v, "item"):
-                mx.eval(v)
-                avg_metrics[k] = float(v.item()) / num_batches
-            else:
-                avg_metrics[k] = float(v) / num_batches
+            avg_metrics[k] = v / num_batches if num_batches > 0 else 0.0
                 
         return avg_metrics
     

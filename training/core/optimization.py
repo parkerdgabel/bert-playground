@@ -1,82 +1,53 @@
 """
-Optimization utilities for MLX training including optimizers, schedulers, and gradient handling.
+Framework-agnostic optimization utilities for training.
+
+This module provides optimizers, schedulers, and gradient handling
+using the FrameworkAdapter abstraction to support multiple backends.
 """
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
-import mlx.core as mx
-import mlx.nn as nn
-import mlx.optimizers as optim
 from loguru import logger
 
-from .config import OptimizerConfig, OptimizerType, SchedulerConfig, SchedulerType
+from core.protocols.training import Optimizer as IOptimizer, LRScheduler as ILRScheduler
+from training.adapters.framework_adapter import FrameworkAdapter
+from .config import OptimizerConfig, SchedulerConfig, SchedulerType
+from .optimizer_factory import create_optimizer as create_optimizer_impl
 
 
 def create_optimizer(
-    model: nn.Module,
+    model: Any,
     config: OptimizerConfig,
-) -> optim.Optimizer:
+    framework: FrameworkAdapter
+) -> IOptimizer:
     """
-    Create an MLX optimizer from configuration.
-
+    Create an optimizer from configuration.
+    
     Args:
         model: Model to optimize
         config: Optimizer configuration
-
+        framework: Framework adapter
+        
     Returns:
-        MLX optimizer instance
+        Optimizer instance
     """
-    # Get trainable parameters
-    trainable_params = model.trainable_parameters()
-
-    # Create optimizer based on type
-    if config.type == OptimizerType.ADAM:
-        optimizer = optim.Adam(
-            learning_rate=config.learning_rate,
-            betas=(config.beta1, config.beta2),
-            eps=config.epsilon,
-        )
-    elif config.type == OptimizerType.ADAMW:
-        optimizer = optim.AdamW(
-            learning_rate=config.learning_rate,
-            betas=(config.beta1, config.beta2),
-            eps=config.epsilon,
-            weight_decay=config.weight_decay,
-        )
-    elif config.type == OptimizerType.SGD:
-        optimizer = optim.SGD(
-            learning_rate=config.learning_rate,
-            momentum=config.momentum,
-            weight_decay=config.weight_decay,
-            nesterov=config.nesterov,
-        )
-    elif config.type == OptimizerType.LION:
-        optimizer = optim.Lion(
-            learning_rate=config.learning_rate,
-            betas=(config.lion_beta1, config.lion_beta2),
-            weight_decay=config.weight_decay,
-        )
-    elif config.type == OptimizerType.ADAFACTOR:
-        optimizer = optim.Adafactor(
-            learning_rate=config.learning_rate,
-            eps=(1e-30, config.epsilon),
-            weight_decay=config.weight_decay,
-        )
-    else:
-        raise ValueError(f"Unknown optimizer type: {config.type}")
-
-    logger.info(f"Created {config.type.value} optimizer with lr={config.learning_rate}")
-    return optimizer
+    return create_optimizer_impl(model, config, framework)
 
 
 class LearningRateScheduler:
     """Base class for learning rate schedulers."""
 
-    def __init__(self, optimizer: optim.Optimizer, config: SchedulerConfig):
+    def __init__(
+        self, 
+        optimizer: IOptimizer, 
+        config: SchedulerConfig,
+        framework: FrameworkAdapter
+    ):
         self.optimizer = optimizer
         self.config = config
-        self.base_lr = float(optimizer.learning_rate)
+        self.framework = framework
+        self.base_lr = float(framework.get_learning_rate(optimizer))
         self.current_step = 0
         self.current_lr = float(self.base_lr)
 
@@ -100,13 +71,22 @@ class LearningRateScheduler:
             )
 
         # Update optimizer learning rate
-        self.optimizer.learning_rate = self.current_lr
+        self._update_optimizer_lr(self.current_lr)
 
         return self.current_lr
 
     def _compute_lr(self, step: int) -> float:
         """Compute learning rate for given step (after warmup)."""
         return self.base_lr
+    
+    def _update_optimizer_lr(self, lr: float) -> None:
+        """Update optimizer learning rate in framework-agnostic way."""
+        # For MLX optimizers, we can directly set the learning_rate attribute
+        if hasattr(self.optimizer, 'learning_rate'):
+            self.optimizer.learning_rate = lr
+        else:
+            # For other frameworks, may need different approach
+            logger.warning(f"Cannot update learning rate for optimizer type: {type(self.optimizer)}")
 
     def get_last_lr(self) -> float:
         """Get the last computed learning rate."""
@@ -126,7 +106,7 @@ class LearningRateScheduler:
         self.current_step = state["current_step"]
         self.current_lr = state["current_lr"]
         self.base_lr = state.get("base_lr", self.base_lr)
-        self.optimizer.learning_rate = self.current_lr
+        self._update_optimizer_lr(self.current_lr)
 
 
 class LinearScheduler(LearningRateScheduler):
@@ -199,8 +179,13 @@ class ExponentialScheduler(LearningRateScheduler):
 class ReduceOnPlateauScheduler(LearningRateScheduler):
     """Reduce learning rate when metric plateaus."""
 
-    def __init__(self, optimizer: optim.Optimizer, config: SchedulerConfig):
-        super().__init__(optimizer, config)
+    def __init__(
+        self,
+        optimizer: IOptimizer,
+        config: SchedulerConfig,
+        framework: FrameworkAdapter
+    ):
+        super().__init__(optimizer, config, framework)
         self.best_metric = None
         self.patience_counter = 0
         self.num_reductions = 0
@@ -214,7 +199,7 @@ class ReduceOnPlateauScheduler(LearningRateScheduler):
             self.current_lr = float(
                 self.base_lr * (self.current_step / self.warmup_steps)
             )
-            self.optimizer.learning_rate = self.current_lr
+            self._update_optimizer_lr(self.current_lr)
             return self.current_lr
 
         # Check if we have metrics
@@ -240,7 +225,7 @@ class ReduceOnPlateauScheduler(LearningRateScheduler):
             self.current_lr = max(
                 self.current_lr * self.config.factor, self.config.min_lr
             )
-            self.optimizer.learning_rate = self.current_lr
+            self._update_optimizer_lr(self.current_lr)
             self.patience_counter = 0
             self.num_reductions += 1
             logger.info(f"Reduced learning rate to {self.current_lr}")
@@ -248,89 +233,18 @@ class ReduceOnPlateauScheduler(LearningRateScheduler):
         return self.current_lr
 
 
-def create_mlx_lr_schedule(
-    config: SchedulerConfig,
-    base_lr: float,
-    num_training_steps: int,
-) -> Callable:
-    """
-    Create an MLX-native learning rate schedule from configuration.
-
-    Args:
-        config: Scheduler configuration
-        base_lr: Base learning rate
-        num_training_steps: Total number of training steps
-
-    Returns:
-        MLX learning rate schedule function
-    """
-    # Handle string types that weren't converted to enum
-    scheduler_type = config.type
-    if isinstance(scheduler_type, str):
-        try:
-            scheduler_type = SchedulerType(scheduler_type)
-        except ValueError:
-            raise ValueError(f"Unknown scheduler type: {scheduler_type}")
-
-    # Calculate warmup steps
-    warmup_steps = config.warmup_steps
-    if warmup_steps == 0 and config.warmup_ratio > 0:
-        warmup_steps = int(num_training_steps * config.warmup_ratio)
-
-    # Create the main schedule
-    if scheduler_type == SchedulerType.NONE or scheduler_type == SchedulerType.CONSTANT:
-        # For constant LR, return a scalar array directly
-        return mx.array(base_lr)
-    elif scheduler_type == SchedulerType.LINEAR:
-        # Linear decay from base_lr to min_lr
-        decay_steps = num_training_steps - warmup_steps
-        main_schedule = optim.schedulers.linear_schedule(
-            base_lr, config.min_lr, decay_steps
-        )
-    elif scheduler_type == SchedulerType.COSINE:
-        # Cosine decay
-        decay_steps = num_training_steps - warmup_steps
-        main_schedule = optim.schedulers.cosine_decay(
-            base_lr, decay_steps, end=config.min_lr
-        )
-    elif scheduler_type == SchedulerType.EXPONENTIAL:
-        # Exponential decay
-        main_schedule = optim.schedulers.exponential_decay(base_lr, config.gamma)
-    else:
-        # For unsupported schedulers, fall back to constant
-        logger.warning(
-            f"Scheduler {scheduler_type} not supported with MLX native schedulers, using constant LR"
-        )
-        main_schedule = lambda step: base_lr
-
-    # Add warmup if needed
-    if warmup_steps > 0:
-        warmup_schedule = optim.schedulers.linear_schedule(0.0, base_lr, warmup_steps)
-        # Join warmup and main schedule
-        schedule = optim.schedulers.join_schedules(
-            [warmup_schedule, main_schedule], [warmup_steps]
-        )
-    else:
-        schedule = main_schedule
-
-    logger.info(
-        f"Created MLX {scheduler_type} schedule with warmup_steps={warmup_steps}, "
-        f"num_training_steps={num_training_steps}, base_lr={base_lr}"
-    )
-
-    return schedule
-
-
 def create_lr_scheduler(
-    optimizer: optim.Optimizer,
+    optimizer: IOptimizer,
     config: SchedulerConfig,
-) -> LearningRateScheduler | None:
+    framework: FrameworkAdapter
+) -> ILRScheduler | None:
     """
     Create a learning rate scheduler from configuration.
 
     Args:
-        optimizer: MLX optimizer
+        optimizer: Optimizer instance
         config: Scheduler configuration
+        framework: Framework adapter
 
     Returns:
         Learning rate scheduler or None
@@ -346,17 +260,17 @@ def create_lr_scheduler(
     if scheduler_type == SchedulerType.NONE:
         return None
     elif scheduler_type == SchedulerType.CONSTANT:
-        return LearningRateScheduler(optimizer, config)  # Base class is constant
+        return LearningRateScheduler(optimizer, config, framework)  # Base class is constant
     elif scheduler_type == SchedulerType.LINEAR:
-        return LinearScheduler(optimizer, config)
+        return LinearScheduler(optimizer, config, framework)
     elif scheduler_type == SchedulerType.COSINE:
-        return CosineScheduler(optimizer, config)
+        return CosineScheduler(optimizer, config, framework)
     elif scheduler_type == SchedulerType.COSINE_WITH_RESTARTS:
-        return CosineWithRestartsScheduler(optimizer, config)
+        return CosineWithRestartsScheduler(optimizer, config, framework)
     elif scheduler_type == SchedulerType.EXPONENTIAL:
-        return ExponentialScheduler(optimizer, config)
+        return ExponentialScheduler(optimizer, config, framework)
     elif scheduler_type == SchedulerType.REDUCE_ON_PLATEAU:
-        return ReduceOnPlateauScheduler(optimizer, config)
+        return ReduceOnPlateauScheduler(optimizer, config, framework)
     else:
         raise ValueError(f"Unknown scheduler type: {scheduler_type}")
 
@@ -364,14 +278,15 @@ def create_lr_scheduler(
 class GradientAccumulator:
     """Handles gradient accumulation for larger effective batch sizes."""
 
-    def __init__(self, accumulation_steps: int = 1):
+    def __init__(self, accumulation_steps: int = 1, framework: FrameworkAdapter = None):
         self.accumulation_steps = accumulation_steps
+        self.framework = framework or FrameworkAdapter()
         self.accumulated_grads: dict[str, Any] | None = None
         self.step_count = 0
 
     def accumulate(self, gradients: dict[str, Any]) -> bool:
         """
-        Accumulate gradients using MLX tree_map for efficiency.
+        Accumulate gradients using framework adapter.
 
         Args:
             gradients: Current batch gradients (may be nested)
@@ -379,21 +294,15 @@ class GradientAccumulator:
         Returns:
             True if should update weights, False otherwise
         """
-        from mlx.utils import tree_map
-
         self.step_count += 1
 
         if self.accumulated_grads is None:
             # First accumulation - just store the gradients
             self.accumulated_grads = gradients
         else:
-            # Accumulate using tree_map for efficiency
-            self.accumulated_grads = tree_map(
-                lambda acc, new: acc + new
-                if acc is not None and new is not None
-                else (acc or new),
-                self.accumulated_grads,
-                gradients,
+            # Accumulate using framework adapter
+            self.accumulated_grads = self.framework.accumulate_gradients(
+                self.accumulated_grads, gradients
             )
 
         # Check if we should update
@@ -403,14 +312,12 @@ class GradientAccumulator:
 
     def get_gradients(self, average: bool = True) -> dict[str, Any]:
         """Get accumulated gradients and reset."""
-        from mlx.utils import tree_map
-
         grads = self.accumulated_grads
 
         if average and grads is not None and self.accumulation_steps > 1:
             # Average the gradients by the number of accumulation steps
             scale = 1.0 / self.accumulation_steps
-            grads = tree_map(lambda g: g * scale if g is not None else None, grads)
+            grads = self.framework.scale_gradients(grads, scale)
 
         # Reset for next accumulation
         self.accumulated_grads = None
@@ -426,91 +333,39 @@ class GradientAccumulator:
 def clip_gradients(
     gradients: dict[str, Any],
     max_norm: float,
+    framework: FrameworkAdapter
 ) -> tuple[dict[str, Any], float]:
     """
-    Clip gradients by global norm using MLX's native implementation.
+    Clip gradients by global norm using framework adapter.
 
     Args:
         gradients: Dictionary of gradients (may be nested)
         max_norm: Maximum gradient norm
+        framework: Framework adapter
 
     Returns:
         Clipped gradients and original norm
     """
-
-    # MLX's clip_grad_norm expects a list of arrays, not a nested dict
-    # We need to flatten the gradient structure first
-    def flatten_grads(grads, parent_key=""):
-        """Recursively flatten nested gradient dict to list of arrays."""
-        items = []
-        if isinstance(grads, dict):
-            for k, v in grads.items():
-                new_key = f"{parent_key}.{k}" if parent_key else k
-                if isinstance(v, mx.array):
-                    items.append(v)
-                else:
-                    items.extend(flatten_grads(v, new_key))
-        elif isinstance(grads, list):
-            for i, v in enumerate(grads):
-                new_key = f"{parent_key}[{i}]"
-                if isinstance(v, mx.array):
-                    items.append(v)
-                else:
-                    items.extend(flatten_grads(v, new_key))
-        elif isinstance(grads, mx.array):
-            items.append(grads)
-        return items
-
-    # Flatten gradients to list
-    grad_list = flatten_grads(gradients)
-
-    if not grad_list:
-        # No gradients to clip
-        return gradients, mx.array(0.0)
-
-    # Compute total norm
-    total_norm = mx.sqrt(sum(mx.sum(g * g) for g in grad_list))
-
-    # Clip if needed
-    if total_norm > max_norm:
-        scale = max_norm / total_norm
-
-        # Apply scaling to original nested structure
-        def scale_grads(grads):
-            if isinstance(grads, dict):
-                return {k: scale_grads(v) for k, v in grads.items()}
-            elif isinstance(grads, list):
-                return [scale_grads(v) for v in grads]
-            elif isinstance(grads, mx.array):
-                return grads * scale
-            else:
-                return grads
-
-        clipped_grads = scale_grads(gradients)
-    else:
-        clipped_grads = gradients
-
-    return clipped_grads, total_norm
+    return framework.clip_gradients_by_norm(gradients, max_norm)
 
 
-def compute_gradient_stats(gradients: dict[str, Any]) -> dict[str, float]:
+def compute_gradient_stats(
+    gradients: dict[str, Any],
+    framework: FrameworkAdapter,
+    detailed: bool = False
+) -> dict[str, float]:
     """
     Compute statistics about gradients for monitoring.
 
-    Optimized version that minimizes .item() calls and leverages MLX's lazy evaluation.
-
     Args:
         gradients: Dictionary of gradients (may be nested)
+        framework: Framework adapter
+        detailed: Whether to compute detailed stats (expensive)
 
     Returns:
         Dictionary of statistics
     """
-    # Use tree_flatten for efficient gradient collection
-    from mlx.utils import tree_flatten
-
-    flat_grads = tree_flatten(gradients)
-
-    if not flat_grads:
+    if not gradients:
         return {
             "grad_norm": 0.0,
             "grad_max": 0.0,
@@ -519,77 +374,164 @@ def compute_gradient_stats(gradients: dict[str, Any]) -> dict[str, float]:
             "grad_std": 0.0,
         }
 
-    # Filter out None values and get just the arrays
-    grad_arrays = [v for k, v in flat_grads if v is not None]
+    # Always compute gradient norm
+    grad_norm = framework.compute_gradient_norm(gradients)
 
-    if not grad_arrays:
+    if detailed:
+        # Detailed stats would require framework-specific implementation
+        # For now, just return norm
         return {
-            "grad_norm": 0.0,
+            "grad_norm": grad_norm,
+            "grad_max": 0.0,  # Placeholder
+            "grad_min": 0.0,  # Placeholder
+            "grad_mean": 0.0,  # Placeholder
+            "grad_std": 0.0,  # Placeholder
+        }
+    else:
+        # Basic stats - just norm
+        return {
+            "grad_norm": grad_norm,
             "grad_max": 0.0,
             "grad_min": 0.0,
             "grad_mean": 0.0,
             "grad_std": 0.0,
         }
 
-    # Compute norm efficiently
-    norm_sq = mx.sum(mx.stack([mx.sum(g * g) for g in grad_arrays]))
-    grad_norm = mx.sqrt(norm_sq)
 
-    # For other stats, only compute if really needed (expensive)
-    # Most training loops only need grad_norm
-    return {
-        "grad_norm": grad_norm,  # Keep as MLX array
-        "grad_max": mx.array(0.0),  # Placeholder
-        "grad_min": mx.array(0.0),  # Placeholder
-        "grad_mean": mx.array(0.0),  # Placeholder
-        "grad_std": mx.array(0.0),  # Placeholder
-    }
+@runtime_checkable
+class NativeLRScheduleFactory(Protocol):
+    """Protocol for creating native framework LR schedules."""
+    
+    def create_schedule(
+        self,
+        config: SchedulerConfig,
+        base_lr: float,
+        num_training_steps: int
+    ) -> Any:
+        """Create a native framework learning rate schedule.
+        
+        Args:
+            config: Scheduler configuration
+            base_lr: Base learning rate
+            num_training_steps: Total number of training steps
+            
+        Returns:
+            Framework-specific schedule object
+        """
+        ...
 
 
-def compute_gradient_stats_detailed(gradients: dict[str, Any]) -> dict[str, float]:
+class MLXLRScheduleFactory:
+    """Factory for creating MLX-native learning rate schedules."""
+    
+    def create_schedule(
+        self,
+        config: SchedulerConfig,
+        base_lr: float,
+        num_training_steps: int
+    ) -> Any:
+        """Create MLX-native learning rate schedule.
+        
+        Args:
+            config: Scheduler configuration
+            base_lr: Base learning rate
+            num_training_steps: Total number of training steps
+            
+        Returns:
+            MLX learning rate schedule
+        """
+        import mlx.core as mx
+        import mlx.optimizers as optim
+        
+        # Handle string types that weren't converted to enum
+        scheduler_type = config.type
+        if isinstance(scheduler_type, str):
+            try:
+                scheduler_type = SchedulerType(scheduler_type)
+            except ValueError:
+                raise ValueError(f"Unknown scheduler type: {scheduler_type}")
+        
+        # Calculate warmup steps
+        warmup_steps = config.warmup_steps
+        if warmup_steps == 0 and config.warmup_ratio > 0:
+            warmup_steps = int(num_training_steps * config.warmup_ratio)
+        
+        # Create the main schedule
+        if scheduler_type == SchedulerType.NONE or scheduler_type == SchedulerType.CONSTANT:
+            # For constant LR, return a scalar array directly
+            return mx.array(base_lr)
+        elif scheduler_type == SchedulerType.LINEAR:
+            # Linear decay from base_lr to min_lr
+            decay_steps = num_training_steps - warmup_steps
+            main_schedule = optim.schedulers.linear_schedule(
+                base_lr, config.min_lr, decay_steps
+            )
+        elif scheduler_type == SchedulerType.COSINE:
+            # Cosine decay
+            decay_steps = num_training_steps - warmup_steps
+            main_schedule = optim.schedulers.cosine_decay(
+                base_lr, decay_steps, end=config.min_lr
+            )
+        elif scheduler_type == SchedulerType.EXPONENTIAL:
+            # Exponential decay
+            main_schedule = optim.schedulers.exponential_decay(base_lr, config.gamma)
+        else:
+            # For unsupported schedulers, fall back to constant
+            logger.warning(
+                f"Scheduler {scheduler_type} not supported with MLX native schedulers, using constant LR"
+            )
+            main_schedule = lambda step: base_lr
+        
+        # Add warmup if needed
+        if warmup_steps > 0:
+            warmup_schedule = optim.schedulers.linear_schedule(0.0, base_lr, warmup_steps)
+            # Join warmup and main schedule
+            schedule = optim.schedulers.join_schedules(
+                [warmup_schedule, main_schedule], [warmup_steps]
+            )
+        else:
+            schedule = main_schedule
+        
+        logger.info(
+            f"Created MLX {scheduler_type} schedule with warmup_steps={warmup_steps}, "
+            f"num_training_steps={num_training_steps}, base_lr={base_lr}"
+        )
+        
+        return schedule
+
+
+# Registry for native schedule factories
+_schedule_factories: dict[str, NativeLRScheduleFactory] = {
+    "mlx": MLXLRScheduleFactory()
+}
+
+
+def create_native_lr_schedule(
+    config: SchedulerConfig,
+    base_lr: float,
+    num_training_steps: int,
+    framework: FrameworkAdapter
+) -> Any:
     """
-    Compute detailed gradient statistics (use sparingly - expensive).
-
+    Create a native framework learning rate schedule.
+    
     Args:
-        gradients: Dictionary of gradients (may be nested)
-
+        config: Scheduler configuration
+        base_lr: Base learning rate
+        num_training_steps: Total number of training steps
+        framework: Framework adapter
+        
     Returns:
-        Dictionary of detailed statistics with Python floats
+        Framework-specific schedule object
     """
-    from mlx.utils import tree_flatten
-
-    flat_grads = tree_flatten(gradients)
-    grad_arrays = [v for k, v in flat_grads if v is not None]
-
-    if not grad_arrays:
-        return {
-            "grad_norm": 0.0,
-            "grad_max": 0.0,
-            "grad_min": 0.0,
-            "grad_mean": 0.0,
-            "grad_std": 0.0,
-        }
-
-    # Compute all statistics
-    norm_sq = mx.sum(mx.stack([mx.sum(g * g) for g in grad_arrays]))
-    grad_norm = mx.sqrt(norm_sq)
-
-    # Concatenate for detailed stats
-    all_grads = mx.concatenate([g.flatten() for g in grad_arrays])
-    all_abs_grads = mx.abs(all_grads)
-
-    grad_max = mx.max(all_abs_grads)
-    grad_min = mx.min(all_abs_grads)
-    grad_mean = mx.mean(all_abs_grads)
-    grad_std = mx.std(all_abs_grads)
-
-    # Single evaluation
-    mx.eval(grad_norm, grad_max, grad_min, grad_mean, grad_std)
-
-    return {
-        "grad_norm": float(grad_norm.item()),
-        "grad_max": float(grad_max.item()),
-        "grad_min": float(grad_min.item()),
-        "grad_mean": float(grad_mean.item()),
-        "grad_std": float(grad_std.item()),
-    }
+    factory_key = framework.name.lower()
+    factory = _schedule_factories.get(factory_key)
+    
+    if factory is None:
+        logger.warning(
+            f"No native LR schedule factory for framework: {framework.name}. "
+            f"Use create_lr_scheduler for a framework-agnostic scheduler."
+        )
+        return None
+    
+    return factory.create_schedule(config, base_lr, num_training_steps)

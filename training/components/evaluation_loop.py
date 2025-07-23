@@ -6,20 +6,21 @@ This component is responsible for:
 - Managing evaluation state
 """
 
-from typing import Callable, Protocol, Dict, Any
-import mlx.core as mx
-import mlx.nn as nn
+from typing import Callable, Protocol, Dict, Any, TYPE_CHECKING
 from loguru import logger
 
-from core.protocols.training import TrainingState
+from core.protocols.training import TrainingState, FrameworkAdapter
 from core.protocols.data import DataLoader
 from core.protocols.models import Model
+
+if TYPE_CHECKING:
+    from core.ports.compute import Array
 
 
 class EvaluationStepFunction(Protocol):
     """Protocol for evaluation step functions."""
     
-    def __call__(self, batch: dict[str, mx.array]) -> tuple[mx.array, dict[str, mx.array]]:
+    def __call__(self, batch: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
         """Execute a single evaluation step."""
         ...
 
@@ -33,13 +34,15 @@ class EvaluationLoop:
     - Loss calculation for validation
     """
     
-    def __init__(self, model: Model):
+    def __init__(self, model: Model, framework_adapter: FrameworkAdapter):
         """Initialize the evaluation loop.
         
         Args:
             model: Model to evaluate
+            framework_adapter: Adapter for framework-specific operations
         """
         self.model = model
+        self.framework = framework_adapter
         self._eval_step = self._create_eval_step()
         self._compiled_eval_step = None
         self._use_compiled = False
@@ -49,7 +52,7 @@ class EvaluationLoop:
     def _create_eval_step(self) -> EvaluationStepFunction:
         """Create the evaluation step function."""
         
-        def eval_step(batch: dict[str, mx.array]) -> tuple[mx.array, dict[str, mx.array]]:
+        def eval_step(batch: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
             """Single evaluation step."""
             # Remove metadata
             model_inputs = {
@@ -71,21 +74,29 @@ class EvaluationLoop:
                 # Compute loss if we have logits and labels
                 logits = outputs["logits"]
                 if "labels" in model_inputs:
-                    loss = nn.losses.cross_entropy(
-                        logits, model_inputs["labels"], reduction="mean"
-                    )
+                    # Use neural ops if available, otherwise fall back to framework adapter
+                    if self.framework.neural_ops:
+                        loss = self.framework.neural_ops.cross_entropy(
+                            logits, model_inputs["labels"], reduction="mean"
+                        )
+                    else:
+                        # Fallback: assume loss is computed by the model
+                        loss = self.framework.to_tensor(0.0)
                 else:
-                    loss = mx.array(0.0)
+                    loss = self.framework.to_tensor(0.0)
             else:
                 # Handle other output formats
                 if hasattr(outputs, "loss"):
                     loss = outputs.loss
                 elif hasattr(outputs, "logits") and "labels" in model_inputs:
-                    loss = nn.losses.cross_entropy(
-                        outputs.logits, model_inputs["labels"], reduction="mean"
-                    )
+                    if self.framework.neural_ops:
+                        loss = self.framework.neural_ops.cross_entropy(
+                            outputs.logits, model_inputs["labels"], reduction="mean"
+                        )
+                    else:
+                        loss = self.framework.to_tensor(0.0)
                 else:
-                    loss = outputs if isinstance(outputs, mx.array) else mx.array(float(outputs))
+                    loss = outputs if self._is_tensor(outputs) else self.framework.to_tensor(float(outputs))
             
             # Build metrics
             if isinstance(outputs, dict):
@@ -97,7 +108,12 @@ class EvaluationLoop:
         
         return eval_step
     
-    def evaluate_batch(self, batch: dict[str, mx.array]) -> tuple[mx.array, dict[str, mx.array]]:
+    def _is_tensor(self, obj: Any) -> bool:
+        """Check if object is a tensor."""
+        # Check for common tensor attributes
+        return hasattr(obj, 'shape') and hasattr(obj, 'dtype')
+    
+    def evaluate_batch(self, batch: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
         """Process a single evaluation batch.
         
         Args:
@@ -138,7 +154,7 @@ class EvaluationLoop:
         
         # Initialize metrics
         total_loss = 0.0
-        total_metrics: dict[str, mx.array] = {}
+        total_metrics: dict[str, Any] = {}
         num_batches = 0
         
         # Process batches
@@ -164,18 +180,15 @@ class EvaluationLoop:
             num_batches += 1
         
         # Average metrics
-        mx.eval(total_loss)
-        avg_loss = float(total_loss.item()) / num_batches if hasattr(total_loss, "item") else float(total_loss) / num_batches
+        self.framework.evaluate_tensors(total_loss)
+        avg_loss = self.framework.to_python(total_loss) / num_batches
         
         avg_metrics = {"loss": avg_loss}
         
         # Average other metrics
         for k, v in total_metrics.items():
-            if hasattr(v, "item"):
-                mx.eval(v)
-                avg_metrics[k] = float(v.item()) / num_batches
-            else:
-                avg_metrics[k] = float(v) / num_batches
+            self.framework.evaluate_tensors(v)
+            avg_metrics[k] = self.framework.to_python(v) / num_batches
         
         # Prefix with eval_
         eval_metrics = {f"eval_{k}": v for k, v in avg_metrics.items()}
@@ -191,14 +204,14 @@ class EvaluationLoop:
         
         return eval_metrics
     
-    def predict(self, dataloader: DataLoader) -> mx.array:
+    def predict(self, dataloader: DataLoader) -> list[Any]:
         """Generate predictions for a dataset.
         
         Args:
             dataloader: Data loader for prediction
             
         Returns:
-            Predictions as MLX array
+            List of prediction tensors (one per batch)
         """
         # Set model to eval mode
         self.model.eval()
@@ -220,20 +233,25 @@ class EvaluationLoop:
                 outputs = self.model(batch)
             
             # Extract predictions
-            if "logits" in outputs:
-                preds = outputs["logits"]
-            elif "predictions" in outputs:
-                preds = outputs["predictions"]
+            if isinstance(outputs, dict):
+                if "logits" in outputs:
+                    preds = outputs["logits"]
+                elif "predictions" in outputs:
+                    preds = outputs["predictions"]
+                else:
+                    raise ValueError("Model must return 'logits' or 'predictions'")
             else:
-                raise ValueError("Model must return 'logits' or 'predictions'")
+                # Assume outputs are predictions directly
+                preds = outputs
                 
             predictions.append(preds)
         
         # Set model back to train mode
         self.model.train()
         
-        # Concatenate predictions
-        return mx.concatenate(predictions, axis=0)
+        # Return list of predictions - let calling code handle concatenation
+        # This keeps the evaluation loop framework-agnostic
+        return predictions
     
     def set_compiled_step(self, compiled_step: EvaluationStepFunction) -> None:
         """Set a compiled evaluation step function.

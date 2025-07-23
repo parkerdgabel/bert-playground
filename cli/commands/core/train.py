@@ -16,7 +16,7 @@ from core.ports.monitoring import MonitoringService
 from core.events.bus import EventBus
 from core.events.types import EventType
 from training.components.training_orchestrator import TrainingOrchestrator
-from data.factory import DatasetFactory
+from adapters.secondary.data.factory import DatasetFactory
 from models.factory import ModelFactory
 
 console = Console()

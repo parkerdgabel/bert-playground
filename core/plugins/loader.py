@@ -489,6 +489,30 @@ class PluginLoader:
             return config[category].get(plugin_name, {})
         
         return {}
+    
+    def discover_plugins(
+        self,
+        project_root: Optional[Union[str, Path]] = None,
+        additional_paths: Optional[List[Union[str, Path]]] = None,
+    ) -> List[Plugin]:
+        """Discover and instantiate all available plugins.
+        
+        Args:
+            project_root: Project root directory
+            additional_paths: Additional paths to search
+            
+        Returns:
+            List of plugin instances
+        """
+        plugin_classes = self.discovery.discover_all(project_root, additional_paths)
+        plugins = []
+        
+        for plugin_class in plugin_classes:
+            plugin = self._load_plugin_class(plugin_class, validate=False)
+            if plugin:
+                plugins.append(plugin)
+        
+        return plugins
 
 
 # Convenience functions

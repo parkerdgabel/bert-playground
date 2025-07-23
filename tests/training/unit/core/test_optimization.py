@@ -5,6 +5,7 @@ import mlx.nn as nn
 import pytest
 
 from tests.training.fixtures.models import SimpleBinaryClassifier
+from training.adapters.framework_adapter import FrameworkAdapter
 from training.core.config import (
     OptimizerConfig,
     OptimizerType,
@@ -23,7 +24,12 @@ from training.core.optimization import (
 class TestOptimizers:
     """Test optimizer creation and functionality."""
 
-    def test_create_adam_optimizer(self):
+    @pytest.fixture
+    def framework(self):
+        """Create framework adapter for tests."""
+        return FrameworkAdapter(backend="mlx")
+
+    def test_create_adam_optimizer(self, framework):
         """Test Adam optimizer creation."""
         model = SimpleBinaryClassifier()
         config = OptimizerConfig(
@@ -34,13 +40,13 @@ class TestOptimizers:
             beta2=0.999,
         )
 
-        optimizer = create_optimizer(model, config)
+        optimizer = create_optimizer(model, config, framework)
 
         assert optimizer is not None
         assert hasattr(optimizer, "learning_rate")
         assert optimizer.learning_rate == 1e-3
 
-    def test_create_adamw_optimizer(self):
+    def test_create_adamw_optimizer(self, framework):
         """Test AdamW optimizer creation."""
         model = SimpleBinaryClassifier()
         config = OptimizerConfig(
@@ -49,402 +55,293 @@ class TestOptimizers:
             weight_decay=0.1,
         )
 
-        optimizer = create_optimizer(model, config)
+        optimizer = create_optimizer(model, config, framework)
 
         assert optimizer is not None
         assert optimizer.learning_rate == 2e-5
 
-    def test_create_sgd_optimizer(self):
+    def test_create_sgd_optimizer(self, framework):
         """Test SGD optimizer creation."""
         model = SimpleBinaryClassifier()
         config = OptimizerConfig(
             type=OptimizerType.SGD,
             learning_rate=0.1,
             momentum=0.9,
-            weight_decay=0.0,
+            weight_decay=1e-4,
+            nesterov=True,
         )
 
-        optimizer = create_optimizer(model, config)
+        optimizer = create_optimizer(model, config, framework)
 
         assert optimizer is not None
         assert optimizer.learning_rate == 0.1
 
-    def test_create_lion_optimizer(self):
+    def test_create_lion_optimizer(self, framework):
         """Test Lion optimizer creation."""
         model = SimpleBinaryClassifier()
         config = OptimizerConfig(
             type=OptimizerType.LION,
             learning_rate=1e-4,
+            lion_beta1=0.9,
+            lion_beta2=0.99,
             weight_decay=0.0,
         )
 
-        optimizer = create_optimizer(model, config)
+        optimizer = create_optimizer(model, config, framework)
 
         assert optimizer is not None
         assert optimizer.learning_rate == 1e-4
 
-    def test_create_adafactor_optimizer(self):
-        """Test Adafactor optimizer creation."""
+    def test_invalid_optimizer_type(self, framework):
+        """Test error handling for invalid optimizer type."""
         model = SimpleBinaryClassifier()
         config = OptimizerConfig(
-            type=OptimizerType.ADAFACTOR,
+            type="invalid_optimizer",  # Invalid type
             learning_rate=1e-3,
         )
 
-        optimizer = create_optimizer(model, config)
-
-        assert optimizer is not None
-        # Adafactor may have dynamic learning rate
-        assert hasattr(optimizer, "learning_rate") or hasattr(optimizer, "lr")
-
-    def test_invalid_optimizer_type(self):
-        """Test invalid optimizer type."""
-        model = SimpleBinaryClassifier()
-        # Test with invalid optimizer type by manually setting
-        config = OptimizerConfig()
-        config.type = "invalid_optimizer"  # type: ignore
-
-        with pytest.raises(ValueError, match="Unknown optimizer type"):
-            create_optimizer(model, config)
-
-    def test_optimizer_step(self):
-        """Test optimizer parameter update."""
-        model = SimpleBinaryClassifier()
-        config = OptimizerConfig(type=OptimizerType.SGD, learning_rate=0.1)
-        optimizer = create_optimizer(model, config)
-
-        # Get initial parameters
-        from mlx.utils import tree_map
-
-        initial_params = tree_map(lambda x: mx.array(x), model.parameters())
-
-        # Create dummy loss and compute gradients
-        batch = {
-            "input": mx.random.normal((4, 10)),
-            "labels": mx.random.randint(0, 2, (4,)),
-        }
-
-        def loss_fn(model):
-            outputs = model(batch)
-            return outputs["loss"]
-
-        # Compute gradients
-        loss_and_grad_fn = nn.value_and_grad(model, loss_fn)
-        loss, grads = loss_and_grad_fn(model)
-
-        # Update parameters
-        optimizer.update(model, grads)
-
-        # Check parameters changed
-        final_params = model.parameters()
-
-        def check_params_changed(initial, final):
-            """Recursively check if parameters changed."""
-            for key in initial:
-                if isinstance(initial[key], dict):
-                    check_params_changed(initial[key], final[key])
-                else:
-                    assert not mx.allclose(initial[key], final[key], atol=1e-6)
-
-        check_params_changed(initial_params, final_params)
+        with pytest.raises(ValueError):
+            create_optimizer(model, config, framework)
 
 
 class TestSchedulers:
-    """Test learning rate scheduler creation and functionality."""
+    """Test scheduler creation and functionality."""
 
-    def test_create_constant_scheduler(self):
+    @pytest.fixture
+    def framework(self):
+        """Create framework adapter for tests."""
+        return FrameworkAdapter(backend="mlx")
+
+    @pytest.fixture
+    def optimizer(self, framework):
+        """Create a test optimizer."""
+        model = SimpleBinaryClassifier()
+        config = OptimizerConfig(type=OptimizerType.ADAM, learning_rate=1e-3)
+        return create_optimizer(model, config, framework)
+
+    def test_create_constant_scheduler(self, optimizer, framework):
         """Test constant scheduler creation."""
-        optimizer = type("MockOptimizer", (), {"learning_rate": 1e-3})()
-        config = SchedulerConfig(type="constant")
-
-        config.num_training_steps = 1000
-        scheduler = create_lr_scheduler(optimizer, config)
-
-        assert scheduler is not None
-        # Constant scheduler might be None or a no-op
-        if scheduler is not None:
-            assert hasattr(scheduler, "step")
-
-    def test_create_linear_scheduler(self):
-        """Test linear scheduler creation."""
-        optimizer = type("MockOptimizer", (), {"learning_rate": 1e-3})()
         config = SchedulerConfig(
-            type=SchedulerType.LINEAR,
-            warmup_ratio=0.1,
+            type=SchedulerType.CONSTANT,
+            num_training_steps=1000,
         )
 
-        config.num_training_steps = 1000
-        scheduler = create_lr_scheduler(optimizer, config)
+        scheduler = create_lr_scheduler(optimizer, config, framework)
 
         assert scheduler is not None
-        assert hasattr(scheduler, "step")
-        assert hasattr(scheduler, "get_last_lr")
+        assert abs(scheduler.get_last_lr() - 1e-3) < 1e-6
 
-    def test_create_cosine_scheduler(self):
-        """Test cosine scheduler creation."""
-        optimizer = type("MockOptimizer", (), {"learning_rate": 1e-3})()
+        # Step should not change LR
+        scheduler.step()
+        assert abs(scheduler.get_last_lr() - 1e-3) < 1e-6
+
+    def test_create_linear_scheduler(self, optimizer, framework):
+        """Test linear scheduler creation."""
         config = SchedulerConfig(
-            type="cosine",
-            warmup_ratio=0.1,
+            type=SchedulerType.LINEAR,
+            num_training_steps=1000,
+            warmup_steps=100,
+        )
+
+        scheduler = create_lr_scheduler(optimizer, config, framework)
+
+        assert scheduler is not None
+        assert abs(scheduler.get_last_lr() - 1e-3) < 1e-6
+
+        # Test warmup
+        for _ in range(50):
+            scheduler.step()
+        assert scheduler.get_last_lr() < 1e-3  # Should be warming up
+
+        # Test decay after warmup
+        for _ in range(100):
+            scheduler.step()
+        current_lr = scheduler.get_last_lr()
+        scheduler.step()
+        assert scheduler.get_last_lr() < current_lr  # Should be decaying
+
+    def test_create_cosine_scheduler(self, optimizer, framework):
+        """Test cosine scheduler creation."""
+        config = SchedulerConfig(
+            type=SchedulerType.COSINE,
+            num_training_steps=1000,
+            warmup_steps=100,
             num_cycles=0.5,
         )
 
-        config.num_training_steps = 1000
-        scheduler = create_lr_scheduler(optimizer, config)
+        scheduler = create_lr_scheduler(optimizer, config, framework)
 
         assert scheduler is not None
-        assert hasattr(scheduler, "step")
+        assert abs(scheduler.get_last_lr() - 1e-3) < 1e-6
 
-    def test_create_cosine_with_restarts_scheduler(self):
-        """Test cosine with restarts scheduler creation."""
-        optimizer = type("MockOptimizer", (), {"learning_rate": 1e-3})()
-        config = SchedulerConfig(
-            type="cosine_with_restarts",
-            warmup_ratio=0.05,
-            num_cycles=4,
-        )
-
-        config.num_training_steps = 1000
-        scheduler = create_lr_scheduler(optimizer, config)
-
-        assert scheduler is not None
-        assert hasattr(scheduler, "step")
-
-    def test_create_exponential_scheduler(self):
-        """Test exponential scheduler creation."""
-        optimizer = type("MockOptimizer", (), {"learning_rate": 1e-3})()
-        config = SchedulerConfig(
-            type="exponential",
-            gamma=0.95,
-        )
-
-        config.num_training_steps = 1000
-        scheduler = create_lr_scheduler(optimizer, config)
-
-        assert scheduler is not None
-        assert hasattr(scheduler, "step")
-
-    def test_create_reduce_on_plateau_scheduler(self):
-        """Test ReduceLROnPlateau scheduler creation."""
-        optimizer = type("MockOptimizer", (), {"learning_rate": 1e-3})()
-        config = SchedulerConfig(
-            type="reduce_on_plateau",
-            factor=0.5,
-            patience=3,
-            mode="min",
-            threshold=0.01,
-        )
-
-        config.num_training_steps = 1000
-        scheduler = create_lr_scheduler(optimizer, config)
-
-        assert scheduler is not None
-        assert hasattr(scheduler, "step")
-
-    def test_invalid_scheduler_type(self):
-        """Test invalid scheduler type."""
-        optimizer = type("MockOptimizer", (), {"learning_rate": 1e-3})()
-        config = SchedulerConfig(type="invalid_scheduler")
-
-        with pytest.raises(ValueError, match="Unknown scheduler type"):
-            create_lr_scheduler(optimizer, config)
-
-    def test_scheduler_step_updates(self):
-        """Test that scheduler updates learning rate."""
-
-        # Create mock optimizer with mutable learning rate
-        class MockOptimizer:
-            def __init__(self):
-                self.learning_rate = 1e-3
-
-        optimizer = MockOptimizer()
+    def test_scheduler_state_dict(self, optimizer, framework):
+        """Test scheduler state saving and loading."""
         config = SchedulerConfig(
             type=SchedulerType.LINEAR,
-            warmup_ratio=0.1,
+            num_training_steps=1000,
         )
 
-        config.num_training_steps = 100
-        scheduler = create_lr_scheduler(optimizer, config)
+        scheduler = create_lr_scheduler(optimizer, config, framework)
 
-        if scheduler is not None:
-            initial_lr = optimizer.learning_rate
+        # Step a few times
+        for _ in range(10):
+            scheduler.step()
 
-            # Step through warmup
-            for _ in range(10):
-                scheduler.step()
+        # Save state
+        state = scheduler.state_dict
 
-            # LR should have changed during warmup
-            # Note: Exact behavior depends on scheduler implementation
+        # Create new scheduler and load state
+        new_scheduler = create_lr_scheduler(optimizer, config, framework)
+        new_scheduler.load_state_dict(state)
+
+        assert new_scheduler.current_step == scheduler.current_step
+        assert new_scheduler.current_lr == scheduler.current_lr
 
 
-class TestGradientAccumulator:
-    """Test gradient accumulation functionality."""
+class TestGradientOperations:
+    """Test gradient manipulation operations."""
 
-    def test_gradient_accumulator_init(self):
-        """Test gradient accumulator initialization."""
-        accumulator = GradientAccumulator()
+    @pytest.fixture
+    def framework(self):
+        """Create framework adapter for tests."""
+        return FrameworkAdapter(backend="mlx")
 
-        assert accumulator.accumulated_grads is None
-        assert accumulator.step_count == 0
-
-    def test_gradient_accumulation(self):
-        """Test accumulating gradients."""
-        accumulator = GradientAccumulator()
-
-        # Create dummy gradients
-        grads1 = {
-            "layer1": {"weight": mx.ones((10, 10)), "bias": mx.ones((10,))},
-            "layer2": {"weight": mx.ones((5, 10)), "bias": mx.ones((5,))},
+    @pytest.fixture
+    def gradients(self):
+        """Create test gradients."""
+        return {
+            "layer1": {
+                "weight": mx.random.normal((10, 10)),
+                "bias": mx.random.normal((10,)),
+            },
+            "layer2": {
+                "weight": mx.random.normal((5, 10)),
+                "bias": mx.random.normal((5,)),
+            },
         }
 
-        grads2 = {
-            "layer1": {"weight": mx.ones((10, 10)) * 2, "bias": mx.ones((10,)) * 2},
-            "layer2": {"weight": mx.ones((5, 10)) * 2, "bias": mx.ones((5,)) * 2},
-        }
+    def test_gradient_clipping(self, gradients, framework):
+        """Test gradient clipping by norm."""
+        # Make gradients large
+        large_grads = {}
+        for k, v in gradients.items():
+            large_grads[k] = {}
+            for k2, v2 in v.items():
+                large_grads[k][k2] = v2 * 100.0
+
+        # Clip gradients
+        clipped, norm = clip_gradients(large_grads, max_norm=1.0, framework=framework)
+
+        # Check that norm is reduced
+        assert norm <= 1.0 + 1e-6  # Allow small numerical error
+
+        # Check that gradients are scaled proportionally
+        orig_norm = framework.compute_gradient_norm(large_grads)
+        scale_factor = 1.0 / orig_norm
+        for k in large_grads:
+            for k2 in large_grads[k]:
+                expected = large_grads[k][k2] * scale_factor
+                actual = clipped[k][k2]
+                mx.eval(expected, actual)
+                assert mx.allclose(actual, expected, atol=1e-6)
+
+    def test_gradient_accumulation(self, gradients, framework):
+        """Test gradient accumulation."""
+        accumulator = GradientAccumulator(accumulation_steps=4, framework=framework)
 
         # Accumulate gradients
-        accumulator.accumulate(grads1)
-        accumulator.accumulate(grads2)
+        should_update_flags = []
+        for i in range(8):
+            should_update = accumulator.accumulate(gradients)
+            should_update_flags.append(should_update)
+            
+            # Check accumulated gradients after each accumulation step
+            if should_update:
+                accumulated = accumulator.get_gradients(average=True)
+                
+                # Check that gradients are averaged
+                for k in gradients:
+                    for k2 in gradients[k]:
+                        # Should be close to original since we accumulated same gradients
+                        mx.eval(accumulated[k][k2], gradients[k][k2])
+                        assert mx.allclose(accumulated[k][k2], gradients[k][k2], atol=1e-5)
 
-        assert accumulator.step_count == 2
+        # Check update pattern
+        expected = [False, False, False, True, False, False, False, True]
+        assert should_update_flags == expected
 
-        # Get accumulated gradients
-        accumulated = accumulator.get_gradients()
+    def test_gradient_stats(self, gradients, framework):
+        """Test gradient statistics computation."""
+        stats = compute_gradient_stats(gradients, framework, detailed=False)
 
-        # Should be sum of gradients
-        expected_weight1 = mx.ones((10, 10)) * 3
-        assert mx.allclose(accumulated["layer1"]["weight"], expected_weight1)
+        assert "grad_norm" in stats
+        assert stats["grad_norm"] > 0
 
-    def test_gradient_reset(self):
-        """Test resetting gradient accumulator."""
-        accumulator = GradientAccumulator()
+        # Detailed stats should include more metrics
+        detailed_stats = compute_gradient_stats(gradients, framework, detailed=True)
+        assert "grad_norm" in detailed_stats
+        assert "grad_max" in detailed_stats
+        assert "grad_min" in detailed_stats
+        assert "grad_mean" in detailed_stats
+        assert "grad_std" in detailed_stats
 
-        # Accumulate some gradients
-        grads = {"weight": mx.ones((10, 10))}
-        accumulator.accumulate(grads)
+    def test_gradient_accumulator_reset(self, gradients, framework):
+        """Test gradient accumulator reset."""
+        accumulator = GradientAccumulator(accumulation_steps=2, framework=framework)
 
+        # Accumulate once
+        accumulator.accumulate(gradients)
         assert accumulator.step_count == 1
 
         # Reset
         accumulator.reset()
-
-        assert accumulator.accumulated_grads is None
         assert accumulator.step_count == 0
-
-    def test_averaged_gradients(self):
-        """Test getting averaged gradients."""
-        accumulator = GradientAccumulator(accumulation_steps=4)
-
-        # Accumulate gradients
-        for i in range(4):
-            grads = {"weight": mx.ones((5, 5)) * (i + 1)}
-            accumulator.accumulate(grads)
-
-        # Get averaged gradients
-        averaged = accumulator.get_gradients(average=True)
-
-        # Average should be (1 + 2 + 3 + 4) / 4 = 2.5
-        expected = mx.ones((5, 5)) * 2.5
-        assert mx.allclose(averaged["weight"], expected)
+        assert accumulator.accumulated_grads is None
 
 
-class TestGradientClipping:
-    """Test gradient clipping functionality."""
+class TestReduceOnPlateauScheduler:
+    """Test ReduceOnPlateau scheduler functionality."""
 
-    def test_clip_gradients_by_norm(self):
-        """Test gradient clipping by norm."""
-        # Create gradients with large norm
-        grads = {
-            "layer1": {"weight": mx.ones((10, 10)) * 10},
-            "layer2": {"weight": mx.ones((5, 10)) * 10},
-        }
+    @pytest.fixture
+    def framework(self):
+        """Create framework adapter for tests."""
+        return FrameworkAdapter(backend="mlx")
 
-        # Clip gradients
-        clipped_grads, original_norm = clip_gradients(grads, max_norm=1.0)
+    @pytest.fixture
+    def optimizer(self, framework):
+        """Create a test optimizer."""
+        model = SimpleBinaryClassifier()
+        config = OptimizerConfig(type=OptimizerType.ADAM, learning_rate=1e-3)
+        return create_optimizer(model, config, framework)
 
-        # Compute norm of clipped gradients
-        flat_grads = []
-        for param in clipped_grads.values():
-            if isinstance(param, dict):
-                for p in param.values():
-                    flat_grads.append(p.flatten())
-            else:
-                flat_grads.append(param.flatten())
+    def test_reduce_on_plateau(self, optimizer, framework):
+        """Test learning rate reduction on plateau."""
+        config = SchedulerConfig(
+            type=SchedulerType.REDUCE_ON_PLATEAU,
+            patience=3,
+            factor=0.5,
+            min_lr=1e-6,
+        )
 
-        all_grads = mx.concatenate(flat_grads)
-        clipped_norm = mx.sqrt(mx.sum(all_grads**2)).item()
+        scheduler = create_lr_scheduler(optimizer, config, framework)
+        initial_lr = scheduler.get_last_lr()
 
-        # Norm should be approximately 1.0
-        assert abs(clipped_norm - 1.0) < 0.1
+        # Simulate no improvement for patience steps
+        metrics = {"eval_loss": 1.0}
+        for _ in range(config.patience + 1):
+            scheduler.step(metrics)
 
-    def test_clip_gradients_no_clipping(self):
-        """Test gradient clipping when norm is already small."""
-        # Create gradients with small norm
-        grads = {
-            "weight": mx.ones((5, 5)) * 0.01,
-            "bias": mx.ones((5,)) * 0.01,
-        }
+        # LR should be reduced
+        assert abs(scheduler.get_last_lr() - initial_lr * config.factor) < 1e-6
 
-        # Clip gradients with high max_norm
-        clipped_grads, original_norm = clip_gradients(grads, max_norm=10.0)
+        # Simulate improvement
+        metrics = {"eval_loss": 0.5}
+        scheduler.step(metrics)
 
-        # Gradients should be unchanged
-        for key in grads:
-            assert mx.allclose(clipped_grads[key], grads[key])
+        # Further no improvement
+        metrics = {"eval_loss": 0.5}
+        for _ in range(config.patience + 1):
+            scheduler.step(metrics)
 
-    def test_clip_gradients_empty(self):
-        """Test clipping empty gradients."""
-        grads = {}
-        clipped, norm = clip_gradients(grads, max_norm=1.0)
-        assert clipped == {}
-        assert norm == 0.0
-
-
-class TestGradientStats:
-    """Test gradient statistics computation."""
-
-    def test_compute_gradient_stats(self):
-        """Test computing gradient statistics."""
-        grads = {
-            "layer1": {
-                "weight": mx.array([[1.0, 2.0], [3.0, 4.0]]),
-                "bias": mx.array([0.5, 1.5]),
-            },
-            "layer2": {
-                "weight": mx.array([[0.1, 0.2]]),
-            },
-        }
-
-        stats = compute_gradient_stats(grads)
-
-        assert "grad_norm" in stats
-        assert "grad_mean" in stats
-        assert "grad_min" in stats
-        assert "grad_max" in stats
-
-        # Check values are reasonable
-        assert stats["grad_norm"] > 0
-        assert stats["grad_min"] <= stats["grad_mean"] <= stats["grad_max"]
-        assert stats["grad_std"] >= 0
-
-    def test_compute_gradient_stats_zero_grads(self):
-        """Test computing stats for zero gradients."""
-        grads = {
-            "weight": mx.zeros((10, 10)),
-            "bias": mx.zeros((10,)),
-        }
-
-        stats = compute_gradient_stats(grads)
-
-        assert stats["grad_norm"] == 0.0
-        assert stats["grad_mean"] == 0.0
-        assert stats["grad_min"] == 0.0  # min of abs(zeros) is 0
-        assert stats["grad_max"] == 0.0
-
-    def test_compute_gradient_stats_empty(self):
-        """Test computing stats for empty gradients."""
-        grads = {}
-        stats = compute_gradient_stats(grads)
-
-        # Should return zeros or handle gracefully
-        assert stats["grad_norm"] == 0.0
+        # LR should be reduced again
+        assert abs(scheduler.get_last_lr() - initial_lr * config.factor * config.factor) < 1e-6

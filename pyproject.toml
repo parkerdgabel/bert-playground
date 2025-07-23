@@ -137,7 +137,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["cli*", "models*", "data*", "training*", "utils*"]
+include = ["cli*", "models*", "data*", "training*", "utils*", "core*", "adapters*", "bert_playground*"]
 exclude = ["tests*", "cache*", "output*", "mlruns*"]
 
 [tool.setuptools.package-data]

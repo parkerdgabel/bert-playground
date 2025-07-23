@@ -8,7 +8,10 @@ from .base import (
 )
 from .optimization import (
     GradientAccumulator,
+    clip_gradients,
+    compute_gradient_stats,
     create_lr_scheduler,
+    create_native_lr_schedule,
     create_optimizer,
 )
 from .protocols import (
@@ -45,5 +48,8 @@ __all__ = [
     # Optimization
     "create_optimizer",
     "create_lr_scheduler",
+    "create_native_lr_schedule",
+    "clip_gradients",
+    "compute_gradient_stats",
     "GradientAccumulator",
 ]

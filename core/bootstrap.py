@@ -83,10 +83,7 @@ class ApplicationBootstrap:
         self.container.register(EventBus, event_bus, instance=True)
         
         # Configuration
-        if self.config_path and self.config_path.exists():
-            config_adapter = YAMLConfigAdapter(str(self.config_path))
-        else:
-            config_adapter = YAMLConfigAdapter()
+        config_adapter = YAMLConfigAdapter()
         self.container.register(ConfigurationProvider, config_adapter, singleton=True)
         
         logger.debug("Core infrastructure setup complete")

@@ -78,6 +78,7 @@ def create_training_components_for_trainer(
     model,
     config,
     callbacks=None,
+    framework_adapter=None,
 ):
     """Create training components configured for a specific trainer.
     
@@ -88,6 +89,7 @@ def create_training_components_for_trainer(
         model: The model to train
         config: Training configuration
         callbacks: Optional list of callbacks
+        framework_adapter: Optional framework adapter (defaults to MLX)
         
     Returns:
         Dict containing all configured components
@@ -111,13 +113,19 @@ def create_training_components_for_trainer(
         config.training.best_metric_mode
     )
     
-    # Create EvaluationLoop
-    evaluation_loop = EvaluationLoop(model)
+    # Create framework adapter if not provided
+    if framework_adapter is None:
+        from training.adapters.framework_adapter import FrameworkAdapter
+        framework_adapter = FrameworkAdapter(backend="mlx")
+    
+    # Create EvaluationLoop with framework adapter
+    evaluation_loop = EvaluationLoop(model, framework_adapter)
     
     return {
         "checkpoint_manager": checkpoint_manager,
         "metrics_tracker": metrics_tracker,
         "evaluation_loop": evaluation_loop,
+        "framework_adapter": framework_adapter,
         # TrainingLoop and TrainingOrchestrator will be created when optimizer is available
     }
 

@@ -1,17 +1,21 @@
 """
-Unified embeddings for BERT models.
+Unified embeddings for BERT models using neural abstraction.
 
 This module contains all embedding-related components for both classic BERT
-and ModernBERT models, including:
+and ModernBERT models, implemented using the framework-agnostic neural port:
 - Standard BERT embeddings with positional embeddings
 - ModernBERT embeddings without positional embeddings (uses RoPE)
 - Pooler components for both architectures
 - Factory functions for creating appropriate embeddings
+
+The implementation is framework-agnostic and can work with MLX, PyTorch, or JAX backends.
 """
 
-import mlx.core as mx
-import mlx.nn as nn
+from typing import Optional
 
+from core.ports.compute import Array
+from core.ports.neural import Module, NeuralBackend, ActivationType
+from core.ports.neural_types import EmbeddingConfig
 from ..config import BertConfig
 
 # ============================================================================
@@ -19,50 +23,62 @@ from ..config import BertConfig
 # ============================================================================
 
 
-class BertEmbeddings(nn.Module):
-    """BERT embeddings layer.
+class BertEmbeddings(Module):
+    """BERT embeddings layer using neural abstraction.
 
     Constructs embeddings from word, position and token_type embeddings.
+    Framework-agnostic implementation.
     """
 
-    def __init__(self, config: BertConfig):
+    def __init__(self, config: BertConfig, backend: NeuralBackend):
         super().__init__()
         self.config = config
+        self.backend = backend
 
         # Token embeddings
-        self.word_embeddings = nn.Embedding(
-            config.vocab_size,
-            config.hidden_size,
-            # padding_idx=config.pad_token_id if hasattr(config, 'pad_token_id') else None
+        self.word_embeddings = backend.embedding(
+            num_embeddings=config.vocab_size,
+            embedding_dim=config.hidden_size,
+            padding_idx=getattr(config, 'pad_token_id', None)
         )
 
         # Position embeddings (learned)
-        self.position_embeddings = nn.Embedding(
-            config.max_position_embeddings, config.hidden_size
+        self.position_embeddings = backend.embedding(
+            num_embeddings=config.max_position_embeddings,
+            embedding_dim=config.hidden_size
         )
 
         # Token type embeddings (for NSP task - sentence A vs sentence B)
-        self.token_type_embeddings = nn.Embedding(
-            config.type_vocab_size, config.hidden_size
+        self.token_type_embeddings = backend.embedding(
+            num_embeddings=config.type_vocab_size,
+            embedding_dim=config.hidden_size
         )
 
         # Layer normalization
-        self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.layer_norm = backend.layer_norm(
+            normalized_shape=config.hidden_size,
+            eps=config.layer_norm_eps
+        )
 
         # Dropout
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dropout = backend.dropout(p=config.hidden_dropout_prob)
 
-        # Position IDs (1, len position emb) is contiguous in memory and exported when serialized
-        self.position_ids = mx.arange(
-            config.max_position_embeddings, dtype=mx.int32
-        ).reshape(1, -1)
+        # Register submodules
+        self.add_module("word_embeddings", self.word_embeddings)
+        self.add_module("position_embeddings", self.position_embeddings)
+        self.add_module("token_type_embeddings", self.token_type_embeddings)
+        self.add_module("layer_norm", self.layer_norm)
+        self.add_module("dropout", self.dropout)
+
+        # Position IDs will be created during forward pass
+        self._max_position_embeddings = config.max_position_embeddings
 
     def forward(
         self,
-        input_ids: mx.array,
-        token_type_ids: mx.array | None = None,
-        position_ids: mx.array | None = None,
-    ) -> mx.array:
+        input_ids: Array,
+        token_type_ids: Optional[Array] = None,
+        position_ids: Optional[Array] = None,
+    ) -> Array:
         """Forward pass through BERT embeddings.
 
         Args:
@@ -73,16 +89,21 @@ class BertEmbeddings(nn.Module):
         Returns:
             Embeddings [batch_size, seq_len, hidden_size]
         """
-        input_shape = input_ids.shape
-        seq_length = input_shape[1]
+        batch_size, seq_length = input_ids.shape
 
         # Get position IDs
         if position_ids is None:
-            position_ids = self.position_ids[:, :seq_length].astype(mx.int32)
+            # Create position IDs [0, 1, 2, ..., seq_length-1]
+            position_ids = self.backend.arange(seq_length)
+            # Expand to match batch size [batch_size, seq_length]
+            position_ids = self.backend.unsqueeze(position_ids, 0)
+            position_ids = self.backend.broadcast_to(
+                position_ids, (batch_size, seq_length)
+            )
 
         # Get token type IDs
         if token_type_ids is None:
-            token_type_ids = mx.zeros(input_shape, dtype=mx.int32)
+            token_type_ids = self.backend.zeros_like(input_ids)
 
         # Get embeddings
         inputs_embeds = self.word_embeddings(input_ids)
@@ -93,41 +114,42 @@ class BertEmbeddings(nn.Module):
         embeddings = inputs_embeds + position_embeds + token_type_embeds
 
         # Apply layer normalization
-        embeddings = self.LayerNorm(embeddings)
+        embeddings = self.layer_norm(embeddings)
 
         # Apply dropout
         embeddings = self.dropout(embeddings)
 
         return embeddings
 
-    def __call__(
-        self,
-        input_ids: mx.array,
-        token_type_ids: mx.array | None = None,
-        position_ids: mx.array | None = None,
-    ) -> mx.array:
-        """Make the embeddings layer callable."""
-        return self.forward(input_ids, token_type_ids, position_ids)
 
 
-class BertPooler(nn.Module):
-    """BERT pooler layer.
+class BertPooler(Module):
+    """BERT pooler layer using neural abstraction.
 
     We "pool" the model by simply taking the hidden state corresponding
-    to the first token.
+    to the first token. Framework-agnostic implementation.
     """
 
-    def __init__(self, config: BertConfig):
+    def __init__(self, config: BertConfig, backend: NeuralBackend):
         super().__init__()
         self.config = config
+        self.backend = backend
 
         # Dense layer for pooling
-        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        self.dense = backend.linear(
+            in_features=config.hidden_size,
+            out_features=config.hidden_size,
+            bias=True
+        )
 
         # Activation function
-        self.activation = nn.Tanh()
+        self.activation = backend.activation(ActivationType.TANH)
 
-    def forward(self, hidden_states: mx.array) -> mx.array:
+        # Register submodules
+        self.add_module("dense", self.dense)
+        self.add_module("activation", self.activation)
+
+    def forward(self, hidden_states: Array) -> Array:
         """Pool the [CLS] token representation.
 
         Args:
@@ -145,75 +167,86 @@ class BertPooler(nn.Module):
 
         return pooled_output
 
-    def __call__(self, hidden_states: mx.array) -> mx.array:
-        """Make the pooler callable."""
-        return self.forward(hidden_states)
-
 
 # ============================================================================
 # ModernBERT Embeddings (without positional embeddings)
 # ============================================================================
 
 
-class ModernBertEmbeddings(nn.Module):
+class ModernBertEmbeddings(Module):
     """
-    ModernBERT embeddings layer.
+    ModernBERT embeddings layer using neural abstraction.
 
     Key differences from Classic BERT:
     - No learned positional embeddings (RoPE is used instead)
     - Additional normalization layer after embeddings
     - Streamlined architecture without bias terms
     - Support for extended vocabulary size
+    - Framework-agnostic implementation
     """
 
-    def __init__(self, config):
+    def __init__(self, config: BertConfig, backend: NeuralBackend):
         """
         Initialize ModernBERT embeddings.
 
         Args:
             config: ModernBERT configuration
+            backend: Neural backend for framework-agnostic operations
         """
         super().__init__()
         self.config = config
+        self.backend = backend
 
         # Token embeddings
-        self.word_embeddings = nn.Embedding(
-            config.vocab_size,
-            config.hidden_size,
+        self.word_embeddings = backend.embedding(
+            num_embeddings=config.vocab_size,
+            embedding_dim=config.hidden_size
             # No padding_idx for ModernBERT
         )
 
         # Token type embeddings (for NSP task - sentence A vs sentence B)
-        self.token_type_embeddings = nn.Embedding(
-            config.type_vocab_size, config.hidden_size
+        self.token_type_embeddings = backend.embedding(
+            num_embeddings=config.type_vocab_size,
+            embedding_dim=config.hidden_size
         )
 
         # Note: No position embeddings - RoPE is used instead
 
         # Layer normalization after embeddings (Classic BERT style)
-        self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.layer_norm = backend.layer_norm(
+            normalized_shape=config.hidden_size,
+            eps=config.layer_norm_eps
+        )
 
         # Additional post-embedding normalization (ModernBERT improvement)
         if (
             hasattr(config, "use_post_embedding_norm")
             and config.use_post_embedding_norm
         ):
-            self.post_embedding_norm = nn.LayerNorm(
-                config.hidden_size,
-                eps=getattr(config, "post_embedding_norm_eps", config.layer_norm_eps),
+            self.post_embedding_norm = backend.layer_norm(
+                normalized_shape=config.hidden_size,
+                eps=getattr(config, "post_embedding_norm_eps", config.layer_norm_eps)
             )
         else:
             self.post_embedding_norm = None
 
         # Dropout
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dropout = backend.dropout(p=config.hidden_dropout_prob)
+
+        # Register submodules
+        self.add_module("word_embeddings", self.word_embeddings)
+        self.add_module("token_type_embeddings", self.token_type_embeddings)
+        self.add_module("layer_norm", self.layer_norm)
+        if self.post_embedding_norm is not None:
+            self.add_module("post_embedding_norm", self.post_embedding_norm)
+        self.add_module("dropout", self.dropout)
 
     def forward(
         self,
-        input_ids: mx.array,
-        token_type_ids: mx.array | None = None,
-        position_ids: mx.array | None = None,  # Not used in ModernBERT
-    ) -> mx.array:
+        input_ids: Array,
+        token_type_ids: Optional[Array] = None,
+        position_ids: Optional[Array] = None,  # Not used in ModernBERT
+    ) -> Array:
         """
         Forward pass through ModernBERT embeddings.
 
@@ -225,11 +258,9 @@ class ModernBertEmbeddings(nn.Module):
         Returns:
             Embeddings [batch_size, seq_len, hidden_size]
         """
-        input_shape = input_ids.shape
-
         # Get token type IDs
         if token_type_ids is None:
-            token_type_ids = mx.zeros(input_shape, dtype=mx.int32)
+            token_type_ids = self.backend.zeros_like(input_ids)
 
         # Get token embeddings
         inputs_embeds = self.word_embeddings(input_ids)
@@ -241,7 +272,7 @@ class ModernBertEmbeddings(nn.Module):
         embeddings = inputs_embeds + token_type_embeds
 
         # Apply layer normalization
-        embeddings = self.LayerNorm(embeddings)
+        embeddings = self.layer_norm(embeddings)
 
         # Apply post-embedding normalization if enabled
         if self.post_embedding_norm is not None:
@@ -252,60 +283,58 @@ class ModernBertEmbeddings(nn.Module):
 
         return embeddings
 
-    def __call__(
-        self,
-        input_ids: mx.array,
-        token_type_ids: mx.array | None = None,
-        position_ids: mx.array | None = None,
-    ) -> mx.array:
-        """Make the embeddings layer callable."""
-        return self.forward(input_ids, token_type_ids, position_ids)
 
 
-class ModernBertPooler(nn.Module):
+class ModernBertPooler(Module):
     """
-    ModernBERT pooler layer.
+    ModernBERT pooler layer using neural abstraction.
 
     Similar to Classic BERT pooler but with streamlined architecture
-    and optional bias terms.
+    and optional bias terms. Framework-agnostic implementation.
     """
 
-    def __init__(self, config):
+    def __init__(self, config: BertConfig, backend: NeuralBackend):
         """
         Initialize ModernBERT pooler.
 
         Args:
             config: ModernBERT configuration
+            backend: Neural backend for framework-agnostic operations
         """
         super().__init__()
         self.config = config
+        self.backend = backend
 
         # Dense layer for pooling
         pooler_hidden_size = getattr(config, "pooler_hidden_size", config.hidden_size)
         use_bias = getattr(config, "use_bias", True)
 
-        self.dense = nn.Linear(
-            config.hidden_size,
-            pooler_hidden_size,
-            bias=use_bias,
+        self.dense = backend.linear(
+            in_features=config.hidden_size,
+            out_features=pooler_hidden_size,
+            bias=use_bias
         )
 
         # Activation function
         pooler_activation = getattr(config, "pooler_activation", "tanh")
-        if pooler_activation == "tanh":
-            self.activation = nn.Tanh()
-        elif pooler_activation == "gelu":
-            self.activation = nn.GELU()
-        elif pooler_activation == "relu":
-            self.activation = nn.ReLU()
-        else:
-            self.activation = nn.Tanh()  # Default
+        activation_map = {
+            "tanh": ActivationType.TANH,
+            "gelu": ActivationType.GELU,
+            "relu": ActivationType.RELU,
+        }
+        activation_type = activation_map.get(pooler_activation, ActivationType.TANH)
+        self.activation = backend.activation(activation_type)
 
         # Dropout
         pooler_dropout = getattr(config, "pooler_dropout", 0.0)
-        self.dropout = nn.Dropout(pooler_dropout)
+        self.dropout = backend.dropout(p=pooler_dropout)
 
-    def forward(self, hidden_states: mx.array) -> mx.array:
+        # Register submodules
+        self.add_module("dense", self.dense)
+        self.add_module("activation", self.activation)
+        self.add_module("dropout", self.dropout)
+
+    def forward(self, hidden_states: Array) -> Array:
         """
         Pool the [CLS] token representation.
 
@@ -329,48 +358,50 @@ class ModernBertPooler(nn.Module):
 
         return pooled_output
 
-    def __call__(self, hidden_states: mx.array) -> mx.array:
-        """Make the pooler callable."""
-        return self.forward(hidden_states)
-
 
 # ============================================================================
 # Embedding Factory Functions
 # ============================================================================
 
 
-def create_embeddings(config) -> BertEmbeddings | ModernBertEmbeddings:
+def create_embeddings(
+    config: BertConfig, backend: NeuralBackend
+) -> BertEmbeddings | ModernBertEmbeddings:
     """
     Create appropriate embeddings based on configuration.
 
     Args:
         config: Model configuration
+        backend: Neural backend for framework-agnostic operations
 
     Returns:
         Embeddings layer
     """
     # Check if this is ModernBERT (no positional embeddings)
     if hasattr(config, "use_rope") and config.use_rope:
-        return ModernBertEmbeddings(config)
+        return ModernBertEmbeddings(config, backend)
     else:
-        return BertEmbeddings(config)
+        return BertEmbeddings(config, backend)
 
 
-def create_pooler(config) -> BertPooler | ModernBertPooler:
+def create_pooler(
+    config: BertConfig, backend: NeuralBackend
+) -> BertPooler | ModernBertPooler:
     """
     Create appropriate pooler based on configuration.
 
     Args:
         config: Model configuration
+        backend: Neural backend for framework-agnostic operations
 
     Returns:
         Pooler layer
     """
     # Check if this is ModernBERT
     if hasattr(config, "use_rope") and config.use_rope:
-        return ModernBertPooler(config)
+        return ModernBertPooler(config, backend)
     else:
-        return BertPooler(config)
+        return BertPooler(config, backend)
 
 
 # ============================================================================
@@ -378,16 +409,42 @@ def create_pooler(config) -> BertPooler | ModernBertPooler:
 # ============================================================================
 
 
-def get_embedding_size(config) -> int:
+def get_embedding_size(config: BertConfig) -> int:
     """Get the embedding size for the model."""
     return config.hidden_size
 
 
-def get_vocab_size(config) -> int:
+def get_vocab_size(config: BertConfig) -> int:
     """Get the vocabulary size for the model."""
     return config.vocab_size
 
 
-def get_max_sequence_length(config) -> int:
+def get_max_sequence_length(config: BertConfig) -> int:
     """Get the maximum sequence length for the model."""
     return config.max_position_embeddings
+
+
+def create_embedding_config_from_bert(
+    config: BertConfig,
+    use_positional: bool = True,
+    use_token_type: bool = True
+) -> EmbeddingConfig:
+    """Create EmbeddingConfig from BertConfig for neural port compatibility.
+    
+    Args:
+        config: BERT configuration
+        use_positional: Whether to use positional embeddings
+        use_token_type: Whether to use token type embeddings
+        
+    Returns:
+        EmbeddingConfig for neural port
+    """
+    return EmbeddingConfig(
+        vocab_size=config.vocab_size,
+        embedding_dim=config.hidden_size,
+        padding_idx=getattr(config, 'pad_token_id', None),
+        max_position_embeddings=config.max_position_embeddings,
+        use_positional=use_positional and not (hasattr(config, 'use_rope') and config.use_rope),
+        use_token_type=use_token_type,
+        type_vocab_size=config.type_vocab_size
+    )

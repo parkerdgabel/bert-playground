@@ -1,0 +1,1 @@
+"""Web UI adapters - prepared for future implementation."""
