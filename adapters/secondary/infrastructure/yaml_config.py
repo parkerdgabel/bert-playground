@@ -7,7 +7,7 @@ from typing import Any, TypeVar
 import yaml
 from pydantic import BaseModel, ValidationError
 
-from core.ports.config import (
+from ports.secondary.configuration import (
     ConfigDict,
     ConfigPath,
     ConfigRegistry,

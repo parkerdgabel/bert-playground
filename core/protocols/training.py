@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Protocol
 
-from core.ports.compute import Array, Module
+from ports.secondary.compute import Array, Module
 
 from .data import DataLoader
 from .models import Model

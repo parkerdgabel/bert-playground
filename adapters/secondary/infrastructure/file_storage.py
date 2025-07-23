@@ -11,7 +11,7 @@ import mlx.nn as nn
 from safetensors import safe_open
 from safetensors.mlx import save_file
 
-from core.ports.storage import (
+from ports.secondary.storage import (
     Metadata,
     ModelStorageService,
     StorageKey,

@@ -6,7 +6,7 @@ plugged into k-bert's architecture.
 
 from typing import Any, Protocol
 
-from core.ports.compute import Array, Module
+from ports.secondary.compute import Array, Module
 from pydantic import BaseModel
 
 

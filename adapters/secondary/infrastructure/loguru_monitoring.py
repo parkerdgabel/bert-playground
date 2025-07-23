@@ -7,7 +7,7 @@ from typing import Any
 
 from loguru import logger
 
-from core.ports.monitoring import (
+from ports.secondary.monitoring import (
     Context,
     ExperimentTracker,
     LogLevel,

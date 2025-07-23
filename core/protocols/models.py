@@ -6,7 +6,7 @@ These protocols define the contracts for models, heads, and configurations.
 from pathlib import Path
 from typing import Any, Protocol
 
-from core.ports.compute import Array, Module
+from ports.secondary.compute import Array, Module
 
 
 class Model(Protocol):

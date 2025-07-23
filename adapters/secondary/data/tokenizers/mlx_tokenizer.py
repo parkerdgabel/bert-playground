@@ -7,8 +7,8 @@ from loguru import logger
 
 # Import dependency injection and ports
 from core.bootstrap import get_service
-from core.ports.tokenizer import TokenizerFactory
-from core.ports.compute import ComputeBackend, Array
+from ports.secondary.tokenizer import TokenizerPort
+from ports.secondary.compute import ComputeBackend, Array
 
 
 class MLXTokenizer:

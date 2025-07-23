@@ -11,16 +11,16 @@ from typing import Optional
 from loguru import logger
 
 from .di.container import Container, get_container
-from .ports.compute import ComputeBackend
-from .ports.storage import StorageService, ModelStorageService
-from .ports.config import ConfigurationProvider
-from .ports.monitoring import MonitoringService
-from .ports.tokenizer import TokenizerPort, TokenizerFactory
-from .adapters.mlx_adapter import MLXComputeAdapter
-from .adapters.file_storage import FileStorageAdapter, ModelFileStorageAdapter
-from .adapters.yaml_config import YAMLConfigAdapter
-from .adapters.loguru_monitoring import LoguruMonitoringAdapter
-from .adapters.huggingface_tokenizer import HuggingFaceTokenizerFactory
+from ports.secondary.compute import ComputeBackend
+from ports.secondary.storage import StorageService, ModelStorageService
+from ports.secondary.configuration import ConfigurationProvider
+from ports.secondary.monitoring import MonitoringService
+from ports.secondary.tokenizer import TokenizerPort
+from adapters.secondary.infrastructure.mlx_adapter import MLXComputeAdapter
+from adapters.secondary.infrastructure.file_storage import FileStorageAdapter, ModelFileStorageAdapter
+from adapters.secondary.infrastructure.yaml_config import YAMLConfigAdapter
+from adapters.secondary.infrastructure.loguru_monitoring import LoguruMonitoringAdapter
+from adapters.secondary.infrastructure.huggingface_tokenizer import HuggingFaceTokenizerFactory
 from .events.bus import EventBus, GlobalEventBus
 from .plugins.registry import PluginRegistry
 from .plugins.loader import PluginLoader
@@ -103,7 +103,7 @@ class ApplicationBootstrap:
         self.container.register(MonitoringService, LoguruMonitoringAdapter, singleton=True)
         
         # Tokenizer
-        self.container.register(TokenizerFactory, HuggingFaceTokenizerFactory, singleton=True)
+        self.container.register(TokenizerPort, HuggingFaceTokenizerFactory, singleton=True)
         
         logger.debug("Ports and adapters setup complete")
     

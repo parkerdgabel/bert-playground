@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List, Union
 
-from core.ports.tokenizer import TokenizerPort, TokenizerFactory, TextInput, TokenizerOutput
+from ports.secondary.tokenizer import TokenizerPort, TokenizerOutput
 
 
 class HuggingFaceTokenizerAdapter:
@@ -53,7 +53,7 @@ class HuggingFaceTokenizerAdapter:
 
     def encode(
         self,
-        text: TextInput,
+        text: Union[str, List[str]],
         add_special_tokens: bool = True,
         padding: Union[bool, str] = False,
         truncation: bool = False,

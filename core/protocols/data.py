@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Protocol
 
-from core.ports.compute import Array
+from ports.secondary.compute import Array
 
 
 class Dataset(Protocol):

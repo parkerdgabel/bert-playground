@@ -13,8 +13,8 @@ from loguru import logger
 
 # Import dependency injection and ports
 from core.bootstrap import get_service
-from core.ports.compute import ComputeBackend, Array, DataType
-from core.ports.tokenizer import TokenizerPort
+from ports.secondary.compute import ComputeBackend, Array, DataType
+from ports.secondary.tokenizer import TokenizerPort
 
 
 class TokenizerCache:

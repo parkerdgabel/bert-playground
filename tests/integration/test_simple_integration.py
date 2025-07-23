@@ -8,7 +8,7 @@ import tempfile
 
 from core.bootstrap import ApplicationBootstrap, initialize_application, get_service
 from core.di.container import Container
-from core.ports.monitoring import MonitoringService
+from ports.secondary.monitoring import MonitoringService
 
 
 def test_basic_bootstrap():
@@ -48,8 +48,8 @@ def test_service_resolution():
     container = initialize_application()
     
     # Import services to check
-    from core.ports.compute import ComputeBackend
-    from core.ports.storage import StorageService
+    from ports.secondary.compute import ComputeBackend
+    from ports.secondary.storage import StorageService
     from core.events.bus import EventBus
     
     # Should be able to resolve

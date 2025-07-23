@@ -6,7 +6,7 @@ import mlx.core as mx
 import mlx.nn as nn
 import numpy as np
 
-from core.ports.compute import Array, ArrayLike, ComputeBackend, DataType, Device, DType, NeuralOps, Shape
+from ports.secondary.compute import Array, ArrayLike, ComputeBackend, DataType, Device, DType, NeuralOps, Shape
 
 
 class MLXComputeAdapter:
