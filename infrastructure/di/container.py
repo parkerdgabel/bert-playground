@@ -313,11 +313,29 @@ class InfrastructureContainer:
         # Configuration port
         self._register_configuration_port()
         
+        # Checkpointing port
+        self._register_checkpointing_port()
+        
+        # Optimization port
+        self._register_optimization_port()
+        
+        # Plugins port
+        self._register_plugins_port()
+        
+        # Neural port
+        self._register_neural_port()
+        
+        # Data port
+        self._register_data_port()
+        
+        # Metrics port
+        self._register_metrics_port()
+        
     def _register_monitoring_port(self) -> None:
         """Register monitoring port with configured adapter."""
         # Use existing core monitoring port to avoid import issues
         try:
-            from infrastructure.ports.monitoring import MonitoringService
+            from ports.secondary.monitoring import MonitoringService
         except ImportError:
             # Define a simple monitoring service protocol
             from typing import Protocol
@@ -331,7 +349,7 @@ class InfrastructureContainer:
         implementation = adapter_config.get("implementation", "loguru")
         
         # Use core adapters to avoid import issues
-        from infrastructure.adapters.loguru_monitoring import LoguruMonitoringAdapter
+        from adapters.secondary.monitoring.loguru import LoguruMonitoringAdapter
         adapter_class = LoguruMonitoringAdapter
             
         self.adapter_registry.register_adapter("monitoring", implementation, adapter_class)
@@ -341,8 +359,8 @@ class InfrastructureContainer:
         """Register storage port with configured adapter."""
         # Use existing storage adapters to avoid import issues
         try:
-            from infrastructure.ports.storage import StorageService
-            from infrastructure.adapters.file_storage import FileStorageAdapter
+            from ports.secondary.storage import StorageService
+            from adapters.secondary.storage.file_storage import FileStorageAdapter
             self.core_container.register(StorageService, FileStorageAdapter, singleton=True)
         except ImportError:
             pass
@@ -351,8 +369,8 @@ class InfrastructureContainer:
         """Register compute port with configured adapter."""
         # Use existing compute adapters to avoid import issues
         try:
-            from infrastructure.ports.compute import ComputeBackend
-            from infrastructure.adapters.mlx_adapter import MLXComputeAdapter
+            from ports.secondary.compute import ComputeBackend
+            from adapters.secondary.compute.mlx.compute_adapter import MLXComputeAdapter
             self.core_container.register(ComputeBackend, MLXComputeAdapter, singleton=True)
         except ImportError:
             pass
@@ -361,9 +379,9 @@ class InfrastructureContainer:
         """Register tokenizer port with configured adapter."""
         # Use existing tokenizer adapters to avoid import issues
         try:
-            from infrastructure.ports.tokenizer import TokenizerFactory
-            from infrastructure.adapters.huggingface_tokenizer import HuggingFaceTokenizerFactory
-            self.core_container.register(TokenizerFactory, HuggingFaceTokenizerFactory, singleton=True)
+            from ports.secondary.tokenizer import TokenizerPort
+            from adapters.secondary.tokenizer.huggingface.tokenizer_adapter import HuggingFaceTokenizerAdapter
+            self.core_container.register(TokenizerPort, HuggingFaceTokenizerAdapter, singleton=True)
         except ImportError:
             pass
                 
@@ -371,15 +389,93 @@ class InfrastructureContainer:
         """Register configuration port."""
         # Use existing configuration port
         try:
-            from infrastructure.ports.config import ConfigurationProvider
-            from infrastructure.adapters.yaml_config import YAMLConfigAdapter
+            from ports.secondary.configuration import ConfigurationProvider
+            from adapters.secondary.configuration.yaml_adapter import YamlConfigurationAdapter
             
-            config_adapter = YAMLConfigAdapter()
+            config_adapter = YamlConfigurationAdapter()
             self.core_container.register(
                 ConfigurationProvider, 
                 config_adapter, 
                 instance=True
             )
+        except ImportError:
+            pass
+    
+    def _register_checkpointing_port(self) -> None:
+        """Register checkpointing port with configured adapter."""
+        try:
+            from ports.secondary.checkpointing import CheckpointManager
+            from adapters.secondary.checkpointing.filesystem_adapter import FilesystemCheckpointManager
+            
+            # Get checkpoint directory from config
+            checkpoint_dir = self.config_manager.get("checkpoint.dir", "checkpoints")
+            adapter = FilesystemCheckpointManager(checkpoint_dir)
+            
+            self.core_container.register(
+                CheckpointManager,
+                adapter,
+                instance=True
+            )
+        except ImportError:
+            pass
+    
+    def _register_optimization_port(self) -> None:
+        """Register optimization port with configured adapter."""
+        try:
+            from ports.secondary.optimization import Optimizer, OptimizerConfig
+            from adapters.secondary.optimization.mlx_optimizer import MLXOptimizerAdapter
+            
+            # Create factory for optimizer
+            def optimizer_factory(container):
+                config = OptimizerConfig(
+                    learning_rate=container.config_manager.get("training.learning_rate", 1e-3),
+                    weight_decay=container.config_manager.get("training.weight_decay", 0.0),
+                )
+                return MLXOptimizerAdapter(config)
+            
+            self.core_container.register_factory(Optimizer, optimizer_factory)
+        except ImportError:
+            pass
+    
+    def _register_plugins_port(self) -> None:
+        """Register plugins port with configured adapter."""
+        try:
+            from adapters.secondary.plugins.loader_adapter import PluginLoaderAdapter
+            from adapters.secondary.plugins.registry_adapter import PluginRegistryAdapter
+            
+            # Register plugin loader and registry
+            self.core_container.register(PluginLoaderAdapter, singleton=True)
+            self.core_container.register(PluginRegistryAdapter, singleton=True)
+        except ImportError:
+            pass
+    
+    def _register_neural_port(self) -> None:
+        """Register neural port with configured adapter."""
+        try:
+            from ports.secondary.neural import NeuralPort
+            from adapters.secondary.neural.mlx_backend import MLXNeuralBackend
+            
+            self.core_container.register(NeuralPort, MLXNeuralBackend, singleton=True)
+        except ImportError:
+            pass
+    
+    def _register_data_port(self) -> None:
+        """Register data port with configured adapter."""
+        try:
+            from ports.secondary.data import DataLoaderPort
+            from adapters.secondary.data.mlx.data_loader import MLXDataLoader
+            
+            self.core_container.register(DataLoaderPort, MLXDataLoader, singleton=True)
+        except ImportError:
+            pass
+    
+    def _register_metrics_port(self) -> None:
+        """Register metrics port with configured adapter."""
+        try:
+            from ports.secondary.metrics import MetricsCalculator
+            from adapters.secondary.metrics.mlx.metrics_calculator import MLXMetricsCalculator
+            
+            self.core_container.register(MetricsCalculator, MLXMetricsCalculator, singleton=True)
         except ImportError:
             pass
                 

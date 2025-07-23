@@ -48,103 +48,112 @@ def create_train_request_dto(
         config_provider.load_file(str(config))
     elif not no_config:
         # Look for k-bert.yaml in current directory
-        config_paths = [
-            Path.cwd() / "k-bert.yaml",
-            Path.cwd() / "k-bert.yml", 
-            Path.cwd() / ".k-bert.yaml",
-        ]
-        
-        config_file = next((p for p in config_paths if p.exists()), None)
-        if config_file:
-            config_provider.load_file(str(config_file))
+        default_config = Path.cwd() / "k-bert.yaml"
+        if default_config.exists():
+            config_provider.load_file(str(default_config))
+    
+    # Get configuration values with CLI overrides
+    config_dict = config_provider.get_all()
+    
+    # Handle experiment selection
+    if experiment and "experiments" in config_dict:
+        if experiment in config_dict["experiments"]:
+            # Merge experiment config
+            exp_config = config_dict["experiments"][experiment]
+            config_dict.update(exp_config)
+        else:
+            raise ValueError(f"Experiment '{experiment}' not found in configuration")
     
     # Apply CLI overrides
     if train_data:
-        config_provider.set("data.train_path", str(train_data))
+        config_dict.setdefault("data", {})["train_path"] = str(train_data)
     if val_data:
-        config_provider.set("data.val_path", str(val_data))
+        config_dict.setdefault("data", {})["val_path"] = str(val_data)
     if epochs is not None:
-        config_provider.set("training.epochs", epochs)
+        config_dict.setdefault("training", {})["epochs"] = epochs
     if output_dir:
-        config_provider.set("training.output_dir", str(output_dir))
+        config_dict.setdefault("training", {})["output_dir"] = str(output_dir)
     
-    # Extract configuration values
-    train_path = config_provider.get("data.train_path")
-    if not train_path:
-        raise ValueError("Training data path not specified")
+    # Extract values for DTO
+    models_config = config_dict.get("models", {})
+    data_config = config_dict.get("data", {})
+    training_config = config_dict.get("training", {})
     
-    # Create DTO
+    # Create request DTO
     return TrainingRequestDTO(
         # Model configuration
-        model_type=config_provider.get("models.type", "modernbert_with_head"),
+        model_type=models_config.get("type", "modernbert_with_head"),
         model_config={
-            "model_name": config_provider.get("models.default_model", "answerdotai/ModernBERT-base"),
-            "head_type": config_provider.get("models.head_type", "binary_classification"),
-            "num_labels": config_provider.get("models.num_labels", 2),
+            "model_name": models_config.get("default_model", "answerdotai/ModernBERT-base"),
+            "head_type": models_config.get("head_type", "binary_classification"),
+            "num_labels": models_config.get("num_labels", 2),
+            "hidden_size": models_config.get("hidden_size", 768),
+            "num_hidden_layers": models_config.get("num_hidden_layers", 12),
+            "num_attention_heads": models_config.get("num_attention_heads", 12),
+            "intermediate_size": models_config.get("intermediate_size", 3072),
+            "max_position_embeddings": models_config.get("max_position_embeddings", 512),
         },
         
-        # Data configuration
-        train_data_path=Path(train_path),
-        val_data_path=Path(val_path) if (val_path := config_provider.get("data.val_path")) else None,
+        # Data paths
+        train_data_path=Path(data_config.get("train_path", "data/train.csv")),
+        val_data_path=Path(data_config.get("val_path")) if data_config.get("val_path") else None,
+        test_data_path=Path(data_config.get("test_path")) if data_config.get("test_path") else None,
         
         # Training configuration
-        num_epochs=config_provider.get("training.epochs", 3),
-        batch_size=config_provider.get("data.batch_size", 32),
-        learning_rate=config_provider.get("training.learning_rate", 5e-5),
-        weight_decay=config_provider.get("training.weight_decay", 0.01),
-        max_grad_norm=config_provider.get("training.max_grad_norm", 1.0),
+        num_epochs=training_config.get("epochs", 3),
+        batch_size=training_config.get("batch_size", data_config.get("batch_size", 32)),
+        learning_rate=training_config.get("learning_rate", 5e-5),
+        weight_decay=training_config.get("weight_decay", 0.01),
+        max_grad_norm=training_config.get("max_grad_norm", 1.0),
         
         # Optimizer configuration
-        optimizer_type=config_provider.get("training.optimizer", "adamw"),
+        optimizer_type=training_config.get("optimizer", "adamw"),
+        optimizer_params={
+            "beta1": training_config.get("beta1", 0.9),
+            "beta2": training_config.get("beta2", 0.999),
+            "epsilon": training_config.get("epsilon", 1e-8),
+        },
         
         # Scheduler configuration
-        scheduler_type=config_provider.get("training.scheduler", "warmup_linear"),
-        warmup_ratio=config_provider.get("training.warmup_ratio", 0.1),
+        scheduler_type=training_config.get("scheduler", "warmup_linear"),
+        warmup_steps=training_config.get("warmup_steps"),
+        warmup_ratio=training_config.get("warmup_ratio", 0.1),
         
         # Evaluation configuration
-        eval_strategy=config_provider.get("training.eval_strategy", "epoch"),
-        save_strategy=config_provider.get("training.save_strategy", "epoch"),
+        eval_strategy=training_config.get("eval_strategy", "epoch"),
+        eval_steps=training_config.get("eval_steps"),
+        save_strategy=training_config.get("save_strategy", "epoch"),
+        save_steps=training_config.get("save_steps"),
         
         # Early stopping
-        early_stopping_patience=config_provider.get("training.early_stopping_patience"),
-        early_stopping_threshold=config_provider.get("training.early_stopping_threshold", 0.0),
-        metric_for_best_model=config_provider.get("training.metric_for_best_model", "eval_loss"),
-        greater_is_better=config_provider.get("training.greater_is_better", False),
-        
-        # Advanced options
-        gradient_accumulation_steps=config_provider.get("training.gradient_accumulation_steps", 1),
-        use_mixed_precision=config_provider.get("training.use_mixed_precision", False),
-        gradient_checkpointing=config_provider.get("training.gradient_checkpointing", False),
+        early_stopping_patience=training_config.get("early_stopping_patience"),
+        early_stopping_threshold=training_config.get("early_stopping_threshold", 0.0),
+        metric_for_best_model=training_config.get("metric_for_best_model", "eval_loss"),
+        greater_is_better=training_config.get("greater_is_better", False),
         
         # Output configuration
-        output_dir=Path(config_provider.get("training.output_dir", "output")),
-        run_name=experiment,
-        experiment_name=experiment,
+        output_dir=Path(training_config.get("output_dir", "output")),
+        run_name=training_config.get("run_name") or f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+        experiment_name=config_dict.get("mlflow", {}).get("experiment_name", "k-bert-experiments"),
         
-        # Logging configuration
-        logging_steps=config_provider.get("training.logging_steps", 100),
-        logging_first_step=config_provider.get("training.logging_first_step", True),
-        
-        # Checkpointing
-        save_total_limit=config_provider.get("training.save_total_limit"),
-        load_best_model_at_end=config_provider.get("training.load_best_model_at_end", True),
-        
-        # Tracking configuration
-        use_mlflow=config_provider.get("mlflow.enabled", True),
-        mlflow_tracking_uri=config_provider.get("mlflow.tracking_uri"),
-        tags={"source": "cli", "command": "train"},
+        # MLflow
+        use_mlflow=config_dict.get("mlflow", {}).get("enabled", True),
+        mlflow_tracking_uri=config_dict.get("mlflow", {}).get("tracking_uri"),
+        tags=config_dict.get("mlflow", {}).get("tags", {}),
     )
 
 
 def display_configuration_summary(request: TrainingRequestDTO) -> None:
-    """Display configuration summary in a formatted table."""
-    table = Table(title="Training Configuration", show_header=True)
+    """Display training configuration in a formatted table."""
+    console.print("\n[bold]Training Configuration[/bold]")
+    
+    table = Table(show_header=False)
     table.add_column("Parameter", style="cyan")
-    table.add_column("Value", style="green")
+    table.add_column("Value")
     
     # Model info
     table.add_row("Model Type", request.model_type)
-    table.add_row("Model Name", request.model_config.get("model_name", "N/A"))
+    table.add_row("Model", request.model_config.get("model_name", "unknown"))
     
     # Data info
     table.add_row("Training Data", str(request.train_data_path))
@@ -213,6 +222,7 @@ def display_training_results(response) -> None:
 
 
 async def train_command(
+    ctx: typer.Context,
     # Config-first approach
     config: Optional[Path] = typer.Option(
         None,
@@ -280,8 +290,15 @@ async def train_command(
     console.print("=" * 60)
     
     try:
-        # Get configuration provider
-        config_provider = get_service(ConfigurationProvider)
+        # Get configuration provider from context or fallback
+        container = ctx.obj
+        if container:
+            config_provider = container.resolve(ConfigurationProvider)
+            use_case = container.resolve(TrainModelUseCase)
+        else:
+            # Fallback to bootstrap for backwards compatibility
+            config_provider = get_service(ConfigurationProvider)
+            use_case = get_service(TrainModelUseCase)
         
         # Create request DTO
         request = create_train_request_dto(
@@ -301,9 +318,6 @@ async def train_command(
         if dry_run:
             console.print("\n[yellow]Dry run mode - no training performed[/yellow]")
             return
-        
-        # Get use case
-        use_case = get_service(TrainModelUseCase)
         
         # Run training with progress indicator
         with Progress(

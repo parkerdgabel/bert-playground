@@ -18,7 +18,7 @@ from ports.secondary.configuration import (
 T = TypeVar("T")
 
 
-class YAMLConfigAdapter:
+class YamlConfigurationAdapter:
     """YAML implementation of the ConfigurationProvider port."""
 
     def load(

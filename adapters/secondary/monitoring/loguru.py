@@ -15,15 +15,15 @@ from ports.secondary.monitoring import (
     ExperimentInfo,
     LogLevel,
     Metric,
-    MetricType,
-    MonitoringPort,
+    MonitoringService,
     RunInfo,
     RunStatus,
 )
+from ports.secondary.metrics import MetricType
 
 
-class LoguruMonitoringAdapter(MonitoringPort):
-    """Loguru implementation of the MonitoringPort."""
+class LoguruMonitoringAdapter(MonitoringService):
+    """Loguru implementation of the MonitoringService."""
 
     def __init__(self):
         """Initialize the monitoring adapter."""
@@ -148,7 +148,7 @@ class LoguruMonitoringAdapter(MonitoringPort):
         pass
 
 
-class MLflowExperimentTracker(MonitoringPort):
+class MLflowExperimentTracker(MonitoringService):
     """MLflow implementation for experiment tracking functionality."""
 
     def __init__(self):
@@ -324,7 +324,7 @@ class MLflowExperimentTracker(MonitoringPort):
             for m in history
         ]
 
-    # Implement remaining MonitoringPort methods with pass or basic implementation
+    # Implement remaining MonitoringService methods with pass or basic implementation
     def log(self, level: LogLevel, message: str, extra: dict[str, Any] | None = None, error: Exception | None = None) -> None:
         """Log through MLflow (basic implementation)."""
         pass

@@ -219,6 +219,30 @@ class ConfigurationManager:
         adapter_config = self.get_adapter_config(adapter_type)
         return adapter_config.get("implementation", default)
         
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get a configuration value by key.
+        
+        Args:
+            key: Configuration key (dot notation, e.g., "training.learning_rate")
+            default: Default value if key not found
+            
+        Returns:
+            Configuration value or default
+        """
+        config = self.load_configuration()
+        
+        # Navigate through nested config
+        current = config
+        parts = key.split(".")
+        
+        for part in parts:
+            if isinstance(current, dict) and part in current:
+                current = current[part]
+            else:
+                return default
+                
+        return current
+        
     def set_config(self, key: str, value: Any) -> None:
         """Set a configuration value at runtime.
         

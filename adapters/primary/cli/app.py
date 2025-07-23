@@ -4,9 +4,11 @@ This module creates the main Typer application and registers all command adapter
 It acts as the entry point for the CLI, delegating to individual command adapters.
 """
 
+import sys
 import typer
 from rich.console import Console
 from pathlib import Path
+from typing import Optional
 
 from adapters.primary.cli.train_adapter import train
 from adapters.primary.cli.predict_adapter import predict
@@ -29,7 +31,18 @@ app = typer.Typer(
 console = Console()
 
 
-# Register command adapters
+# Register commands with callback to get context
+@app.callback()
+def callback(ctx: typer.Context):
+    """
+    Callback to ensure container is available in context.
+    The container should be set by the main entry point.
+    """
+    # The container will be passed as ctx.obj from the main entry point
+    pass
+
+
+# Register commands
 app.command(name="train", help="Train a BERT model")(train)
 app.command(name="evaluate", help="Evaluate a trained model")(evaluate)
 app.command(name="predict", help="Generate predictions")(predict)
@@ -42,7 +55,7 @@ app.add_typer(config_app, name="config")
 
 # Version command
 @app.command()
-def version():
+def version(ctx: typer.Context):
     """Display K-BERT version information."""
     __version__ = "0.1.0"  # TODO: Import from package metadata
     console.print(f"[bold blue]K-BERT[/bold blue] version {__version__}")
@@ -54,6 +67,7 @@ project_app = typer.Typer(help="Project management commands")
 
 @project_app.command()
 def init(
+    ctx: typer.Context,
     name: str = typer.Argument(
         "my-bert-project",
         help="Project name",
@@ -239,8 +253,26 @@ app.add_typer(project_app, name="project")
 
 
 def main():
-    """Main entry point for the CLI."""
-    app()
+    """Main entry point for the CLI with DI support."""
+    # Check if we're being run with a container from bootstrap
+    if hasattr(sys.modules.get('__main__'), 'container'):
+        # Get container from main module
+        container = sys.modules['__main__'].container
+        app(obj=container)
+    else:
+        # Try to initialize container if not provided
+        try:
+            from infrastructure.bootstrap import initialize_application
+            container = initialize_application()
+            app(obj=container)
+        except ImportError:
+            # Run without DI container
+            app()
+
+
+def main_with_di(container=None):
+    """Main entry point with explicit DI container."""
+    app(obj=container)
 
 
 if __name__ == "__main__":

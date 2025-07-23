@@ -16,7 +16,7 @@ if str(project_root) not in sys.path:
 
 from loguru import logger
 from infrastructure.bootstrap import initialize_application, get_service
-from infrastructure.ports.monitoring import MonitoringService
+from ports.secondary.monitoring import MonitoringService
 
 
 def setup_logging():
@@ -58,13 +58,10 @@ def main():
         monitoring.log_info("Application initialized successfully")
         
         # Import and run the CLI app
-        from cli.app import app
+        from adapters.primary.cli.app import app, main_with_di
         
-        # Store container in app context for commands to access
-        app.obj = container
-        
-        # Run the CLI
-        app()
+        # Run the CLI with DI container
+        main_with_di(container)
         
     except KeyboardInterrupt:
         logger.info("Application interrupted by user")

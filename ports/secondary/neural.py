@@ -5,9 +5,10 @@ for building and working with neural networks. It's a driven port implemented
 by adapters for different frameworks (MLX, PyTorch, JAX, etc.).
 """
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Protocol, runtime_checkable, Callable, Optional
+from typing import Any, Protocol, runtime_checkable, Callable, Optional, Iterator, Dict
 
 from typing_extensions import TypeAlias
 
@@ -16,6 +17,9 @@ from .compute import Array, Shape
 
 # Type aliases
 NeuralModule: TypeAlias = Any  # Framework-specific module type
+Parameter: TypeAlias = Any  # Framework-specific parameter type
+ParameterDict: TypeAlias = Dict[str, Parameter]
+GradientDict: TypeAlias = Dict[str, Array]
 
 
 class ActivationType(Enum):
@@ -145,6 +149,97 @@ class AttentionMask:
     mask_type: AttentionMaskType
     mask: Optional[Array] = None
     prefix_length: Optional[int] = None
+
+
+@dataclass
+class ModuleInfo:
+    """Information about a neural module."""
+    
+    name: str
+    module_type: str
+    trainable_params: int
+    total_params: int
+    submodules: Optional[Dict[str, 'ModuleInfo']] = None
+
+
+class Module(ABC):
+    """Base class for neural network modules.
+    
+    This provides a framework-agnostic interface for neural network components.
+    Adapters should wrap their framework-specific modules to implement this interface.
+    """
+    
+    def __init__(self):
+        """Initialize module."""
+        self.training = True
+        self._parameters: ParameterDict = {}
+        self._modules: Dict[str, 'Module'] = {}
+    
+    @abstractmethod
+    def forward(self, *args, **kwargs) -> Any:
+        """Forward pass through the module."""
+        ...
+    
+    def __call__(self, *args, **kwargs) -> Any:
+        """Make module callable."""
+        return self.forward(*args, **kwargs)
+    
+    def train(self, mode: bool = True) -> 'Module':
+        """Set training mode."""
+        self.training = mode
+        for module in self._modules.values():
+            module.train(mode)
+        return self
+    
+    def eval(self) -> 'Module':
+        """Set evaluation mode."""
+        return self.train(False)
+    
+    def parameters(self) -> Iterator[Parameter]:
+        """Get all parameters."""
+        for param in self._parameters.values():
+            yield param
+        for module in self._modules.values():
+            yield from module.parameters()
+    
+    def named_parameters(self, prefix: str = '') -> Iterator[tuple[str, Parameter]]:
+        """Get all parameters with names."""
+        for name, param in self._parameters.items():
+            if prefix:
+                yield f"{prefix}.{name}", param
+            else:
+                yield name, param
+        
+        for name, module in self._modules.items():
+            submodule_prefix = f"{prefix}.{name}" if prefix else name
+            yield from module.named_parameters(submodule_prefix)
+    
+    def add_module(self, name: str, module: Optional['Module']) -> None:
+        """Add a submodule."""
+        if module is not None:
+            self._modules[name] = module
+    
+    def register_parameter(self, name: str, param: Optional[Parameter]) -> None:
+        """Register a parameter."""
+        if param is not None:
+            self._parameters[name] = param
+    
+    def get_info(self) -> ModuleInfo:
+        """Get module information."""
+        trainable_params = sum(1 for _ in self.parameters())
+        total_params = trainable_params  # In base implementation, all params are trainable
+        
+        submodules = {}
+        for name, module in self._modules.items():
+            submodules[name] = module.get_info()
+        
+        return ModuleInfo(
+            name=getattr(self, '_name', 'unnamed'),
+            module_type=self.__class__.__name__,
+            trainable_params=trainable_params,
+            total_params=total_params,
+            submodules=submodules if submodules else None
+        )
 
 
 @runtime_checkable
@@ -398,3 +493,5 @@ class NeuralBackend(Protocol):
             Module on new device
         """
         ...
+# Alias for compatibility
+NeuralPort = NeuralBackend

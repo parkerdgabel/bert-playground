@@ -5,9 +5,10 @@ for logging, metrics, and experiment tracking. It's a driven port implemented
 by adapters for different monitoring backends (loguru, MLflow, wandb, etc.).
 """
 
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable, Optional, Dict
 
 from typing_extensions import TypeAlias
 
@@ -27,6 +28,53 @@ class LogSeverity(Enum):
     WARNING = "WARNING"
     ERROR = "ERROR"
     CRITICAL = "CRITICAL"
+
+
+class RunStatus(Enum):
+    """Status of an experiment run."""
+    
+    RUNNING = "RUNNING"
+    SCHEDULED = "SCHEDULED"
+    FINISHED = "FINISHED"
+    FAILED = "FAILED"
+    KILLED = "KILLED"
+
+
+@dataclass
+class ExperimentInfo:
+    """Information about an experiment."""
+    
+    id: str
+    name: str
+    artifact_location: Optional[str] = None
+    lifecycle_stage: Optional[str] = None
+    tags: Optional[Dict[str, str]] = None
+    creation_time: Optional[datetime] = None
+    last_update_time: Optional[datetime] = None
+
+
+@dataclass 
+class Metric:
+    """Metric data point."""
+    
+    name: str
+    value: MetricValue
+    step: Optional[int] = None
+    timestamp: Optional[datetime] = None
+    tags: Optional[Tags] = None
+
+
+@dataclass
+class RunInfo:
+    """Information about an experiment run."""
+    
+    id: str
+    experiment_id: str
+    status: RunStatus
+    start_time: datetime
+    end_time: Optional[datetime] = None
+    artifact_uri: Optional[str] = None
+    tags: Optional[Dict[str, str]] = None
 
 
 @runtime_checkable
