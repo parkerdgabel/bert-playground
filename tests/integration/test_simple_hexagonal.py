@@ -18,8 +18,7 @@ def test_domain_independence():
     import domain.entities.dataset
     import domain.entities.metrics
     import domain.services.training
-    import domain.services.evaluation
-    import domain.services.tokenization
+    import domain.services.evaluation_engine
     import domain.services.checkpointing
     
     # Check a domain module doesn't import frameworks
@@ -57,6 +56,8 @@ def test_domain_entities():
     
     # Create model
     model = BertModel(
+        id="test-model",
+        name="Test Model",
         architecture=arch,
         weights=ModelWeights({}),
         metadata={"name": "test-model"}
@@ -84,14 +85,14 @@ def test_ports_are_protocols():
     """Test that ports are defined as protocols."""
     print("\nTesting port definitions...")
     
-    from domain.ports.compute import ComputePort
-    from domain.ports.monitoring import MonitoringPort
-    from domain.ports.storage import StoragePort, CheckpointPort
-    from domain.ports.tokenizer import TokenizerPort
-    from domain.ports.data import DataLoaderPort
+    from ports.secondary.compute import ComputeBackend
+    from ports.secondary.monitoring import MonitoringPort
+    from ports.secondary.storage import StoragePort, CheckpointPort
+    from ports.secondary.tokenizer import TokenizerPort
+    from ports.secondary.data import DataLoaderPort
     
     # Check they are protocols (have __annotations__)
-    ports = [ComputePort, MonitoringPort, StoragePort, CheckpointPort, 
+    ports = [ComputeBackend, MonitoringPort, StoragePort, CheckpointPort, 
              TokenizerPort, DataLoaderPort]
     
     for port in ports:

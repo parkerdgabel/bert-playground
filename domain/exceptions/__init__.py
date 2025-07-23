@@ -1,5 +1,6 @@
 """Domain-specific exceptions."""
 
+from .base import DomainException, ValidationException
 from .training import (
     TrainingError,
     ModelNotInitializedError,
@@ -11,6 +12,11 @@ from .training import (
 )
 
 __all__ = [
+    # Base exceptions
+    "DomainException",
+    "ValidationException",
+    
+    # Training exceptions
     "TrainingError",
     "ModelNotInitializedError",
     "CheckpointError",

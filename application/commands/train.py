@@ -11,14 +11,11 @@ from domain.entities.metrics import TrainingMetrics
 from domain.entities.model import BertModel, ModelArchitecture
 from domain.entities.dataset import Dataset
 from domain.services import ModelTrainingService, TokenizationService, CheckpointingService
-from domain.ports import (
-    DataLoaderPort, 
-    ComputePort, 
-    MonitoringPort, 
-    StoragePort,
-    CheckpointPort,
-    MetricsCalculatorPort
-)
+from ports.secondary.data import DataLoaderPort
+from ports.secondary.compute import ComputeBackend
+from ports.secondary.monitoring import MonitoringService
+from ports.secondary.storage import StorageService
+from ports.secondary.checkpointing import CheckpointManager
 
 
 @dataclass
@@ -41,11 +38,10 @@ class TrainModelCommand:
     
     # Ports (external dependencies)
     data_loader_port: DataLoaderPort
-    compute_port: ComputePort
-    monitoring_port: MonitoringPort
-    storage_port: StoragePort
-    checkpoint_port: CheckpointPort
-    metrics_port: MetricsCalculatorPort
+    compute_port: ComputeBackend
+    monitoring_port: MonitoringService
+    storage_port: StorageService
+    checkpoint_port: CheckpointManager
     
     async def execute(self, request: TrainingRequestDTO) -> TrainingResponseDTO:
         """Execute the training command.
@@ -251,7 +247,7 @@ class TrainModelCommand:
             "load_best_model_at_end": request.load_best_model_at_end,
         }
     
-    async def _resume_from_checkpoint(self, model: Model, checkpoint_path: Path) -> Dict[str, Any]:
+    async def _resume_from_checkpoint(self, model: BertModel, checkpoint_path: Path) -> Dict[str, Any]:
         """Resume training from a checkpoint."""
         checkpoint_data = await self.checkpoint_port.load(checkpoint_path)
         

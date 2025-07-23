@@ -7,19 +7,17 @@ without any framework dependencies.
 import pytest
 from typing import List, Optional, Any, Dict
 
-from domain.models.bert_architecture import (
+from domain.entities.model import (
     AttentionType,
     ActivationType,
-    NormalizationType,
-    LayerComponents,
-    BertLayer,
-    BertEmbeddings,
-    BertArchitecture,
-    BertPooler,
-    AttentionPattern,
-    ModelCapabilities
+    ModelArchitecture,
+    ModelType
 )
-from domain.models.bert_config import BertDomainConfig
+from domain.value_objects.hyperparameters import (
+    OptimizerConfig,
+    SchedulerConfig,
+    LayerConfig
+)
 
 
 class TestLayerComponents:

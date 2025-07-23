@@ -11,7 +11,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from domain.data.models import DatasetSpec, CompetitionType
+from domain.entities.dataset import DatasetSpecification
+from domain.entities.model import TaskType
 
 
 @pytest.fixture(scope="session")
@@ -111,30 +112,34 @@ def sample_regression_data():
 
 @pytest.fixture
 def titanic_dataset_spec():
-    """Create DatasetSpec for Titanic competition."""
-    return DatasetSpec(
-        competition_name="titanic",
-        dataset_path=Path("/tmp/titanic"),
-        competition_type=CompetitionType.BINARY_CLASSIFICATION,
+    """Create DatasetSpecification for Titanic competition."""
+    return DatasetSpecification(
+        id="titanic",
+        name="Titanic Competition",
+        path=Path("/tmp/titanic"),
+        task_type=TaskType.CLASSIFICATION,
         num_samples=5,
         num_features=11,
         target_column="Survived",
         text_columns=["Name", "Ticket"],
         categorical_columns=["Pclass", "Sex", "Embarked"],
         numerical_columns=["Age", "SibSp", "Parch", "Fare"],
-        num_classes=2,
-        class_distribution={"0": 2, "1": 3},
-        is_balanced=True,
+        num_labels=2,
+        metadata={
+            "class_distribution": {"0": 2, "1": 3},
+            "is_balanced": True
+        }
     )
 
 
 @pytest.fixture
 def house_prices_dataset_spec():
-    """Create DatasetSpec for house prices competition."""
-    return DatasetSpec(
-        competition_name="house_prices",
-        dataset_path=Path("/tmp/house_prices"),
-        competition_type=CompetitionType.REGRESSION,
+    """Create DatasetSpecification for house prices competition."""
+    return DatasetSpecification(
+        id="house_prices",
+        name="House Prices Competition",
+        path=Path("/tmp/house_prices"),
+        task_type=TaskType.REGRESSION,
         num_samples=5,
         num_features=13,
         target_column="SalePrice",
@@ -155,7 +160,7 @@ def house_prices_dataset_spec():
             "GrLivArea",
             "BedroomAbvGr",
         ],
-        num_classes=1,
+        num_labels=1,
     )
 
 
@@ -165,7 +170,7 @@ def sample_competition_metadata():
     # Return a simple dict for now as CompetitionMetadata is removed
     return {
         "competition_name": "test_competition",
-        "competition_type": CompetitionType.BINARY_CLASSIFICATION,
+        "competition_type": TaskType.CLASSIFICATION,
         "train_file": "train.csv",
         "test_file": "test.csv",
         "submission_file": "sample_submission.csv",

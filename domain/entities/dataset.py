@@ -1,7 +1,10 @@
-"""Dataset and data batch entities."""
+"""Dataset and data batch entities.
+
+Pure domain entities with no framework dependencies.
+"""
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Any, Tuple
+from typing import List, Dict, Optional, Any
 from enum import Enum
 
 
@@ -10,92 +13,70 @@ class DatasetSplit(Enum):
     TRAIN = "train"
     VALIDATION = "validation"
     TEST = "test"
+    PREDICTION = "prediction"
 
 
-class TokenizerType(Enum):
-    """Tokenizer types."""
-    WORDPIECE = "wordpiece"
-    BPE = "bpe"
-    SENTENCEPIECE = "sentencepiece"
+class DataFormat(Enum):
+    """Data format types."""
+    TEXT = "text"
+    TABULAR = "tabular"
+    TOKENIZED = "tokenized"
 
 
 @dataclass
-class TokenSequence:
-    """Represents a tokenized sequence."""
-    input_ids: List[int]
-    attention_mask: List[int]
-    token_type_ids: Optional[List[int]] = None
-    position_ids: Optional[List[int]] = None
+class DataSample:
+    """Single data sample.
+    
+    This represents one example in a dataset, independent
+    of whether it's text, tabular, or already tokenized.
+    """
+    id: str
+    content: Any  # Can be text string, dict of features, or token ids
+    label: Optional[Any] = None  # Can be int, float, list, etc.
+    metadata: Dict[str, Any] = field(default_factory=dict)
     
     @property
-    def length(self) -> int:
-        """Get sequence length."""
-        return len(self.input_ids)
+    def is_labeled(self) -> bool:
+        """Check if sample has a label."""
+        return self.label is not None
     
-    @property
-    def num_tokens(self) -> int:
-        """Get number of actual tokens (excluding padding)."""
-        return sum(self.attention_mask)
-    
-    def truncate(self, max_length: int) -> 'TokenSequence':
-        """Truncate sequence to maximum length."""
-        return TokenSequence(
-            input_ids=self.input_ids[:max_length],
-            attention_mask=self.attention_mask[:max_length],
-            token_type_ids=self.token_type_ids[:max_length] if self.token_type_ids else None,
-            position_ids=self.position_ids[:max_length] if self.position_ids else None,
-        )
-    
-    def pad(self, max_length: int, pad_token_id: int = 0) -> 'TokenSequence':
-        """Pad sequence to maximum length."""
-        padding_length = max_length - self.length
-        if padding_length <= 0:
-            return self
-        
-        return TokenSequence(
-            input_ids=self.input_ids + [pad_token_id] * padding_length,
-            attention_mask=self.attention_mask + [0] * padding_length,
-            token_type_ids=(
-                self.token_type_ids + [0] * padding_length 
-                if self.token_type_ids else None
-            ),
-            position_ids=(
-                self.position_ids + list(range(self.length, max_length))
-                if self.position_ids else None
-            ),
-        )
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary representation."""
+        return {
+            "id": self.id,
+            "content": self.content,
+            "label": self.label,
+            "metadata": self.metadata
+        }
 
 
 @dataclass
 class DataBatch:
-    """Represents a batch of data for training/inference."""
-    sequences: List[TokenSequence]
-    labels: Optional[Any] = None  # Can be List[int], List[float], List[List[float]], etc.
+    """Batch of data samples.
+    
+    This represents a collection of samples that will be
+    processed together, maintaining batch coherence.
+    """
+    samples: List[DataSample]
+    batch_size: int
     metadata: Dict[str, Any] = field(default_factory=dict)
     
-    @property
-    def batch_size(self) -> int:
-        """Get batch size."""
-        return len(self.sequences)
+    def __post_init__(self):
+        """Validate batch."""
+        if self.batch_size != len(self.samples):
+            self.batch_size = len(self.samples)
     
     @property
-    def max_sequence_length(self) -> int:
-        """Get maximum sequence length in batch."""
-        if not self.sequences:
-            return 0
-        return max(seq.length for seq in self.sequences)
+    def is_labeled(self) -> bool:
+        """Check if all samples in batch have labels."""
+        return all(sample.is_labeled for sample in self.samples)
     
-    def collate(self, pad_token_id: int = 0) -> 'DataBatch':
-        """Collate sequences to same length."""
-        max_length = self.max_sequence_length
-        padded_sequences = [
-            seq.pad(max_length, pad_token_id) for seq in self.sequences
-        ]
-        return DataBatch(
-            sequences=padded_sequences,
-            labels=self.labels,
-            metadata=self.metadata,
-        )
+    @property
+    def labels(self) -> Optional[List[Any]]:
+        """Get labels from all samples if available."""
+        if not self.is_labeled:
+            return None
+        return [sample.label for sample in self.samples]
     
     def split(self, sizes: List[int]) -> List['DataBatch']:
         """Split batch into multiple smaller batches."""
@@ -106,19 +87,11 @@ class DataBatch:
         start = 0
         for size in sizes:
             end = start + size
-            batch_sequences = self.sequences[start:end]
-            batch_labels = None
-            if self.labels is not None:
-                if isinstance(self.labels, list):
-                    batch_labels = self.labels[start:end]
-                else:
-                    # Handle other label types as needed
-                    batch_labels = self.labels
-            
+            batch_samples = self.samples[start:end]
             batches.append(DataBatch(
-                sequences=batch_sequences,
-                labels=batch_labels,
-                metadata=self.metadata.copy(),
+                samples=batch_samples,
+                batch_size=size,
+                metadata=self.metadata.copy()
             ))
             start = end
         
@@ -126,33 +99,27 @@ class DataBatch:
 
 
 @dataclass
-class Dataset:
-    """Represents a dataset."""
-    name: str
-    split: DatasetSplit
-    size: int
-    features: Dict[str, Any] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    
-    # Statistics
+class DatasetStatistics:
+    """Statistics about a dataset."""
+    num_samples: int
+    num_features: Optional[int] = None
     num_classes: Optional[int] = None
     class_distribution: Optional[Dict[Any, int]] = None
-    sequence_length_stats: Optional[Dict[str, float]] = None
     
-    @property
-    def is_classification(self) -> bool:
-        """Check if dataset is for classification."""
-        return self.num_classes is not None and self.num_classes > 0
+    # Text-specific stats
+    avg_text_length: Optional[float] = None
+    max_text_length: Optional[int] = None
+    min_text_length: Optional[int] = None
+    vocabulary_size: Optional[int] = None
     
-    @property
-    def is_regression(self) -> bool:
-        """Check if dataset is for regression."""
-        return self.num_classes is None or self.num_classes == 0
+    # Quality metrics
+    num_missing_values: int = 0
+    num_duplicates: int = 0
     
     @property
     def is_balanced(self) -> bool:
         """Check if dataset is balanced (for classification)."""
-        if not self.is_classification or not self.class_distribution:
+        if not self.class_distribution:
             return True
         
         counts = list(self.class_distribution.values())
@@ -164,13 +131,157 @@ class Dataset:
         # Consider balanced if max/min ratio < 2
         return max_count / min_count < 2.0 if min_count > 0 else False
     
-    def get_split_info(self) -> Dict[str, Any]:
-        """Get information about this dataset split."""
-        return {
+    def summary(self) -> Dict[str, Any]:
+        """Get summary of statistics."""
+        summary = {
+            "num_samples": self.num_samples,
+            "num_missing_values": self.num_missing_values,
+            "num_duplicates": self.num_duplicates,
+        }
+        
+        if self.num_features is not None:
+            summary["num_features"] = self.num_features
+            
+        if self.num_classes is not None:
+            summary["num_classes"] = self.num_classes
+            summary["is_balanced"] = self.is_balanced
+            
+        if self.avg_text_length is not None:
+            summary["text_stats"] = {
+                "avg_length": self.avg_text_length,
+                "max_length": self.max_text_length,
+                "min_length": self.min_text_length,
+                "vocabulary_size": self.vocabulary_size,
+            }
+            
+        return summary
+
+
+@dataclass
+class Dataset:
+    """Dataset entity.
+    
+    This represents a complete dataset with samples, metadata,
+    and statistics. It's independent of the storage format or
+    loading mechanism.
+    """
+    id: str
+    name: str
+    split: DatasetSplit
+    format: DataFormat
+    samples: List[DataSample]
+    statistics: Optional[DatasetStatistics] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    # Task-specific information
+    task_type: Optional[str] = None
+    num_classes: Optional[int] = None
+    label_names: Optional[List[str]] = None
+    feature_names: Optional[List[str]] = None
+    
+    @property
+    def size(self) -> int:
+        """Get number of samples in dataset."""
+        return len(self.samples)
+    
+    @property
+    def is_empty(self) -> bool:
+        """Check if dataset is empty."""
+        return len(self.samples) == 0
+    
+    @property
+    def is_labeled(self) -> bool:
+        """Check if dataset has labels."""
+        return all(sample.is_labeled for sample in self.samples)
+    
+    def get_sample(self, index: int) -> DataSample:
+        """Get sample by index."""
+        if 0 <= index < len(self.samples):
+            return self.samples[index]
+        raise IndexError(f"Index {index} out of range for dataset of size {self.size}")
+    
+    def create_batch(self, indices: List[int]) -> DataBatch:
+        """Create a batch from specific indices."""
+        batch_samples = [self.samples[i] for i in indices if 0 <= i < len(self.samples)]
+        return DataBatch(
+            samples=batch_samples,
+            batch_size=len(batch_samples),
+            metadata={"dataset_id": self.id, "dataset_name": self.name}
+        )
+    
+    def filter_samples(self, predicate) -> 'Dataset':
+        """Create new dataset with filtered samples."""
+        filtered_samples = [s for s in self.samples if predicate(s)]
+        return Dataset(
+            id=f"{self.id}_filtered",
+            name=f"{self.name} (filtered)",
+            split=self.split,
+            format=self.format,
+            samples=filtered_samples,
+            statistics=None,  # Statistics need recalculation
+            metadata=self.metadata.copy(),
+            task_type=self.task_type,
+            num_classes=self.num_classes,
+            label_names=self.label_names,
+            feature_names=self.feature_names
+        )
+    
+    def get_info(self) -> Dict[str, Any]:
+        """Get dataset information."""
+        info = {
+            "id": self.id,
             "name": self.name,
             "split": self.split.value,
+            "format": self.format.value,
             "size": self.size,
-            "num_classes": self.num_classes,
-            "is_balanced": self.is_balanced,
-            "features": list(self.features.keys()),
+            "is_labeled": self.is_labeled,
+            "task_type": self.task_type,
         }
+        
+        if self.num_classes is not None:
+            info["num_classes"] = self.num_classes
+            info["label_names"] = self.label_names
+            
+        if self.feature_names is not None:
+            info["num_features"] = len(self.feature_names)
+            info["feature_names"] = self.feature_names
+            
+        if self.statistics:
+            info["statistics"] = self.statistics.summary()
+            
+        return info
+
+
+@dataclass
+class DatasetSpecification:
+    """Specification for creating or loading a dataset.
+    
+    This is used by data services to specify how a dataset
+    should be created or loaded, independent of the actual
+    loading mechanism.
+    """
+    source: str  # Path, URL, or identifier
+    format: DataFormat
+    split: DatasetSplit
+    task_type: Optional[str] = None
+    
+    # Processing options
+    max_samples: Optional[int] = None
+    shuffle: bool = False
+    random_seed: Optional[int] = None
+    
+    # Text-specific options
+    max_text_length: Optional[int] = None
+    text_column: Optional[str] = None
+    label_column: Optional[str] = None
+    
+    # Tabular-specific options
+    feature_columns: Optional[List[str]] = None
+    categorical_columns: Optional[List[str]] = None
+    numerical_columns: Optional[List[str]] = None
+    
+    # Caching options
+    use_cache: bool = True
+    cache_dir: Optional[str] = None
+    
+    metadata: Dict[str, Any] = field(default_factory=dict)

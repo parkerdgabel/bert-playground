@@ -4,10 +4,10 @@ from abc import ABC
 from typing import Any, Dict, Tuple, Optional
 from domain.entities.model import BertModel
 from domain.entities.dataset import DataBatch
-from domain.ports.compute import ComputePort
+from ports.secondary.compute import ComputeBackend
 
 
-class BaseComputeAdapter(ABC, ComputePort):
+class BaseComputeAdapter(ABC, ComputeBackend):
     """Base implementation of ComputePort with common functionality."""
     
     def __init__(self):

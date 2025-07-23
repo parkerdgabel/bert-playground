@@ -6,7 +6,7 @@ for different ML frameworks (MLX, PyTorch, JAX, etc.).
 """
 
 from enum import Enum
-from typing import Any, Callable, Protocol, Sequence, runtime_checkable
+from typing import Any, Callable, Dict, List, Optional, Protocol, Sequence, Tuple, runtime_checkable
 
 import numpy as np
 from typing_extensions import TypeAlias
@@ -274,6 +274,102 @@ class ComputeBackend(Protocol):
             
         Returns:
             Dictionary of loaded arrays
+        """
+        ...
+    
+    # Model-specific operations
+    
+    def forward_pass(
+        self,
+        model_spec: Dict[str, Any],
+        inputs: Dict[str, Array],
+        training: bool = False,
+    ) -> Dict[str, Array]:
+        """Perform forward pass through model.
+        
+        Args:
+            model_spec: Model specification (architecture, weights, etc.)
+            inputs: Input data as dictionary of arrays
+            training: Whether in training mode
+            
+        Returns:
+            Dictionary containing outputs (logits, loss, hidden_states, etc.)
+        """
+        ...
+    
+    def compute_loss(
+        self,
+        predictions: Array,
+        targets: Array,
+        loss_type: str = "cross_entropy",
+        **kwargs: Any,
+    ) -> Array:
+        """Compute loss between predictions and targets.
+        
+        Args:
+            predictions: Model predictions
+            targets: Ground truth targets
+            loss_type: Type of loss function
+            **kwargs: Additional loss-specific parameters
+            
+        Returns:
+            Loss value
+        """
+        ...
+    
+    def backward_pass(
+        self,
+        loss: Array,
+        model_spec: Dict[str, Any],
+        retain_graph: bool = False,
+    ) -> Dict[str, Array]:
+        """Perform backward pass to compute gradients.
+        
+        Args:
+            loss: Loss value to backpropagate
+            model_spec: Model specification
+            retain_graph: Whether to retain computation graph
+            
+        Returns:
+            Dictionary of gradients
+        """
+        ...
+    
+    def optimize_step(
+        self,
+        model_params: Dict[str, Array],
+        gradients: Dict[str, Array],
+        optimizer_state: Dict[str, Any],
+        learning_rate: float,
+        **kwargs: Any,
+    ) -> Tuple[Dict[str, Array], Dict[str, Any]]:
+        """Perform optimization step.
+        
+        Args:
+            model_params: Current model parameters
+            gradients: Computed gradients
+            optimizer_state: Current optimizer state
+            learning_rate: Learning rate
+            **kwargs: Additional optimizer parameters
+            
+        Returns:
+            Tuple of (updated_parameters, updated_optimizer_state)
+        """
+        ...
+    
+    def count_parameters(
+        self,
+        model_spec: Dict[str, Any],
+        trainable_only: bool = False,
+    ) -> int:
+        """Count model parameters.
+        
+        Args:
+            model_spec: Model specification
+            trainable_only: Whether to count only trainable parameters
+            
+        Returns:
+            Number of parameters
         """
         ...
 

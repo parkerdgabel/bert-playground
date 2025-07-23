@@ -1,231 +1,244 @@
-"""Tokenization service for text processing."""
+"""Tokenization service - pure business logic for text processing.
+
+This service contains only the business logic for tokenization,
+without any dependencies on specific tokenizer implementations.
+"""
 
 from typing import List, Optional, Dict, Any, Union
 from dataclasses import dataclass
-from domain.entities.dataset import TokenSequence, DataBatch
-from domain.ports.tokenizer import TokenizerPort
+from domain.entities.dataset import DataBatch, DataSample
 
 
-@dataclass
 class TokenizationService:
-    """Service for text tokenization operations."""
-    tokenizer_port: TokenizerPort
+    """Service for text tokenization business logic.
     
-    def tokenize_texts(
+    This service defines the business rules for tokenization
+    without depending on specific tokenizer implementations.
+    """
+    
+    def calculate_token_statistics(
         self,
         texts: List[str],
-        max_length: int = 512,
-        batch_size: int = 1000,
-        show_progress: bool = False,
-    ) -> List[TokenSequence]:
-        """Tokenize a list of texts.
+        tokenizer_vocab_size: int,
+    ) -> Dict[str, Any]:
+        """Calculate tokenization statistics for texts.
         
         Args:
             texts: List of text strings
-            max_length: Maximum sequence length
-            batch_size: Batch size for tokenization
-            show_progress: Whether to show progress
+            tokenizer_vocab_size: Size of tokenizer vocabulary
             
         Returns:
-            List of token sequences
+            Dictionary with statistics
         """
-        all_sequences = []
+        if not texts:
+            return {
+                "num_texts": 0,
+                "avg_length": 0,
+                "max_length": 0,
+                "min_length": 0,
+                "total_chars": 0,
+            }
         
-        # Process in batches for efficiency
-        for i in range(0, len(texts), batch_size):
-            batch_texts = texts[i:i + batch_size]
-            
-            # Tokenize batch
-            sequences = self.tokenizer_port.tokenize(
-                text=batch_texts,
-                max_length=max_length,
-                padding=True,
-                truncation=True,
-                return_attention_mask=True,
-                return_token_type_ids=False,
-            )
-            
-            if isinstance(sequences, TokenSequence):
-                sequences = [sequences]
-            
-            all_sequences.extend(sequences)
-        
-        return all_sequences
-    
-    def tokenize_for_mlm(
-        self,
-        texts: List[str],
-        max_length: int = 512,
-        mlm_probability: float = 0.15,
-    ) -> List[Dict[str, Any]]:
-        """Tokenize texts for masked language modeling.
-        
-        Args:
-            texts: List of texts
-            max_length: Maximum sequence length
-            mlm_probability: Probability of masking tokens
-            
-        Returns:
-            List of dictionaries with tokenized data and MLM labels
-        """
-        sequences = self.tokenize_texts(texts, max_length)
-        mlm_data = []
-        
-        mask_token_id = self.tokenizer_port.mask_token_id
-        vocab_size = self.tokenizer_port.get_vocab_size()
-        
-        for seq in sequences:
-            # Create MLM labels
-            import random
-            labels = [-100] * len(seq.input_ids)  # -100 = ignore in loss
-            
-            # Randomly mask tokens
-            for i, token_id in enumerate(seq.input_ids):
-                if seq.attention_mask[i] == 0:  # Skip padding
-                    continue
-                    
-                if random.random() < mlm_probability:
-                    labels[i] = token_id  # Store original token
-                    
-                    # 80% mask, 10% random, 10% unchanged
-                    rand = random.random()
-                    if rand < 0.8:
-                        seq.input_ids[i] = mask_token_id
-                    elif rand < 0.9:
-                        seq.input_ids[i] = random.randint(0, vocab_size - 1)
-                    # else: keep original token
-            
-            mlm_data.append({
-                'input_ids': seq.input_ids,
-                'attention_mask': seq.attention_mask,
-                'labels': labels,
-            })
-        
-        return mlm_data
-    
-    def create_paired_sequences(
-        self,
-        texts_a: List[str],
-        texts_b: List[str],
-        max_length: int = 512,
-    ) -> List[TokenSequence]:
-        """Create paired sequences for tasks like sentence similarity.
-        
-        Args:
-            texts_a: First set of texts
-            texts_b: Second set of texts
-            max_length: Maximum total sequence length
-            
-        Returns:
-            List of token sequences with proper segment IDs
-        """
-        if len(texts_a) != len(texts_b):
-            raise ValueError("texts_a and texts_b must have same length")
-        
-        paired_texts = [f"{a} {self._get_sep_token()} {b}" 
-                       for a, b in zip(texts_a, texts_b)]
-        
-        sequences = self.tokenizer_port.tokenize(
-            text=paired_texts,
-            max_length=max_length,
-            padding=True,
-            truncation=True,
-            return_attention_mask=True,
-            return_token_type_ids=True,  # Important for paired sequences
-        )
-        
-        if isinstance(sequences, TokenSequence):
-            sequences = [sequences]
-            
-        return sequences
-    
-    def _get_sep_token(self) -> str:
-        """Get separator token string."""
-        # This would ideally come from tokenizer
-        return "[SEP]"
-    
-    def decode_predictions(
-        self,
-        token_ids: List[List[int]],
-        skip_special_tokens: bool = True,
-    ) -> List[str]:
-        """Decode model predictions back to text.
-        
-        Args:
-            token_ids: Batch of token ID sequences
-            skip_special_tokens: Whether to skip special tokens
-            
-        Returns:
-            List of decoded texts
-        """
-        return self.tokenizer_port.batch_decode(
-            token_ids_batch=token_ids,
-            skip_special_tokens=skip_special_tokens,
-        )
-    
-    def analyze_tokenization(
-        self,
-        texts: List[str],
-    ) -> Dict[str, Any]:
-        """Analyze tokenization statistics.
-        
-        Args:
-            texts: List of texts to analyze
-            
-        Returns:
-            Dictionary with tokenization statistics
-        """
-        sequences = self.tokenize_texts(texts, max_length=10000)  # Large limit
-        
-        lengths = [seq.num_tokens for seq in sequences]
+        lengths = [len(text) for text in texts]
         
         return {
-            'num_texts': len(texts),
-            'avg_tokens': sum(lengths) / len(lengths) if lengths else 0,
-            'min_tokens': min(lengths) if lengths else 0,
-            'max_tokens': max(lengths) if lengths else 0,
-            'total_tokens': sum(lengths),
-            'vocab_size': self.tokenizer_port.get_vocab_size(),
+            "num_texts": len(texts),
+            "avg_length": sum(lengths) / len(lengths),
+            "max_length": max(lengths),
+            "min_length": min(lengths),
+            "total_chars": sum(lengths),
+            "vocab_size": tokenizer_vocab_size,
         }
     
-    def create_data_batches(
+    def validate_text_length(
         self,
-        texts: List[str],
-        labels: Optional[List[Any]] = None,
-        batch_size: int = 32,
-        max_length: int = 512,
-    ) -> List[DataBatch]:
-        """Create data batches from texts.
+        text: str,
+        max_length: int,
+        tokenizer_type: str = "wordpiece",
+    ) -> bool:
+        """Validate if text is within acceptable length.
         
         Args:
-            texts: List of texts
-            labels: Optional labels
-            batch_size: Batch size
-            max_length: Maximum sequence length
+            text: Text to validate
+            max_length: Maximum allowed length in tokens
+            tokenizer_type: Type of tokenizer
             
         Returns:
-            List of data batches
+            True if text is valid length
         """
-        # Tokenize all texts
-        sequences = self.tokenize_texts(texts, max_length)
+        # Estimate token count based on tokenizer type
+        if tokenizer_type == "wordpiece":
+            # WordPiece typically creates ~1.3 tokens per word
+            estimated_tokens = len(text.split()) * 1.3
+        elif tokenizer_type == "bpe":
+            # BPE typically creates ~1.1 tokens per word
+            estimated_tokens = len(text.split()) * 1.1
+        else:
+            # Conservative estimate
+            estimated_tokens = len(text.split()) * 1.5
         
-        # Create batches
-        batches = []
-        for i in range(0, len(sequences), batch_size):
-            batch_sequences = sequences[i:i + batch_size]
-            batch_labels = None
+        return estimated_tokens <= max_length
+    
+    def prepare_text_for_tokenization(
+        self,
+        text: str,
+        lowercase: bool = False,
+        remove_extra_spaces: bool = True,
+        max_length_chars: Optional[int] = None,
+    ) -> str:
+        """Prepare text for tokenization.
+        
+        Args:
+            text: Raw text
+            lowercase: Whether to lowercase
+            remove_extra_spaces: Whether to normalize whitespace
+            max_length_chars: Maximum character length
             
-            if labels is not None:
-                batch_labels = labels[i:i + batch_size]
+        Returns:
+            Prepared text
+        """
+        # Basic text cleaning
+        if lowercase:
+            text = text.lower()
+        
+        if remove_extra_spaces:
+            # Normalize whitespace
+            text = ' '.join(text.split())
+        
+        # Truncate if needed
+        if max_length_chars and len(text) > max_length_chars:
+            text = text[:max_length_chars]
+            # Try to truncate at word boundary
+            last_space = text.rfind(' ')
+            if last_space > max_length_chars * 0.8:  # Don't truncate too much
+                text = text[:last_space]
+        
+        return text.strip()
+    
+    def create_token_type_segments(
+        self,
+        text_a: str,
+        text_b: Optional[str] = None,
+        sep_token: str = "[SEP]",
+    ) -> List[int]:
+        """Create token type IDs for BERT-style input.
+        
+        Args:
+            text_a: First text segment
+            text_b: Optional second text segment
+            sep_token: Separator token
             
-            batch = DataBatch(
-                sequences=batch_sequences,
-                labels=batch_labels,
+        Returns:
+            List of token type IDs (0 for text_a, 1 for text_b)
+        """
+        # Estimate token counts
+        tokens_a = len(text_a.split()) + 2  # +2 for [CLS] and [SEP]
+        
+        if text_b:
+            tokens_b = len(text_b.split()) + 1  # +1 for final [SEP]
+            return [0] * tokens_a + [1] * tokens_b
+        else:
+            return [0] * tokens_a
+    
+    def calculate_attention_mask(
+        self,
+        sequence_length: int,
+        pad_length: int,
+    ) -> List[int]:
+        """Calculate attention mask for padded sequence.
+        
+        Args:
+            sequence_length: Actual sequence length
+            pad_length: Total padded length
+            
+        Returns:
+            Attention mask (1 for real tokens, 0 for padding)
+        """
+        if sequence_length > pad_length:
+            raise ValueError(
+                f"Sequence length ({sequence_length}) cannot exceed "
+                f"pad length ({pad_length})"
             )
-            
-            # Collate to ensure uniform length within batch
-            batch = batch.collate(pad_token_id=self.tokenizer_port.pad_token_id)
-            
-            batches.append(batch)
         
-        return batches
+        return [1] * sequence_length + [0] * (pad_length - sequence_length)
+    
+    def merge_subword_tokens(
+        self,
+        tokens: List[str],
+        subword_prefix: str = "##",
+    ) -> List[str]:
+        """Merge subword tokens back into words.
+        
+        Args:
+            tokens: List of tokens
+            subword_prefix: Prefix indicating subword tokens
+            
+        Returns:
+            List of merged words
+        """
+        if not tokens:
+            return []
+        
+        words = []
+        current_word = []
+        
+        for token in tokens:
+            if token.startswith(subword_prefix) and current_word:
+                # Continue building current word
+                current_word.append(token[len(subword_prefix):])
+            else:
+                # Start new word
+                if current_word:
+                    words.append(''.join(current_word))
+                current_word = [token]
+        
+        # Don't forget last word
+        if current_word:
+            words.append(''.join(current_word))
+        
+        return words
+    
+    def truncate_sequences(
+        self,
+        tokens_a: List[Any],
+        tokens_b: Optional[List[Any]],
+        max_length: int,
+        truncation_strategy: str = "longest_first",
+    ) -> tuple[List[Any], Optional[List[Any]]]:
+        """Truncate sequences to fit within max_length.
+        
+        Args:
+            tokens_a: First token sequence
+            tokens_b: Optional second token sequence
+            max_length: Maximum total length
+            truncation_strategy: How to truncate
+            
+        Returns:
+            Truncated sequences
+        """
+        if tokens_b is None:
+            # Single sequence
+            return tokens_a[:max_length], None
+        
+        # Account for special tokens: [CLS] + tokens_a + [SEP] + tokens_b + [SEP]
+        special_tokens_count = 3
+        max_tokens = max_length - special_tokens_count
+        
+        total_length = len(tokens_a) + len(tokens_b)
+        
+        if total_length <= max_tokens:
+            return tokens_a, tokens_b
+        
+        if truncation_strategy == "only_first":
+            tokens_a = tokens_a[:max_tokens]
+        elif truncation_strategy == "only_second":
+            tokens_b = tokens_b[:max_tokens]
+        else:  # longest_first or equal
+            while total_length > max_tokens:
+                if len(tokens_a) > len(tokens_b):
+                    tokens_a = tokens_a[:-1]
+                else:
+                    tokens_b = tokens_b[:-1]
+                total_length = len(tokens_a) + len(tokens_b)
+        
+        return tokens_a, tokens_b

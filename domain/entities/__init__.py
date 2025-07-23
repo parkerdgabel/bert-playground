@@ -1,8 +1,26 @@
 """Domain entities - core business objects with no framework dependencies."""
 
-from .model import BertModel, ModelArchitecture, ModelWeights
+from .model import (
+    BertModel, 
+    ModelArchitecture, 
+    ModelWeights,
+    TaskHead,
+    ModelSpecification,
+    ModelType,
+    TaskType,
+    ActivationType,
+    AttentionType,
+)
 from .training import TrainingSession, TrainingConfig, TrainingState
-from .dataset import Dataset, DataBatch, TokenSequence
+from .dataset import (
+    Dataset, 
+    DataBatch, 
+    DataSample,
+    DatasetStatistics,
+    DatasetSpecification,
+    DatasetSplit,
+    DataFormat,
+)
 from .metrics import TrainingMetrics, EvaluationMetrics
 
 __all__ = [
@@ -10,6 +28,12 @@ __all__ = [
     "BertModel",
     "ModelArchitecture",
     "ModelWeights",
+    "TaskHead",
+    "ModelSpecification",
+    "ModelType",
+    "TaskType",
+    "ActivationType", 
+    "AttentionType",
     # Training entities
     "TrainingSession",
     "TrainingConfig",
@@ -17,7 +41,11 @@ __all__ = [
     # Dataset entities
     "Dataset",
     "DataBatch",
-    "TokenSequence",
+    "DataSample",
+    "DatasetStatistics",
+    "DatasetSpecification",
+    "DatasetSplit",
+    "DataFormat",
     # Metrics entities
     "TrainingMetrics",
     "EvaluationMetrics",

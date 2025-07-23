@@ -1,4 +1,8 @@
-"""Model training service - pure business logic."""
+"""Model training service - pure business logic.
+
+This service contains only the business logic for training,
+without any dependencies on external systems or frameworks.
+"""
 
 from typing import Optional, Dict, Any, List, Callable
 from dataclasses import dataclass
@@ -6,300 +10,275 @@ from domain.entities.model import BertModel
 from domain.entities.training import TrainingSession, TrainingState, TrainingConfig
 from domain.entities.dataset import Dataset, DataBatch
 from domain.entities.metrics import TrainingMetrics, EvaluationMetrics
-from domain.ports.compute import ComputePort
-from domain.ports.data import DataLoaderPort
-from domain.ports.monitoring import MonitoringPort
-from domain.ports.storage import CheckpointPort
-from domain.ports.metrics import MetricsCalculatorPort
+from domain.exceptions import TrainingError, ModelNotInitializedError
 
 
-@dataclass
 class ModelTrainingService:
-    """Service for training BERT models.
+    """Service for orchestrating model training logic.
     
-    This service orchestrates the training process without any
-    framework-specific implementation details.
+    This service contains pure business logic for training
+    without any framework-specific implementation details.
+    It defines WHAT should happen during training, not HOW.
     """
-    compute_port: ComputePort
-    data_loader_port: DataLoaderPort
-    monitoring_port: MonitoringPort
-    checkpoint_port: CheckpointPort
-    metrics_port: MetricsCalculatorPort
     
-    def train(
+    def validate_training_setup(
         self,
         model: BertModel,
-        training_session: TrainingSession,
-        train_dataset: Dataset,
-        eval_dataset: Optional[Dataset] = None,
-        callbacks: Optional[List[Callable]] = None,
-    ) -> TrainingSession:
-        """Execute training process.
+        config: TrainingConfig,
+        dataset: Dataset,
+    ) -> List[str]:
+        """Validate that training can proceed.
         
         Args:
             model: Model to train
-            training_session: Training session configuration
-            train_dataset: Training dataset
-            eval_dataset: Optional evaluation dataset
-            callbacks: Optional training callbacks
+            config: Training configuration
+            dataset: Training dataset
             
         Returns:
-            Completed training session
+            List of validation errors (empty if valid)
         """
-        config = training_session.config
-        state = training_session.state
+        errors = []
         
-        # Initialize training
-        self._initialize_training(model, config, state)
+        # Validate model
+        if not model.architecture:
+            errors.append("Model must have architecture defined")
         
-        # Create data loader
-        train_loader = self.data_loader_port.create_dataloader(
-            dataset=train_dataset,
-            batch_size=config.batch_size,
-            shuffle=True,
-            num_workers=0,
-            prefetch_size=4,
-        )
-        
-        # Create optimizer
-        optimizer_state = self.compute_port.create_optimizer(
-            model=model,
-            optimizer_type=config.optimizer_type.value,
-            learning_rate=config.learning_rate,
-            weight_decay=config.weight_decay,
-            beta1=config.adam_beta1,
-            beta2=config.adam_beta2,
-            epsilon=config.adam_epsilon,
-        )
-        
-        # Training loop
-        while not training_session.is_completed and not training_session.should_stop_early:
-            state.epoch += 1
-            train_loader.set_epoch(state.epoch)
-            
-            # Epoch training
-            epoch_metrics = self._train_epoch(
-                model=model,
-                train_loader=train_loader,
-                optimizer_state=optimizer_state,
-                config=config,
-                state=state,
-                callbacks=callbacks,
-            )
-            
-            # Evaluation
-            if eval_dataset and self._should_evaluate(state, config):
-                eval_metrics = self._evaluate(
-                    model=model,
-                    dataset=eval_dataset,
-                    config=config,
+        if model.task_head and dataset.num_classes:
+            if model.task_head.num_labels != dataset.num_classes:
+                errors.append(
+                    f"Model labels ({model.task_head.num_labels}) "
+                    f"don't match dataset classes ({dataset.num_classes})"
                 )
-                self.monitoring_port.log_evaluation_metrics(eval_metrics)
-                
-                # Update best metric
-                primary_metric_name, primary_metric_value = eval_metrics.get_primary_metric()
-                improved = state.update_best_metric(primary_metric_value)
-                
-                if improved and callbacks:
-                    for callback in callbacks:
-                        callback('on_improve', model, state, eval_metrics)
-            
-            # Checkpointing
-            if self._should_checkpoint(state, config):
-                checkpoint_path = f"checkpoint_epoch_{state.epoch}_step_{state.global_step}"
-                self.checkpoint_port.save_checkpoint(
-                    model=model,
-                    training_state=state,
-                    optimizer_state=optimizer_state,
-                    path=checkpoint_path,
-                    metadata={
-                        "epoch": state.epoch,
-                        "global_step": state.global_step,
-                        "best_metric": state.best_metric,
-                    }
-                )
-                training_session.add_checkpoint(checkpoint_path)
         
-        # Final evaluation
-        if eval_dataset:
-            final_metrics = self._evaluate(model, eval_dataset, config)
-            training_session.final_metrics = final_metrics.to_dict()
+        # Validate dataset
+        if dataset.is_empty:
+            errors.append("Dataset cannot be empty")
         
-        return training_session
+        if not dataset.is_labeled and model.task_head:
+            errors.append("Dataset must have labels for supervised training")
+        
+        # Validate config
+        if config.batch_size > dataset.size:
+            errors.append("Batch size cannot exceed dataset size")
+        
+        if config.num_epochs <= 0:
+            errors.append("Number of epochs must be positive")
+        
+        return errors
     
-    def _initialize_training(
+    def create_training_session(
         self,
         model: BertModel,
         config: TrainingConfig,
+        session_id: Optional[str] = None,
+    ) -> TrainingSession:
+        """Create a new training session.
+        
+        Args:
+            model: Model to train
+            config: Training configuration
+            session_id: Optional session identifier
+            
+        Returns:
+            New training session
+        """
+        import uuid
+        from datetime import datetime
+        
+        if session_id is None:
+            session_id = str(uuid.uuid4())
+        
+        state = TrainingState(
+            epoch=0,
+            global_step=0,
+            best_metric=float('inf') if config.lower_is_better else float('-inf'),
+            metadata={
+                "model_id": model.id,
+                "model_name": model.name,
+                "start_time": datetime.now().isoformat(),
+            }
+        )
+        
+        return TrainingSession(
+            session_id=session_id,
+            config=config,
+            state=state,
+            metadata={
+                "model_architecture": model.architecture.model_type.value,
+                "task_type": model.task_type.value if model.task_type else None,
+            }
+        )
+    
+    def should_stop_early(
+        self,
         state: TrainingState,
-    ) -> None:
-        """Initialize training process."""
-        # Start monitoring run
-        run_id = self.monitoring_port.start_run(
-            run_name=f"bert_training_{state.epoch}",
-            tags={"model_type": "bert", "framework": "mlx"},
-        )
-        
-        # Log hyperparameters
-        self.monitoring_port.log_hyperparameters(config.__dict__)
-        
-        # Compile model if requested
-        if config.compile_model:
-            model = self.compute_port.compile_model(model)
-    
-    def _train_epoch(
-        self,
-        model: BertModel,
-        train_loader: DataLoaderPort,
-        optimizer_state: Dict[str, Any],
         config: TrainingConfig,
+    ) -> bool:
+        """Determine if training should stop early.
+        
+        Args:
+            state: Current training state
+            config: Training configuration
+            
+        Returns:
+            True if training should stop
+        """
+        # Check if already flagged to stop
+        if state.should_stop:
+            return True
+        
+        # Check early stopping patience
+        if config.early_stopping_patience:
+            if state.no_improvement_count >= config.early_stopping_patience:
+                return True
+        
+        # Check for NaN loss
+        if state.train_loss and (
+            state.train_loss != state.train_loss or  # NaN check
+            state.train_loss == float('inf')
+        ):
+            return True
+        
+        return False
+    
+    def update_training_state(
+        self,
         state: TrainingState,
-        callbacks: Optional[List[Callable]] = None,
-    ) -> List[TrainingMetrics]:
-        """Train for one epoch."""
-        epoch_metrics = []
-        accumulated_loss = 0.0
+        metrics: TrainingMetrics,
+        is_best: bool = False,
+    ) -> TrainingState:
+        """Update training state with new metrics.
         
-        # Create progress bar
-        progress = self.monitoring_port.create_progress_bar(
-            total=len(train_loader),
-            description=f"Epoch {state.epoch}",
-            unit="batch",
-        )
-        
-        for batch_idx, batch in enumerate(train_loader):
-            # Forward pass
-            with self.compute_port.mixed_precision_context(config.mixed_precision):
-                outputs = self.compute_port.forward(
-                    model=model,
-                    batch=batch,
-                    training=True,
-                )
-                loss = outputs['loss']
-                accumulated_loss += loss
+        Args:
+            state: Current state
+            metrics: New metrics
+            is_best: Whether this is the best result so far
             
-            # Backward pass
-            if (batch_idx + 1) % config.gradient_accumulation_steps == 0:
-                # Scale loss by accumulation steps
-                scaled_loss = accumulated_loss / config.gradient_accumulation_steps
-                
-                # Compute gradients
-                self.compute_port.backward(scaled_loss)
-                
-                # Calculate learning rate
-                learning_rate = self._get_learning_rate(
-                    state.global_step,
-                    config,
-                )
-                
-                # Optimization step
-                optimizer_state, grad_norm = self.compute_port.optimize_step(
-                    model=model,
-                    optimizer_state=optimizer_state,
-                    learning_rate=learning_rate,
-                    max_grad_norm=config.max_grad_norm,
-                )
-                
-                # Update state
-                state.update_step(
-                    loss=accumulated_loss / config.gradient_accumulation_steps,
-                    learning_rate=learning_rate,
-                )
-                
-                # Create metrics
-                metrics = TrainingMetrics(
-                    epoch=state.epoch,
-                    step=state.global_step,
-                    loss=accumulated_loss / config.gradient_accumulation_steps,
-                    learning_rate=learning_rate,
-                    gradient_norm=grad_norm,
-                )
-                epoch_metrics.append(metrics)
-                
-                # Log metrics
-                if state.global_step % config.logging_steps == 0:
-                    self.monitoring_port.log_training_metrics(metrics)
-                
-                # Update progress
-                progress.set_postfix(
-                    loss=f"{metrics.loss:.4f}",
-                    lr=f"{learning_rate:.2e}",
-                )
-                
-                # Reset accumulated loss
-                accumulated_loss = 0.0
-            
-            progress.update(1)
-            
-            # Callbacks
-            if callbacks:
-                for callback in callbacks:
-                    callback('on_batch_end', model, state, batch_idx)
+        Returns:
+            Updated state
+        """
+        # Update basic metrics
+        state.epoch = metrics.epoch
+        state.global_step = metrics.step
+        state.train_loss = metrics.loss
+        state.learning_rate = metrics.learning_rate
         
-        progress.close()
-        state.complete_epoch()
+        if metrics.gradient_norm is not None:
+            state.grad_norm = metrics.gradient_norm
         
-        return epoch_metrics
-    
-    def _evaluate(
-        self,
-        model: BertModel,
-        dataset: Dataset,
-        config: TrainingConfig,
-    ) -> EvaluationMetrics:
-        """Evaluate model on dataset."""
-        # This would be implemented by the evaluation service
-        # Placeholder for now
-        return EvaluationMetrics(
-            dataset_name=dataset.name,
-            split=dataset.split.value,
-            loss=0.0,
-        )
-    
-    def _get_learning_rate(
-        self,
-        step: int,
-        config: TrainingConfig,
-    ) -> float:
-        """Calculate current learning rate."""
-        # Warmup
-        if config.has_warmup:
-            warmup_steps = config.warmup_steps
-            if warmup_steps == 0:
-                # Calculate from ratio
-                total_steps = config.num_epochs * 1000  # Approximate
-                warmup_steps = int(config.warmup_ratio * total_steps)
-            
-            if step < warmup_steps:
-                return config.learning_rate * step / warmup_steps
+        # Update history
+        state.train_history.append({
+            "epoch": metrics.epoch,
+            "step": metrics.step,
+            "loss": metrics.loss,
+            "learning_rate": metrics.learning_rate,
+            **metrics.additional,
+        })
         
-        # Scheduler
-        if config.scheduler_type.value == "constant":
-            return config.learning_rate
-        elif config.scheduler_type.value == "linear":
-            # Linear decay after warmup
-            warmup_steps = config.warmup_steps or 0
-            total_steps = config.num_epochs * 1000  # Approximate
-            if step <= warmup_steps:
-                return config.learning_rate
-            progress = (step - warmup_steps) / (total_steps - warmup_steps)
-            return config.learning_rate * (1 - progress)
-        elif config.scheduler_type.value == "cosine":
-            # Cosine annealing
-            import math
-            warmup_steps = config.warmup_steps or 0
-            if step <= warmup_steps:
-                return config.learning_rate
-            total_steps = config.num_epochs * 1000  # Approximate
-            progress = (step - warmup_steps) / (total_steps - warmup_steps)
-            return config.learning_rate * 0.5 * (1 + math.cos(math.pi * progress))
+        # Update best metric tracking
+        if is_best:
+            state.best_val_loss = state.val_loss
+            state.best_val_metric = state.metrics.get("primary_metric", state.val_loss)
+            state.no_improvement_count = 0
         else:
-            return config.learning_rate
+            state.no_improvement_count += 1
+        
+        return state
     
-    def _should_evaluate(self, state: TrainingState, config: TrainingConfig) -> bool:
-        """Check if evaluation should be performed."""
-        return state.global_step % config.eval_steps == 0
+    def calculate_learning_rate(
+        self,
+        base_lr: float,
+        step: int,
+        total_steps: int,
+        warmup_steps: int,
+        schedule_type: str = "linear",
+    ) -> float:
+        """Calculate learning rate for current step.
+        
+        Args:
+            base_lr: Base learning rate
+            step: Current step
+            total_steps: Total training steps
+            warmup_steps: Warmup steps
+            schedule_type: Type of schedule
+            
+        Returns:
+            Learning rate for this step
+        """
+        # Warmup phase
+        if step < warmup_steps:
+            return base_lr * (step / warmup_steps)
+        
+        # Post-warmup scheduling
+        progress = (step - warmup_steps) / (total_steps - warmup_steps)
+        
+        if schedule_type == "linear":
+            return base_lr * (1.0 - progress)
+        elif schedule_type == "cosine":
+            import math
+            return base_lr * 0.5 * (1.0 + math.cos(math.pi * progress))
+        elif schedule_type == "constant":
+            return base_lr
+        else:
+            return base_lr
     
-    def _should_checkpoint(self, state: TrainingState, config: TrainingConfig) -> bool:
-        """Check if checkpoint should be saved."""
-        return state.global_step % config.save_steps == 0
+    def prepare_checkpoint_data(
+        self,
+        model: BertModel,
+        session: TrainingSession,
+        metrics: Optional[Dict[str, float]] = None,
+    ) -> Dict[str, Any]:
+        """Prepare data for checkpointing.
+        
+        Args:
+            model: Current model
+            session: Training session
+            metrics: Optional current metrics
+            
+        Returns:
+            Checkpoint data dictionary
+        """
+        from datetime import datetime
+        
+        checkpoint_data = {
+            "model_id": model.id,
+            "model_name": model.name,
+            "model_config": model.get_config(),
+            "session_id": session.session_id,
+            "training_state": {
+                "epoch": session.state.epoch,
+                "global_step": session.state.global_step,
+                "best_metric": session.state.best_val_metric,
+                "no_improvement_count": session.state.no_improvement_count,
+            },
+            "training_config": session.config.to_dict(),
+            "timestamp": datetime.now().isoformat(),
+        }
+        
+        if metrics:
+            checkpoint_data["metrics"] = metrics
+        
+        return checkpoint_data
+    
+    def calculate_gradient_accumulation_steps(
+        self,
+        desired_batch_size: int,
+        max_batch_size: int,
+    ) -> int:
+        """Calculate gradient accumulation steps needed.
+        
+        Args:
+            desired_batch_size: Desired effective batch size
+            max_batch_size: Maximum batch size that fits in memory
+            
+        Returns:
+            Number of gradient accumulation steps
+        """
+        if desired_batch_size <= max_batch_size:
+            return 1
+        
+        steps = desired_batch_size // max_batch_size
+        if desired_batch_size % max_batch_size != 0:
+            steps += 1
+        
+        return steps
