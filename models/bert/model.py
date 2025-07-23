@@ -7,9 +7,12 @@ with task-specific heads, following clean separation of concerns.
 import json
 from pathlib import Path
 
-import mlx.core as mx
-import mlx.nn as nn
 from loguru import logger
+
+import mlx.nn as nn
+from core.ports.compute import Array
+from core.bootstrap import get_service
+from core.ports.compute import ComputeBackend
 
 # Import all head modules
 from ..heads.base import BaseHead
@@ -49,13 +52,13 @@ class BertWithHead(nn.Module):
 
     def __call__(
         self,
-        input_ids: mx.array,
-        attention_mask: mx.array | None = None,
-        token_type_ids: mx.array | None = None,
-        position_ids: mx.array | None = None,
-        labels: mx.array | None = None,
+        input_ids: Array,
+        attention_mask: Array | None = None,
+        token_type_ids: Array | None = None,
+        position_ids: Array | None = None,
+        labels: Array | None = None,
         **kwargs,
-    ) -> dict[str, mx.array]:
+    ) -> dict[str, Array]:
         """Forward pass through BERT and head.
 
         Args:
@@ -108,11 +111,10 @@ class BertWithHead(nn.Module):
         with open(head_path / "config.json", "w") as f:
             json.dump(self.head.config.__dict__, f, indent=2)
 
-        # Save head weights
-        import mlx.utils
-
-        head_state = dict(mlx.utils.tree_flatten(self.head.parameters()))
-        mx.save_safetensors(str(head_path / "model.safetensors"), head_state)
+        # Save head weights using compute backend
+        compute_backend = get_service(ComputeBackend)
+        head_state = dict(self.head.parameters())
+        compute_backend.save_arrays(str(head_path / "model.safetensors"), head_state)
 
         # Save model metadata
         head_name = self.head.config.head_type
@@ -276,9 +278,11 @@ class BertWithHead(nn.Module):
                 **create_head_config,
             )
 
-            # Load head weights
-            head_weights = mx.load(str(model_path / "head" / "model.safetensors"))
-            head.load_weights(list(head_weights.items()))
+            # Load head weights using compute backend
+            compute_backend = get_service(ComputeBackend)
+            head_weights = compute_backend.load_arrays(str(model_path / "head" / "model.safetensors"))
+            unflattened_weights = compute_backend.tree_unflatten(list(head_weights.items()))
+            head.update(unflattened_weights)
 
             # Create model
             model = cls(bert=bert, head=head)

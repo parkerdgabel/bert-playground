@@ -6,8 +6,8 @@ following the clean design patterns from the BERT module.
 
 from abc import ABC, abstractmethod
 
-import mlx.core as mx
 import mlx.nn as nn
+from core.ports.compute import Array
 
 from .config import HeadConfig
 from .layers.pooling import create_pooling_layer
@@ -107,11 +107,11 @@ class BaseHead(nn.Module, ABC):
 
     def __call__(
         self,
-        hidden_states: mx.array,
-        attention_mask: mx.array | None = None,
-        labels: mx.array | None = None,
+        hidden_states: Array,
+        attention_mask: Array | None = None,
+        labels: Array | None = None,
         **kwargs,
-    ) -> dict[str, mx.array]:
+    ) -> dict[str, Array]:
         """Make the head callable.
 
         Args:
@@ -127,11 +127,11 @@ class BaseHead(nn.Module, ABC):
 
     def forward(
         self,
-        hidden_states: mx.array,
-        attention_mask: mx.array | None = None,
-        labels: mx.array | None = None,
+        hidden_states: Array,
+        attention_mask: Array | None = None,
+        labels: Array | None = None,
         **kwargs,
-    ) -> dict[str, mx.array]:
+    ) -> dict[str, Array]:
         """Forward pass through the head.
 
         Args:
@@ -160,7 +160,7 @@ class BaseHead(nn.Module, ABC):
         return output
 
     @abstractmethod
-    def _forward_output(self, features: mx.array) -> dict[str, mx.array]:
+    def _forward_output(self, features: Array) -> dict[str, Array]:
         """Forward pass through the output layer.
 
         Args:
@@ -173,8 +173,8 @@ class BaseHead(nn.Module, ABC):
 
     @abstractmethod
     def compute_loss(
-        self, predictions: dict[str, mx.array], targets: mx.array, **kwargs
-    ) -> mx.array:
+        self, predictions: dict[str, Array], targets: Array, **kwargs
+    ) -> Array:
         """Compute loss for the head.
 
         Args:
