@@ -53,11 +53,8 @@ from .decorators import (
     clear_registry,
 )
 
-# Import existing decorators from services for backward compatibility
+# Import registration functions from services
 from .services import (
-    injectable,
-    singleton,
-    provider,
     register_service,
     register_singleton,
     register_factory,
@@ -136,11 +133,6 @@ __all__ = [
     
     # Configuration decorators
     "value",
-    
-    # Backward compatibility decorators
-    "injectable",
-    "singleton",
-    "provider",
     
     # Registration functions
     "register_service",

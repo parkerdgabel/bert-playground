@@ -6,7 +6,7 @@ components of k-bert in a clean, testable way.
 
 from typing import Protocol, Optional, Dict, Any
 from pathlib import Path
-from infrastructure.di import injectable, singleton, provider, get_container
+from infrastructure.di import service, adapter, factory, Scope, get_container
 
 
 # Define protocols for core k-bert components
@@ -49,7 +49,7 @@ class ConfigManagerProtocol(Protocol):
 
 # Implementations
 
-@singleton(bind_to=ConfigManagerProtocol)
+@adapter(ConfigManagerProtocol, scope=Scope.SINGLETON)
 class ConfigManager:
     """Manages configuration for k-bert."""
     
@@ -88,7 +88,7 @@ class ConfigManager:
         return result
 
 
-@injectable(bind_to=ModelFactoryProtocol)
+@adapter(ModelFactoryProtocol)
 class MLXModelFactory:
     """Factory for creating MLX models."""
     
@@ -107,7 +107,7 @@ class MLXModelFactory:
         return f"MockModel({model_config['type']})"
 
 
-@injectable(bind_to=DataLoaderProtocol)
+@adapter(DataLoaderProtocol)
 class MLXDataLoader:
     """MLX-optimized data loader."""
     
@@ -125,7 +125,7 @@ class MLXDataLoader:
         return {"train": "mock_train_data", "val": "mock_val_data"}
 
 
-@injectable(bind_to=TrainerProtocol)
+@adapter(TrainerProtocol)
 class MLXTrainer:
     """Trainer for MLX models."""
     
@@ -160,16 +160,17 @@ class MLFlowTracker:
         print(f"[MLFlow] Logged metric: {key}={value}")
 
 
-@provider
-def create_mlflow_tracker() -> MLFlowTracker:
+@factory(MLFlowTracker)
+class MLFlowTrackerFactory:
     """Factory for creating MLFlow tracker."""
-    print("Creating MLFlow tracker via provider")
-    return MLFlowTracker()
+    def create(self) -> MLFlowTracker:
+        print("Creating MLFlow tracker via factory")
+        return MLFlowTracker()
 
 
 # Main application class that uses DI
 
-@injectable
+@service
 class KBertApplication:
     """Main application class demonstrating DI usage."""
     
@@ -212,8 +213,16 @@ def demo_di_integration():
     """Demonstrate the DI system in action."""
     print("=== k-bert DI Integration Demo ===\n")
     
-    # Get container (all decorators have already registered services)
+    # Get container and register components
     container = get_container()
+    
+    # Register all decorated components
+    container.core_container.register_decorator(ConfigManager)
+    container.core_container.register_decorator(MLXModelFactory)
+    container.core_container.register_decorator(MLXDataLoader)
+    container.core_container.register_decorator(MLXTrainer)
+    container.core_container.register_decorator(MLFlowTrackerFactory)
+    container.core_container.register_decorator(KBertApplication)
     
     # Resolve the main application
     app = container.resolve(KBertApplication)

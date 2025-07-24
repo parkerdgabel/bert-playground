@@ -266,20 +266,21 @@ print(scanner.generate_report())
 5. **Use profiles** for environment-specific components
 6. **Validate architecture** regularly to maintain clean boundaries
 
-## Migration from Existing Code
+## Migration from Legacy Decorators
 
-The new decorators are fully backward compatible:
+The legacy decorators (@injectable, @singleton, @provider) have been removed. Use the new decorators instead:
 
 ```python
-# Old style (still works)
-@injectable(singleton=True)
-class OldService:
-    pass
+# Old style (no longer supported)
+# @injectable(bind_to=Protocol)
+# @singleton(bind_to=Protocol)
+# @provider
 
-# New style (recommended)
-@service
-class NewService:
-    pass
+# New style (required)
+@adapter(Protocol)  # For implementations of protocols
+@service  # For domain services
+@repository  # For data repositories
+@factory(ProducedType)  # For factory classes
 ```
 
 ## Examples

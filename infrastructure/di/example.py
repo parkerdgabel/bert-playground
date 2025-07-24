@@ -4,11 +4,12 @@ This file demonstrates various ways to use the DI container with protocols,
 decorators, and different lifecycle strategies.
 """
 
-from typing import Protocol
+from typing import Protocol, Any
 from infrastructure.di import (
-    injectable,
-    singleton,
-    provider,
+    service,
+    adapter,
+    factory,
+    Scope,
     get_container,
     register_service,
     register_instance,
@@ -47,7 +48,7 @@ class ConfigProtocol(Protocol):
 
 # Implementations using decorators
 
-@injectable(bind_to=DatabaseProtocol)
+@adapter(DatabaseProtocol)
 class SqliteDatabase:
     """SQLite database implementation."""
     
@@ -59,7 +60,7 @@ class SqliteDatabase:
         return ["result1", "result2"]
 
 
-@singleton(bind_to=CacheProtocol)
+@adapter(CacheProtocol, scope=Scope.SINGLETON)
 class InMemoryCache:
     """In-memory cache implementation (singleton)."""
     
@@ -74,7 +75,7 @@ class InMemoryCache:
         self._cache[key] = value
 
 
-@injectable
+@service
 class ConfigService:
     """Configuration service with auto-wired dependencies."""
     
@@ -97,11 +98,12 @@ class ConfigService:
 
 # Factory function example
 
-@provider
-def create_logger() -> "Logger":
-    """Factory function to create configured logger."""
-    print("Creating logger via factory")
-    return Logger("app.log")
+@factory(Logger)
+class LoggerFactory:
+    """Factory to create configured logger."""
+    def create(self) -> Logger:
+        print("Creating logger via factory")
+        return Logger("app.log")
 
 
 class Logger:
@@ -116,7 +118,7 @@ class Logger:
 
 # Service using multiple dependencies
 
-@injectable
+@service
 class UserService:
     """Service demonstrating dependency injection of multiple services."""
     
@@ -156,6 +158,13 @@ def demo_basic_usage():
     
     # Get container
     container = get_container()
+    
+    # Register decorated components
+    container.core_container.register_decorator(SqliteDatabase)
+    container.core_container.register_decorator(InMemoryCache)
+    container.core_container.register_decorator(ConfigService)
+    container.core_container.register_decorator(LoggerFactory)
+    container.core_container.register_decorator(UserService)
     
     # Resolve services
     db = container.resolve(DatabaseProtocol)

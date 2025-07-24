@@ -262,27 +262,66 @@ def component(
     return decorator
 
 
+# Helper for dual-syntax decorators
+def _make_decorator(
+    component_type: ComponentType,
+    default_scope: Union[Scope, str],
+    tags: Set[str],
+    cls: Optional[Type[T]] = None,
+    *,
+    name: Optional[str] = None,
+    scope: Optional[Union[Scope, str]] = None,
+    **kwargs
+) -> Union[Type[T], Callable[[Type[T]], Type[T]]]:
+    """Helper to create decorators that support both @decorator and @decorator() syntax."""
+    if scope is None:
+        scope = default_scope
+        
+    def decorator(cls: Type[T]) -> Type[T]:
+        return component(
+            component_type,
+            name=name,
+            scope=scope,
+            tags=tags,
+            **kwargs
+        )(cls)
+    
+    if cls is None:
+        return decorator
+    else:
+        return decorator(cls)
+
+
 # Layer-specific decorators
 
 def service(
-    name: Optional[str] = None,
+    cls: Optional[Type[T]] = None,
     *,
+    name: Optional[str] = None,
     scope: Union[Scope, str] = Scope.SINGLETON,
     **kwargs
-) -> Callable[[Type[T]], Type[T]]:
+) -> Union[Type[T], Callable[[Type[T]], Type[T]]]:
     """
     Decorator for domain services.
     
     Domain services contain pure business logic without framework dependencies.
     They are singleton by default.
     """
-    return component(
-        ComponentType.DOMAIN_SERVICE,
-        name=name,
-        scope=scope,
-        tags={"domain", "service"},
-        **kwargs
-    )
+    def decorator(cls: Type[T]) -> Type[T]:
+        return component(
+            ComponentType.DOMAIN_SERVICE,
+            name=name,
+            scope=scope,
+            tags={"domain", "service"},
+            **kwargs
+        )(cls)
+    
+    if cls is None:
+        # Called with parameters: @service(...)
+        return decorator
+    else:
+        # Called without parameters: @service
+        return decorator(cls)
 
 
 def application_service(
@@ -307,24 +346,31 @@ def application_service(
 
 
 def use_case(
-    name: Optional[str] = None,
+    cls: Optional[Type[T]] = None,
     *,
+    name: Optional[str] = None,
     scope: Union[Scope, str] = Scope.TRANSIENT,
     **kwargs
-) -> Callable[[Type[T]], Type[T]]:
+) -> Union[Type[T], Callable[[Type[T]], Type[T]]]:
     """
     Decorator for use cases.
     
     Use cases represent specific application operations.
     They are transient by default.
     """
-    return component(
-        ComponentType.USE_CASE,
-        name=name,
-        scope=scope,
-        tags={"application", "use_case"},
-        **kwargs
-    )
+    def decorator(cls: Type[T]) -> Type[T]:
+        return component(
+            ComponentType.USE_CASE,
+            name=name,
+            scope=scope,
+            tags={"application", "use_case"},
+            **kwargs
+        )(cls)
+    
+    if cls is None:
+        return decorator
+    else:
+        return decorator(cls)
 
 
 def port(
@@ -388,24 +434,31 @@ def adapter(
 
 
 def repository(
-    name: Optional[str] = None,
+    cls: Optional[Type[T]] = None,
     *,
+    name: Optional[str] = None,
     scope: Union[Scope, str] = Scope.SINGLETON,
     **kwargs
-) -> Callable[[Type[T]], Type[T]]:
+) -> Union[Type[T], Callable[[Type[T]], Type[T]]]:
     """
     Decorator for repositories.
     
     Repositories handle data persistence and retrieval.
     They are singleton by default.
     """
-    return component(
-        ComponentType.REPOSITORY,
-        name=name,
-        scope=scope,
-        tags={"repository", "infrastructure"},
-        **kwargs
-    )
+    def decorator(cls: Type[T]) -> Type[T]:
+        return component(
+            ComponentType.REPOSITORY,
+            name=name,
+            scope=scope,
+            tags={"repository", "infrastructure"},
+            **kwargs
+        )(cls)
+    
+    if cls is None:
+        return decorator
+    else:
+        return decorator(cls)
 
 
 def factory(
