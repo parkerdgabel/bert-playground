@@ -1,443 +1,375 @@
-"""Domain service for training logic.
+"""Pure domain training service.
 
-This module contains the pure business logic for training BERT models,
-free from any framework dependencies.
+This service contains only business logic for training decisions,
+completely free from infrastructure concerns.
 """
 
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any, TypeVar, Generic, Callable
+from typing import Optional, List, Dict, Any
+from datetime import datetime, timedelta
 from enum import Enum
-from datetime import datetime
-import math
+
+from domain.entities.model import BertModel
+from domain.entities.dataset import Dataset
+from domain.entities.training import TrainingSession, TrainingState
+from domain.value_objects.hyperparameters import Hyperparameters, LearningRateSchedule
+from domain.registry import domain_service, ServiceScope
 
 
-TArray = TypeVar('TArray')
-TOptimizer = TypeVar('TOptimizer')
-TScheduler = TypeVar('TScheduler')
-
-
-class TrainingPhase(Enum):
-    """Phases of model training."""
-    WARMUP = "warmup"
-    TRAINING = "training"
-    VALIDATION = "validation"
-    EVALUATION = "evaluation"
-    COOLDOWN = "cooldown"
-
-
-class OptimizerType(Enum):
-    """Types of optimizers."""
-    ADAM = "adam"
-    ADAMW = "adamw"
-    SGD = "sgd"
-    LAMB = "lamb"
-    LION = "lion"
-
-
-class SchedulerType(Enum):
-    """Types of learning rate schedulers."""
-    CONSTANT = "constant"
-    LINEAR = "linear"
-    COSINE = "cosine"
-    POLYNOMIAL = "polynomial"
-    EXPONENTIAL = "exponential"
-    WARMUP_CONSTANT = "warmup_constant"
-    WARMUP_LINEAR = "warmup_linear"
-    WARMUP_COSINE = "warmup_cosine"
+class TrainingDecision(Enum):
+    """Decisions the training service can make."""
+    CONTINUE = "continue"
+    CHECKPOINT = "checkpoint"
+    EVALUATE = "evaluate"
+    STOP_EARLY = "stop_early"
+    COMPLETE = "complete"
 
 
 @dataclass
-class TrainingConfig:
-    """Configuration for training process."""
-    
-    # Basic settings
-    num_epochs: int = 3
-    batch_size: int = 32
-    learning_rate: float = 5e-5
-    weight_decay: float = 0.01
-    max_grad_norm: float = 1.0
-    
-    # Optimizer
-    optimizer_type: OptimizerType = OptimizerType.ADAMW
-    adam_beta1: float = 0.9
-    adam_beta2: float = 0.999
-    adam_epsilon: float = 1e-8
-    
-    # Scheduler
-    scheduler_type: SchedulerType = SchedulerType.WARMUP_LINEAR
-    warmup_steps: Optional[int] = None
-    warmup_ratio: float = 0.1
-    
-    # Evaluation
-    eval_steps: Optional[int] = None
-    eval_strategy: str = "epoch"  # "epoch", "steps", "no"
-    save_steps: Optional[int] = None
-    save_strategy: str = "epoch"  # "epoch", "steps", "no"
-    
-    # Early stopping
-    early_stopping_patience: Optional[int] = None
-    early_stopping_threshold: float = 0.0
-    
-    # Gradient accumulation
-    gradient_accumulation_steps: int = 1
-    
-    # Mixed precision
-    use_mixed_precision: bool = False
-    
-    # Checkpointing
-    save_total_limit: Optional[int] = None
-    load_best_model_at_end: bool = True
-    metric_for_best_model: str = "eval_loss"
-    greater_is_better: bool = False
-    
-    # Logging
-    logging_steps: int = 100
-    logging_first_step: bool = True
-    
-    # Advanced
-    label_smoothing_factor: float = 0.0
-    gradient_checkpointing: bool = False
-    
-    def __post_init__(self):
-        """Validate and compute derived values."""
-        if self.warmup_steps is None and self.warmup_ratio > 0:
-            # Will be computed based on total steps
-            pass
-        elif self.warmup_steps is not None and self.warmup_steps < 0:
-            raise ValueError("Warmup steps must be non-negative")
-            
-        if self.eval_strategy == "steps" and self.eval_steps is None:
-            raise ValueError("eval_steps must be specified when eval_strategy='steps'")
-            
-        if self.save_strategy == "steps" and self.save_steps is None:
-            raise ValueError("save_steps must be specified when save_strategy='steps'")
+class TrainingProgress:
+    """Represents current training progress."""
+    current_epoch: int
+    total_epochs: int
+    current_step: int
+    total_steps: int
+    current_loss: float
+    best_loss: float
+    improvement_rate: float
+    time_elapsed: timedelta
+    estimated_time_remaining: timedelta
     
     @property
-    def effective_batch_size(self) -> int:
-        """Compute effective batch size with gradient accumulation."""
-        return self.batch_size * self.gradient_accumulation_steps
+    def percentage_complete(self) -> float:
+        """Get completion percentage."""
+        return (self.current_step / self.total_steps) * 100 if self.total_steps > 0 else 0
     
-    def compute_total_steps(self, num_training_samples: int) -> int:
-        """Compute total training steps."""
-        steps_per_epoch = math.ceil(
-            num_training_samples / self.effective_batch_size
+    @property
+    def is_improving(self) -> bool:
+        """Check if model is still improving."""
+        return self.improvement_rate > 0.001  # 0.1% improvement threshold
+
+
+@dataclass
+class LearningStrategy:
+    """Encapsulates learning strategy decisions."""
+    should_reduce_lr: bool
+    new_learning_rate: Optional[float]
+    should_increase_batch_size: bool
+    suggested_batch_size: Optional[int]
+    reason: str
+
+
+@dataclass
+class CheckpointStrategy:
+    """Strategy for checkpointing during training."""
+    checkpoint_frequency: str  # "epoch", "steps", "best"
+    checkpoint_steps: Optional[int] = None
+    keep_best_only: bool = False
+    keep_last_n: int = 3
+    metric_for_best: str = "loss"
+    minimize_metric: bool = True
+
+
+@domain_service(scope=ServiceScope.SINGLETON)
+class TrainingService:
+    """Pure domain service for training logic.
+    
+    This service makes training decisions based on business rules,
+    without any knowledge of how training is actually executed.
+    """
+    
+    def __init__(self):
+        """Initialize the training service."""
+        self.training_history: List[TrainingSession] = []
+    
+    def create_training_plan(
+        self,
+        model: BertModel,
+        dataset: Dataset,
+        hyperparameters: Hyperparameters
+    ) -> TrainingSession:
+        """Create a training plan based on model and data characteristics.
+        
+        This method analyzes the model complexity and dataset size to
+        create an optimal training plan.
+        """
+        # Calculate total steps
+        steps_per_epoch = self._calculate_steps_per_epoch(
+            dataset.size,
+            hyperparameters.batch_size,
+            hyperparameters.gradient_accumulation_steps
         )
-        return steps_per_epoch * self.num_epochs
+        total_steps = steps_per_epoch * hyperparameters.num_epochs
+        
+        # Determine checkpoint strategy
+        checkpoint_strategy = self._determine_checkpoint_strategy(
+            dataset.size,
+            hyperparameters.num_epochs,
+            steps_per_epoch
+        )
+        
+        # Create training session
+        session = TrainingSession(
+            id=f"training_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            model_id=model.id,
+            dataset_id=dataset.id,
+            hyperparameters=hyperparameters,
+            checkpoint_strategy=checkpoint_strategy,
+            total_steps=total_steps,
+            steps_per_epoch=steps_per_epoch,
+            created_at=datetime.now()
+        )
+        
+        self.training_history.append(session)
+        return session
     
-    def compute_warmup_steps(self, total_steps: int) -> int:
-        """Compute warmup steps from ratio if needed."""
-        if self.warmup_steps is not None:
-            return self.warmup_steps
-        return int(total_steps * self.warmup_ratio)
-
-
-@dataclass
-class TrainingState:
-    """State of the training process."""
+    def make_training_decision(
+        self,
+        session: TrainingSession,
+        current_metrics: Dict[str, float]
+    ) -> TrainingDecision:
+        """Make a decision about what to do next in training.
+        
+        This is the core business logic that decides whether to:
+        - Continue training
+        - Save a checkpoint
+        - Run evaluation
+        - Stop early
+        - Complete training
+        """
+        state = session.state
+        
+        # Update metrics
+        state.update_metrics(current_metrics)
+        
+        # Check if training is complete
+        if state.current_epoch >= session.hyperparameters.num_epochs:
+            return TrainingDecision.COMPLETE
+        
+        # Check early stopping
+        if self._should_stop_early(session):
+            return TrainingDecision.STOP_EARLY
+        
+        # Check if evaluation is needed
+        if self._should_evaluate(session):
+            return TrainingDecision.EVALUATE
+        
+        # Check if checkpoint is needed
+        if self._should_checkpoint(session):
+            return TrainingDecision.CHECKPOINT
+        
+        return TrainingDecision.CONTINUE
     
-    # Progress tracking
-    epoch: int = 0
-    global_step: int = 0
-    total_steps: int = 0
-    
-    # Performance tracking
-    train_loss: float = 0.0
-    eval_loss: Optional[float] = None
-    best_metric: Optional[float] = None
-    best_model_step: Optional[int] = None
-    
-    # Learning rate
-    learning_rate: float = 0.0
-    
-    # Timing
-    start_time: Optional[datetime] = None
-    epoch_start_time: Optional[datetime] = None
-    
-    # Early stopping
-    early_stopping_counter: int = 0
-    should_stop: bool = False
-    
-    # Metrics history
-    train_history: List[Dict[str, float]] = field(default_factory=list)
-    eval_history: List[Dict[str, float]] = field(default_factory=list)
-    
-    @property
-    def current_phase(self) -> TrainingPhase:
-        """Determine current training phase."""
-        if self.global_step == 0:
-            return TrainingPhase.WARMUP
-        elif self.should_stop:
-            return TrainingPhase.COOLDOWN
+    def analyze_training_progress(
+        self,
+        session: TrainingSession
+    ) -> TrainingProgress:
+        """Analyze current training progress.
+        
+        Provides insights into training progress without
+        making decisions about what to do next.
+        """
+        state = session.state
+        
+        # Calculate improvement rate
+        improvement_rate = 0.0
+        if len(state.loss_history) > 10:
+            recent_losses = state.loss_history[-10:]
+            older_losses = state.loss_history[-20:-10]
+            avg_recent = sum(recent_losses) / len(recent_losses)
+            avg_older = sum(older_losses) / len(older_losses)
+            improvement_rate = (avg_older - avg_recent) / avg_older
+        
+        # Estimate time remaining
+        elapsed = datetime.now() - session.created_at
+        if state.current_step > 0:
+            time_per_step = elapsed / state.current_step
+            remaining_steps = session.total_steps - state.current_step
+            estimated_remaining = time_per_step * remaining_steps
         else:
-            return TrainingPhase.TRAINING
+            estimated_remaining = timedelta(0)
+        
+        return TrainingProgress(
+            current_epoch=state.current_epoch,
+            total_epochs=session.hyperparameters.num_epochs,
+            current_step=state.current_step,
+            total_steps=session.total_steps,
+            current_loss=state.current_loss,
+            best_loss=state.best_loss,
+            improvement_rate=improvement_rate,
+            time_elapsed=elapsed,
+            estimated_time_remaining=estimated_remaining
+        )
     
-    def update_metrics(self, metrics: Dict[str, float], is_eval: bool = False):
-        """Update training metrics."""
-        if is_eval:
-            self.eval_history.append({
-                "step": self.global_step,
-                "epoch": self.epoch,
-                **metrics
-            })
-            if "loss" in metrics:
-                self.eval_loss = metrics["loss"]
-        else:
-            self.train_history.append({
-                "step": self.global_step,
-                "epoch": self.epoch,
-                **metrics
-            })
-            if "loss" in metrics:
-                self.train_loss = metrics["loss"]
+    def suggest_learning_adjustment(
+        self,
+        session: TrainingSession,
+        validation_metrics: Optional[Dict[str, float]] = None
+    ) -> LearningStrategy:
+        """Suggest adjustments to learning strategy.
+        
+        Based on training dynamics, suggest whether to:
+        - Adjust learning rate
+        - Change batch size
+        - Modify other hyperparameters
+        """
+        state = session.state
+        
+        # Check if learning has plateaued
+        if self._has_plateaued(state):
+            current_lr = self._get_current_learning_rate(session)
+            return LearningStrategy(
+                should_reduce_lr=True,
+                new_learning_rate=current_lr * 0.5,
+                should_increase_batch_size=False,
+                suggested_batch_size=None,
+                reason="Learning has plateaued, reducing learning rate"
+            )
+        
+        # Check if training is unstable
+        if self._is_training_unstable(state):
+            return LearningStrategy(
+                should_reduce_lr=True,
+                new_learning_rate=self._get_current_learning_rate(session) * 0.1,
+                should_increase_batch_size=True,
+                suggested_batch_size=session.hyperparameters.batch_size * 2,
+                reason="Training is unstable, reducing LR and increasing batch size"
+            )
+        
+        return LearningStrategy(
+            should_reduce_lr=False,
+            new_learning_rate=None,
+            should_increase_batch_size=False,
+            suggested_batch_size=None,
+            reason="Training is progressing normally"
+        )
     
-    def check_improvement(
-        self, 
-        metric_value: float,
-        metric_name: str,
-        greater_is_better: bool = False
-    ) -> bool:
-        """Check if metric has improved."""
-        if self.best_metric is None:
-            self.best_metric = metric_value
-            self.best_model_step = self.global_step
-            return True
-            
-        if greater_is_better:
-            improved = metric_value > self.best_metric
-        else:
-            improved = metric_value < self.best_metric
-            
-        if improved:
-            self.best_metric = metric_value
-            self.best_model_step = self.global_step
-            self.early_stopping_counter = 0
-            return True
-        else:
-            self.early_stopping_counter += 1
+    def _calculate_steps_per_epoch(
+        self,
+        dataset_size: int,
+        batch_size: int,
+        gradient_accumulation_steps: int
+    ) -> int:
+        """Calculate steps per epoch."""
+        effective_batch_size = batch_size * gradient_accumulation_steps
+        return (dataset_size + effective_batch_size - 1) // effective_batch_size
+    
+    def _determine_checkpoint_strategy(
+        self,
+        dataset_size: int,
+        num_epochs: int,
+        steps_per_epoch: int
+    ) -> CheckpointStrategy:
+        """Determine optimal checkpoint strategy."""
+        # For small datasets, checkpoint every epoch
+        if dataset_size < 10000:
+            return CheckpointStrategy(
+                checkpoint_frequency="epoch",
+                keep_best_only=False,
+                keep_last_n=3
+            )
+        
+        # For large datasets with few epochs, checkpoint by steps
+        if num_epochs < 5:
+            checkpoint_steps = max(100, steps_per_epoch // 4)
+            return CheckpointStrategy(
+                checkpoint_frequency="steps",
+                checkpoint_steps=checkpoint_steps,
+                keep_best_only=True,
+                keep_last_n=2
+            )
+        
+        # Default: checkpoint on best performance
+        return CheckpointStrategy(
+            checkpoint_frequency="best",
+            keep_best_only=True,
+            keep_last_n=1
+        )
+    
+    def _should_stop_early(self, session: TrainingSession) -> bool:
+        """Determine if training should stop early."""
+        state = session.state
+        patience = session.hyperparameters.early_stopping_patience
+        
+        if patience is None or patience <= 0:
             return False
-
-
-class LearningRateSchedule(ABC):
-    """Abstract learning rate schedule."""
+        
+        # Check if we've seen enough epochs
+        if state.current_epoch < 5:
+            return False
+        
+        # Check improvement
+        return state.epochs_without_improvement >= patience
     
-    def __init__(self, 
-                 base_lr: float,
-                 warmup_steps: int = 0,
-                 total_steps: Optional[int] = None):
-        self.base_lr = base_lr
-        self.warmup_steps = warmup_steps
-        self.total_steps = total_steps
-    
-    @abstractmethod
-    def get_lr(self, step: int) -> float:
-        """Get learning rate for given step."""
-        pass
-    
-    def get_warmup_lr(self, step: int) -> float:
-        """Get learning rate during warmup."""
-        if step >= self.warmup_steps:
-            return self.base_lr
-        return self.base_lr * (step / self.warmup_steps)
-
-
-class LinearSchedule(LearningRateSchedule):
-    """Linear learning rate schedule with warmup."""
-    
-    def get_lr(self, step: int) -> float:
-        if step < self.warmup_steps:
-            return self.get_warmup_lr(step)
-            
-        if self.total_steps is None:
-            return self.base_lr
-            
-        progress = (step - self.warmup_steps) / (self.total_steps - self.warmup_steps)
-        return self.base_lr * (1 - progress)
-
-
-class CosineSchedule(LearningRateSchedule):
-    """Cosine learning rate schedule with warmup."""
-    
-    def get_lr(self, step: int) -> float:
-        if step < self.warmup_steps:
-            return self.get_warmup_lr(step)
-            
-        if self.total_steps is None:
-            return self.base_lr
-            
-        progress = (step - self.warmup_steps) / (self.total_steps - self.warmup_steps)
-        return self.base_lr * (1 + math.cos(math.pi * progress)) / 2
-
-
-class TrainingStrategy(ABC):
-    """Abstract training strategy."""
-    
-    def __init__(self, config: TrainingConfig):
-        self.config = config
-    
-    @abstractmethod
-    def should_evaluate(self, state: TrainingState) -> bool:
+    def _should_evaluate(self, session: TrainingSession) -> bool:
         """Determine if evaluation should run."""
-        pass
-    
-    @abstractmethod
-    def should_save(self, state: TrainingState) -> bool:
-        """Determine if model should be saved."""
-        pass
-    
-    @abstractmethod
-    def should_log(self, state: TrainingState) -> bool:
-        """Determine if metrics should be logged."""
-        pass
-    
-    def should_stop_early(self, state: TrainingState) -> bool:
-        """Check early stopping criteria."""
-        if self.config.early_stopping_patience is None:
-            return False
-            
-        return state.early_stopping_counter >= self.config.early_stopping_patience
-
-
-class EpochStrategy(TrainingStrategy):
-    """Strategy for epoch-based training."""
-    
-    def should_evaluate(self, state: TrainingState) -> bool:
-        return self.config.eval_strategy == "epoch" and state.global_step > 0
-    
-    def should_save(self, state: TrainingState) -> bool:
-        return self.config.save_strategy == "epoch" and state.global_step > 0
-    
-    def should_log(self, state: TrainingState) -> bool:
-        return (state.global_step % self.config.logging_steps == 0 or
-                (self.config.logging_first_step and state.global_step == 1))
-
-
-class StepStrategy(TrainingStrategy):
-    """Strategy for step-based training."""
-    
-    def should_evaluate(self, state: TrainingState) -> bool:
-        if self.config.eval_strategy != "steps":
-            return False
-        return state.global_step % self.config.eval_steps == 0
-    
-    def should_save(self, state: TrainingState) -> bool:
-        if self.config.save_strategy != "steps":
-            return False
-        return state.global_step % self.config.save_steps == 0
-    
-    def should_log(self, state: TrainingState) -> bool:
-        return (state.global_step % self.config.logging_steps == 0 or
-                (self.config.logging_first_step and state.global_step == 1))
-
-
-@dataclass
-class TrainingMetrics:
-    """Metrics collected during training."""
-    
-    # Loss metrics
-    loss: float
-    gradient_norm: Optional[float] = None
-    
-    # Performance metrics
-    learning_rate: float = 0.0
-    epoch: float = 0.0
-    
-    # Throughput metrics
-    samples_per_second: Optional[float] = None
-    steps_per_second: Optional[float] = None
-    
-    # Resource metrics
-    memory_used_gb: Optional[float] = None
-    
-    # Task-specific metrics
-    task_metrics: Dict[str, float] = field(default_factory=dict)
-    
-    def to_dict(self) -> Dict[str, float]:
-        """Convert metrics to dictionary."""
-        result = {
-            "loss": self.loss,
-            "learning_rate": self.learning_rate,
-            "epoch": self.epoch,
-        }
+        eval_frequency = session.hyperparameters.evaluation_strategy
+        state = session.state
         
-        if self.gradient_norm is not None:
-            result["gradient_norm"] = self.gradient_norm
-        if self.samples_per_second is not None:
-            result["samples_per_second"] = self.samples_per_second
-        if self.steps_per_second is not None:
-            result["steps_per_second"] = self.steps_per_second
-        if self.memory_used_gb is not None:
-            result["memory_used_gb"] = self.memory_used_gb
-            
-        result.update(self.task_metrics)
-        return result
-
-
-class TrainingService(ABC, Generic[TArray, TOptimizer, TScheduler]):
-    """Abstract training service defining training logic."""
+        if eval_frequency == "epoch":
+            return state.current_step % session.steps_per_epoch == 0
+        elif eval_frequency == "steps":
+            eval_steps = session.hyperparameters.eval_steps or 500
+            return state.current_step % eval_steps == 0
+        else:
+            return False
     
-    def __init__(self, config: TrainingConfig):
-        self.config = config
-        self.state = TrainingState()
-        self.strategy = self._create_strategy()
+    def _should_checkpoint(self, session: TrainingSession) -> bool:
+        """Determine if checkpoint should be saved."""
+        strategy = session.checkpoint_strategy
+        state = session.state
+        
+        if strategy.checkpoint_frequency == "epoch":
+            return state.current_step % session.steps_per_epoch == 0
+        elif strategy.checkpoint_frequency == "steps":
+            return state.current_step % strategy.checkpoint_steps == 0
+        elif strategy.checkpoint_frequency == "best":
+            return state.is_best_model
+        else:
+            return False
     
-    def _create_strategy(self) -> TrainingStrategy:
-        """Create appropriate training strategy."""
-        if self.config.eval_strategy == "steps" or self.config.save_strategy == "steps":
-            return StepStrategy(self.config)
-        return EpochStrategy(self.config)
+    def _has_plateaued(self, state: TrainingState) -> bool:
+        """Check if learning has plateaued."""
+        if len(state.loss_history) < 20:
+            return False
+        
+        recent_losses = state.loss_history[-10:]
+        avg_loss = sum(recent_losses) / len(recent_losses)
+        std_loss = (sum((x - avg_loss) ** 2 for x in recent_losses) / len(recent_losses)) ** 0.5
+        
+        # Plateaued if standard deviation is very small
+        return std_loss < 0.001
     
-    @abstractmethod
-    def create_optimizer(self, parameters: Any) -> TOptimizer:
-        """Create optimizer instance."""
-        pass
-    
-    @abstractmethod
-    def create_scheduler(self, optimizer: TOptimizer) -> TScheduler:
-        """Create learning rate scheduler."""
-        pass
-    
-    @abstractmethod
-    def training_step(
-        self,
-        model: Any,
-        batch: Dict[str, TArray],
-        optimizer: TOptimizer
-    ) -> TrainingMetrics:
-        """Execute single training step."""
-        pass
-    
-    @abstractmethod
-    def evaluation_step(
-        self,
-        model: Any,
-        batch: Dict[str, TArray]
-    ) -> Dict[str, float]:
-        """Execute single evaluation step."""
-        pass
-    
-    def should_evaluate(self) -> bool:
-        """Check if evaluation should run."""
-        return self.strategy.should_evaluate(self.state)
-    
-    def should_save(self) -> bool:
-        """Check if model should be saved."""
-        return self.strategy.should_save(self.state)
-    
-    def should_log(self) -> bool:
-        """Check if metrics should be logged."""
-        return self.strategy.should_log(self.state)
-    
-    def should_stop(self) -> bool:
-        """Check if training should stop."""
-        if self.state.should_stop:
+    def _is_training_unstable(self, state: TrainingState) -> bool:
+        """Check if training is unstable."""
+        if len(state.loss_history) < 10:
+            return False
+        
+        recent_losses = state.loss_history[-10:]
+        
+        # Check for NaN or infinite values
+        if any(not (0 < loss < float('inf')) for loss in recent_losses):
             return True
-        return self.strategy.should_stop_early(self.state)
-    
-    def update_state(self, metrics: TrainingMetrics, is_eval: bool = False):
-        """Update training state with metrics."""
-        self.state.update_metrics(metrics.to_dict(), is_eval)
         
-        if not is_eval:
-            self.state.global_step += 1
-            self.state.learning_rate = metrics.learning_rate
+        # Check for high variance
+        avg_loss = sum(recent_losses) / len(recent_losses)
+        variance = sum((x - avg_loss) ** 2 for x in recent_losses) / len(recent_losses)
+        
+        return variance > avg_loss * 0.5  # High variance relative to mean
+    
+    def _get_current_learning_rate(self, session: TrainingSession) -> float:
+        """Calculate current learning rate based on schedule."""
+        schedule = session.hyperparameters.lr_schedule
+        step = session.state.current_step
+        total_steps = session.total_steps
+        base_lr = session.hyperparameters.learning_rate
+        
+        if schedule == LearningRateSchedule.CONSTANT:
+            return base_lr
+        elif schedule == LearningRateSchedule.LINEAR:
+            return base_lr * (1 - step / total_steps)
+        elif schedule == LearningRateSchedule.COSINE:
+            import math
+            return base_lr * (1 + math.cos(math.pi * step / total_steps)) / 2
+        else:
+            return base_lr

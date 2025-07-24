@@ -34,9 +34,18 @@ except ImportError:
     except ImportError:
         EvaluationService = None
 
+# Import new training service components
+from .training_service import (
+    TrainingService,
+    TrainingDecision,
+    TrainingProgress,
+    LearningStrategy,
+    CheckpointStrategy
+)
+
 # Keep existing imports for backward compatibility
 try:
-    from .training_service import (
+    from .training_service_old import (
         OptimizerType,
         SchedulerType,
         TrainingConfig,
@@ -48,7 +57,7 @@ try:
         EpochStrategy,
         StepStrategy,
         TrainingMetrics,
-        TrainingService,
+        TrainingService as OldTrainingService,
     )
     
     from .evaluation_service import (
@@ -75,6 +84,12 @@ try:
         "EvaluationPlan",
         "PredictionResult",
         "MetricType",
+        
+        # New training service components
+        "TrainingService",
+        "TrainingDecision",
+        "LearningStrategy",
+        "CheckpointStrategy",
         
         # Existing services
         "ModelTrainingService",
@@ -122,6 +137,12 @@ except ImportError:
         "EvaluationPlan",
         "PredictionResult",
         "MetricType",
+        
+        # New training service components
+        "TrainingService",
+        "TrainingDecision",
+        "LearningStrategy",
+        "CheckpointStrategy",
         
         # Existing services
         "ModelTrainingService",
