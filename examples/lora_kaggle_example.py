@@ -198,9 +198,8 @@ def example_7_lora_adapter_management():
     lora_state = lora_adapter.get_lora_state_dict()
     logger.info(f"LoRA state dict has {len(lora_state)} tensors")
 
-    # Save LoRA weights (would use safetensors in practice)
-    # import safetensors.mlx
-    # safetensors.mlx.save_file(lora_state, "lora_weights.safetensors")
+    # Save LoRA weights
+    # Note: In production, use safetensors.mlx.save_file(lora_state, "lora_weights.safetensors")
 
     # Remove adapters (restore original model)
     lora_adapter.remove_adapters(restore_original=True)

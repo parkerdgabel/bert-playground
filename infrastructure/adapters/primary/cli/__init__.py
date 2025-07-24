@@ -1,0 +1,1 @@
+"""CLI adapters - thin layer for command-line interface."""

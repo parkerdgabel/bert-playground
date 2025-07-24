@@ -1492,6 +1492,7 @@ source = { editable = "." }
 dependencies = [
     { name = "click" },
     { name = "kaggle" },
+    { name = "kink" },
     { name = "loguru" },
     { name = "matplotlib" },
     { name = "mlflow" },
@@ -1542,6 +1543,7 @@ requires-dist = [
     { name = "click", specifier = ">=8.1.0" },
     { name = "ipykernel", marker = "extra == 'dev'", specifier = ">=6.29.0" },
     { name = "kaggle", specifier = ">=1.6.0" },
+    { name = "kink", specifier = ">=0.8.0" },
     { name = "loguru", specifier = ">=0.7.2" },
     { name = "matplotlib", specifier = ">=3.9.0" },
     { name = "mlflow", specifier = ">=2.19.0" },
@@ -1612,6 +1614,18 @@ source = { git = "https://github.com/54yyyu/kaggle-mcp.git#7d2554c0a0419dbcc64bb
 dependencies = [
     { name = "kaggle" },
     { name = "mcp", extra = ["cli"] },
+]
+
+[[package]]
+name = "kink"
+version = "0.8.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/00/28/f0bec943112929c6fe324d7a43633aafe4bd9c11949618f4a67fb280cbb9/kink-0.8.1.tar.gz", hash = "sha256:9310fa5860ad4df3cdd4a2b998517a718cbc83ed4975c51b8ebd60f640a9702c", size = 13081 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a0/ce/1f98d7f0fabdd2eb0f984527d8863b38399600a6fdce00c7b887ec57bad9/kink-0.8.1-py3-none-any.whl", hash = "sha256:c046be42395de6e18776daa93ac78280a70b3aa5c70b9ea5ca716cc71b3ff91a", size = 11241 },
 ]
 
 [[package]]

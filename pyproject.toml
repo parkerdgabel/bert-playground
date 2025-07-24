@@ -58,6 +58,7 @@ dependencies = [
     "pydantic>=2.10.0",
     "pydantic-settings>=2.7.0",
     "toml>=0.10.2",
+    "kink>=0.8.0",
 ]
 
 [project.urls]
@@ -67,9 +68,9 @@ Documentation = "https://github.com/parkergabel/mlx-bert/blob/main/README.md"
 "Bug Tracker" = "https://github.com/parkergabel/mlx-bert/issues"
 
 [project.scripts]
-k-bert = "cli:main"
-kbert = "cli:main"  # Alias without hyphen
-bert = "cli:main"  # Short alias for convenience
+k-bert = "adapters.primary.cli.app:main"
+kbert = "adapters.primary.cli.app:main"  # Alias without hyphen
+bert = "adapters.primary.cli.app:main"  # Short alias for convenience
 
 [project.optional-dependencies]
 dev = [
@@ -108,44 +109,8 @@ filterwarnings = [
     "ignore::PendingDeprecationWarning",
 ]
 
-# [tool.coverage.run]
-# source = ["cli"]
-# omit = [
-#     "*/tests/*",
-#     "*/test_*",
-#     "*/__pycache__/*",
-#     "*/site-packages/*",
-#     "setup.py",
-#     "legacy/*",
-#     "embeddings/*",
-#     "scripts/*",
-#     "*/migrations/*",
-#     "cli/__main__.py",
-#     "cli/commands/models/*",
-#     "cli/commands/core/train.py",
-#     "cli/commands/core/train_simple.py",
-#     "cli/commands/core/init.py",
-#     "cli/commands/core/interactive.py",
-#     "cli/commands/core/config.py",
-#     "cli/commands/mlflow/ui.py",
-# ]
-# 
-# [tool.coverage.report]
-# exclude_lines = [
-#     "pragma: no cover",
-#     "def __repr__",
-#     "raise AssertionError",
-#     "raise NotImplementedError",
-#     "if __name__ == .__main__.:",
-#     "if TYPE_CHECKING:",
-#     "class .*\\bProtocol\\):",
-#     "@(abc\\.)?abstractmethod",
-# ]
-# fail_under = 0
 
 [tool.ruff]
-# Exclude legacy directory from linting
-extend-exclude = ["legacy/"]
 line-length = 88
 target-version = "py311"
 select = [
@@ -172,8 +137,8 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["cli*", "models*", "data*", "training*", "utils*", "embeddings*"]
-exclude = ["tests*", "legacy*", "cache*", "output*", "mlruns*"]
+include = ["cli*", "models*", "data*", "training*", "utils*", "core*", "adapters*", "bert_playground*", "application*", "domain*", "infrastructure*", "ports*"]
+exclude = ["tests*", "cache*", "output*", "mlruns*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.json", "*.yaml", "*.yml"]

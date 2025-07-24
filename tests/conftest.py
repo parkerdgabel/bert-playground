@@ -4,6 +4,7 @@
 import sys
 import tempfile
 from pathlib import Path
+from unittest.mock import Mock, AsyncMock
 
 import mlx.core as mx
 import pandas as pd
@@ -11,8 +12,10 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from data.core.base import CompetitionType, DatasetSpec
-from data.core.metadata import CompetitionMetadata
+from domain.entities.dataset import DatasetSpecification
+from domain.entities.model import TaskType
+from infrastructure.di.container import Container
+from infrastructure.di.decorators import clear_registry
 
 
 @pytest.fixture(scope="session")
@@ -112,30 +115,34 @@ def sample_regression_data():
 
 @pytest.fixture
 def titanic_dataset_spec():
-    """Create DatasetSpec for Titanic competition."""
-    return DatasetSpec(
-        competition_name="titanic",
-        dataset_path=Path("/tmp/titanic"),
-        competition_type=CompetitionType.BINARY_CLASSIFICATION,
+    """Create DatasetSpecification for Titanic competition."""
+    return DatasetSpecification(
+        id="titanic",
+        name="Titanic Competition",
+        path=Path("/tmp/titanic"),
+        task_type=TaskType.CLASSIFICATION,
         num_samples=5,
         num_features=11,
         target_column="Survived",
         text_columns=["Name", "Ticket"],
         categorical_columns=["Pclass", "Sex", "Embarked"],
         numerical_columns=["Age", "SibSp", "Parch", "Fare"],
-        num_classes=2,
-        class_distribution={"0": 2, "1": 3},
-        is_balanced=True,
+        num_labels=2,
+        metadata={
+            "class_distribution": {"0": 2, "1": 3},
+            "is_balanced": True
+        }
     )
 
 
 @pytest.fixture
 def house_prices_dataset_spec():
-    """Create DatasetSpec for house prices competition."""
-    return DatasetSpec(
-        competition_name="house_prices",
-        dataset_path=Path("/tmp/house_prices"),
-        competition_type=CompetitionType.REGRESSION,
+    """Create DatasetSpecification for house prices competition."""
+    return DatasetSpecification(
+        id="house_prices",
+        name="House Prices Competition",
+        path=Path("/tmp/house_prices"),
+        task_type=TaskType.REGRESSION,
         num_samples=5,
         num_features=13,
         target_column="SalePrice",
@@ -156,25 +163,23 @@ def house_prices_dataset_spec():
             "GrLivArea",
             "BedroomAbvGr",
         ],
-        num_classes=1,
+        num_labels=1,
     )
 
 
 @pytest.fixture
 def sample_competition_metadata():
     """Create sample competition metadata."""
-    return CompetitionMetadata(
-        competition_name="test_competition",
-        competition_type=CompetitionType.BINARY_CLASSIFICATION,
-        auto_detected=True,
-        confidence_score=0.95,
-        train_file="train.csv",
-        test_file="test.csv",
-        submission_file="sample_submission.csv",
-        dataset_size_mb=10.5,
-        recommended_batch_size=32,
-        recommended_max_length=256,
-    )
+    # Return a simple dict for now as CompetitionMetadata is removed
+    return {
+        "competition_name": "test_competition",
+        "competition_type": TaskType.CLASSIFICATION,
+        "train_file": "train.csv",
+        "test_file": "test.csv",
+        "submission_file": "sample_submission.csv",
+        "recommended_batch_size": 32,
+        "recommended_max_length": 256,
+    }
 
 
 @pytest.fixture
@@ -349,3 +354,153 @@ def create_mock_dataset_files(
         "submission": comp_dir / "sample_submission.csv" if target_col else None,
         "directory": comp_dir,
     }
+
+
+# ===== DI Container Fixtures =====
+
+@pytest.fixture
+def clean_registry():
+    """Clear the DI registry before each test."""
+    clear_registry()
+    yield
+    clear_registry()
+
+
+@pytest.fixture
+def di_container(clean_registry):
+    """Create a fresh DI container for testing."""
+    return Container()
+
+
+@pytest.fixture
+def configured_container(clean_registry):
+    """Create a DI container with common test services registered."""
+    container = Container()
+    
+    # Register mock implementations for common ports
+    from application.ports.secondary.storage import StorageService, ModelStorageService
+    from application.ports.secondary.monitoring import MonitoringService
+    from application.ports.secondary.compute import ComputeBackend
+    from application.ports.secondary.neural import NeuralBackend
+    from application.ports.secondary.tokenizer import TokenizerPort
+    from application.ports.secondary.checkpointing import CheckpointManager
+    from application.ports.secondary.metrics import MetricsCollector
+    
+    # Create mock implementations
+    mock_storage = AsyncMock(spec=StorageService)
+    mock_model_storage = AsyncMock(spec=ModelStorageService)
+    mock_monitoring = AsyncMock(spec=MonitoringService)
+    mock_compute = AsyncMock(spec=ComputeBackend)
+    mock_neural = AsyncMock(spec=NeuralBackend)
+    mock_tokenizer = AsyncMock(spec=TokenizerPort)
+    mock_checkpoint = AsyncMock(spec=CheckpointManager)
+    mock_metrics = AsyncMock(spec=MetricsCollector)
+    
+    # Register mocks
+    container.register(StorageService, mock_storage, instance=True)
+    container.register(ModelStorageService, mock_model_storage, instance=True)
+    container.register(MonitoringService, mock_monitoring, instance=True)
+    container.register(ComputeBackend, mock_compute, instance=True)
+    container.register(NeuralBackend, mock_neural, instance=True)
+    container.register(TokenizerPort, mock_tokenizer, instance=True)
+    container.register(CheckpointManager, mock_checkpoint, instance=True)
+    container.register(MetricsCollector, mock_metrics, instance=True)
+    
+    return container
+
+
+@pytest.fixture
+def service_container(configured_container):
+    """Create a DI container with decorated services registered."""
+    container = configured_container
+    
+    # Register decorated services
+    from domain.services.training import ModelTrainingService
+    from domain.services.tokenization import TokenizationService
+    from domain.services.model_builder import ModelBuilderService
+    from domain.services.evaluation_engine import EvaluationEngineService
+    from domain.services.checkpointing import CheckpointingService
+    from domain.services.training_orchestrator import TrainingOrchestratorService
+    
+    # Register the services (they will pick up their dependencies automatically)
+    container.register_decorator(ModelTrainingService)
+    container.register_decorator(TokenizationService)
+    container.register_decorator(ModelBuilderService)
+    container.register_decorator(EvaluationEngineService)
+    container.register_decorator(CheckpointingService)
+    container.register_decorator(TrainingOrchestratorService)
+    
+    return container
+
+
+@pytest.fixture
+def use_case_container(service_container):
+    """Create a DI container with use cases registered."""
+    container = service_container
+    
+    # Register use cases
+    from application.use_cases.train_model import TrainModelUseCase
+    
+    # Mock dependencies that use cases need
+    container.register(str, "test_config", name="config_path", instance=True)
+    
+    # Register use case
+    container.register_decorator(TrainModelUseCase)
+    
+    return container
+
+
+@pytest.fixture
+def integration_container():
+    """Create a DI container for integration tests with real implementations where safe."""
+    from infrastructure.bootstrap import ApplicationBootstrap
+    
+    # Use bootstrap to create a fully configured container
+    bootstrap = ApplicationBootstrap()
+    container = bootstrap.initialize()
+    
+    yield container
+    
+    # Cleanup if needed
+    clear_registry()
+
+
+# ===== Service Factory Fixtures =====
+
+@pytest.fixture
+def mock_training_service():
+    """Create a mock training service for testing."""
+    from domain.services.training import ModelTrainingService
+    
+    service = Mock(spec=ModelTrainingService)
+    service.validate_training_setup.return_value = []  # No errors
+    service.create_training_session.return_value = Mock()
+    service.should_stop_training.return_value = False
+    service.calculate_metrics.return_value = {"loss": 0.5, "accuracy": 0.85}
+    
+    return service
+
+
+@pytest.fixture
+def mock_evaluation_service():
+    """Create a mock evaluation service for testing."""
+    from domain.services.evaluation_engine import EvaluationEngineService
+    
+    service = Mock(spec=EvaluationEngineService)
+    service.evaluate_batch.return_value = {"loss": 0.3, "accuracy": 0.9}
+    service.compute_final_metrics.return_value = {"accuracy": 0.92, "f1": 0.89}
+    
+    return service
+
+
+@pytest.fixture
+def mock_checkpoint_service():
+    """Create a mock checkpoint service for testing."""
+    from domain.services.checkpointing import CheckpointingService
+    
+    service = Mock(spec=CheckpointingService)
+    service.should_save_checkpoint.return_value = True
+    service.save_checkpoint.return_value = "/path/to/checkpoint"
+    service.load_checkpoint.return_value = {"model_state": {}, "metadata": {}}
+    
+    return service

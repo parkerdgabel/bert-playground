@@ -1,0 +1,1 @@
+"""REST API adapters - prepared for future implementation."""

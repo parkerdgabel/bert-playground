@@ -1,8 +1,0 @@
-training:
-  use_compilation: false
-  eval_strategy: "epoch"
-  logging_steps: 10
-  save_best_only: true
-
-data:
-  batch_size: 16  # Smaller batch size for debugging
