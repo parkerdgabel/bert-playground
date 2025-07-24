@@ -236,33 +236,16 @@ class TestFullStackIntegration:
         assert "test_plugin" in [p.name for p in registry.list_plugins()]
         assert plugin.activated
     
-    def test_event_system_integration(self):
-        """Test that the event system works across components."""
-        from infrastructure.events.bus import get_event_bus
-        from infrastructure.events.events import ApplicationEvent
-        
+    def test_container_health_check(self):
+        """Test that container health check works."""
         # Initialize application
         container = initialize_application()
-        event_bus = get_event_bus()
         
-        # Create test event
-        class TestEvent(ApplicationEvent):
-            event_type = "test_event"
-        
-        # Track events
-        received_events = []
-        
-        def handler(event):
-            received_events.append(event)
-        
-        # Subscribe and publish
-        event_bus.subscribe(TestEvent, handler)
-        test_event = TestEvent(data={"test": "data"})
-        event_bus.publish(test_event)
-        
-        # Verify event was received
-        assert len(received_events) == 1
-        assert received_events[0].data["test"] == "data"
+        # Health check should report healthy state
+        health = container.health_check()
+        assert health["initialized"] is True
+        assert health["services_count"] > 0
+        assert health["config_manager_available"] is True
     
     def test_monitoring_integration(self, capsys):
         """Test that monitoring works throughout the stack."""

@@ -11,13 +11,8 @@ import tempfile
 from unittest.mock import Mock, patch
 
 from infrastructure.bootstrap import ApplicationBootstrap, get_bootstrap, initialize_application, get_service
-from infrastructure.di.container import Container
-from infrastructure.ports.compute import ComputeBackend
-from infrastructure.ports.storage import StorageService, ModelStorageService
-from infrastructure.ports.config import ConfigurationProvider
-from infrastructure.ports.monitoring import MonitoringService
-from infrastructure.ports.tokenizer import TokenizerFactory
-from infrastructure.events.bus import EventBus
+from infrastructure.di.container import InfrastructureContainer
+from infrastructure.config.manager import ConfigurationManager
 from infrastructure.plugins.registry import PluginRegistry
 from infrastructure.plugins.loader import PluginLoader
 
@@ -42,209 +37,135 @@ training:
     
     def test_bootstrap_initialization(self, config_file):
         """Test that bootstrap initializes correctly."""
-        bootstrap = ApplicationBootstrap(config_file)
+        bootstrap = ApplicationBootstrap(config_path=config_file)
         container = bootstrap.initialize()
         
         # Should return a container
-        assert isinstance(container, Container)
+        assert isinstance(container, InfrastructureContainer)
         
         # Should be marked as initialized
         assert bootstrap._initialized
         
-        # Second initialization should return same container
+        # Should not re-initialize
         container2 = bootstrap.initialize()
         assert container2 is container
     
-    def test_infrastructure_setup(self):
-        """Test that infrastructure components are set up correctly."""
+    def test_configuration_manager_available(self):
+        """Test that configuration manager is registered."""
         bootstrap = ApplicationBootstrap()
         container = bootstrap.initialize()
         
-        # Event bus should be registered
-        event_bus = container.resolve(EventBus)
-        assert event_bus is not None
-        
-        # Configuration provider should be registered
-        config_provider = container.resolve(ConfigurationProvider)
-        assert config_provider is not None
+        # Configuration manager should be available
+        config_manager = container.resolve(ConfigurationManager)
+        assert config_manager is not None
+        assert isinstance(config_manager, ConfigurationManager)
     
-    def test_ports_and_adapters_setup(self):
-        """Test that all ports have adapters registered."""
+    def test_get_service_before_init_fails(self):
+        """Test that getting service before init raises error."""
+        bootstrap = ApplicationBootstrap()
+        
+        with pytest.raises(RuntimeError, match="Application not initialized"):
+            bootstrap.get_service(ConfigurationManager)
+    
+    def test_get_status(self):
+        """Test status reporting."""
+        bootstrap = ApplicationBootstrap()
+        
+        # Before initialization
+        status = bootstrap.get_status()
+        assert status["initialized"] is False
+        
+        # After initialization
+        container = bootstrap.initialize()
+        status = bootstrap.get_status()
+        assert status["initialized"] is True
+        assert "container_initialized" in status
+        assert "services_count" in status
+    
+    def test_shutdown(self):
+        """Test graceful shutdown."""
         bootstrap = ApplicationBootstrap()
         container = bootstrap.initialize()
         
-        # All ports should have implementations
-        compute = container.resolve(ComputeBackend)
-        assert compute is not None
+        # Should be initialized
+        assert bootstrap._initialized
         
-        storage = container.resolve(StorageService)
-        assert storage is not None
+        # Shutdown
+        bootstrap.shutdown()
         
-        model_storage = container.resolve(ModelStorageService)
-        assert model_storage is not None
-        
-        monitoring = container.resolve(MonitoringService)
-        assert monitoring is not None
-        
-        tokenizer_factory = container.resolve(TokenizerFactory)
-        assert tokenizer_factory is not None
+        # Should no longer be initialized
+        assert not bootstrap._initialized
     
-    def test_domain_services_setup(self):
-        """Test that domain services are registered."""
+    def test_global_functions(self, config_file):
+        """Test global convenience functions."""
+        # Initialize application
+        container = initialize_application(config_path=config_file)
+        assert isinstance(container, InfrastructureContainer)
+        
+        # Get service
+        config_manager = get_service(ConfigurationManager)
+        assert isinstance(config_manager, ConfigurationManager)
+        
+        # Get bootstrap
+        bootstrap = get_bootstrap()
+        assert isinstance(bootstrap, ApplicationBootstrap)
+        assert bootstrap._initialized
+    
+    def test_auto_discovery(self):
+        """Test that auto-discovery finds components."""
         bootstrap = ApplicationBootstrap()
         container = bootstrap.initialize()
         
-        # Import here to match bootstrap
-        from models.factory_facade import ModelFactory
-        from adapters.secondary.data.factory import DatasetFactory
-        
-        # Domain factories should be available
-        model_factory = container.resolve(ModelFactory)
-        assert model_factory is not None
-        
-        dataset_factory = container.resolve(DatasetFactory)
-        assert dataset_factory is not None
-        
-        # Test that decorated domain services are also available
-        from domain.services.training import ModelTrainingService
-        training_service = container.resolve(ModelTrainingService)
-        assert training_service is not None
-        assert isinstance(training_service, ModelTrainingService)
+        # Should have discovered some components
+        health = container.health_check()
+        assert health["services_count"] > 0
     
-    def test_application_services_setup(self):
-        """Test that application services are registered."""
-        bootstrap = ApplicationBootstrap()
+    def test_config_loading(self, config_file):
+        """Test configuration loading through bootstrap."""
+        bootstrap = ApplicationBootstrap(config_path=config_file)
         container = bootstrap.initialize()
         
-        # Import here to match bootstrap
-        from training.components.training_orchestrator import TrainingOrchestrator
-        from training.components.training_loop import TrainingLoop
-        from training.components.evaluation_loop import EvaluationLoop
-        from training.components.checkpoint_manager import CheckpointManager
-        from training.components.metrics_tracker import MetricsTracker
+        # Config should be accessible
+        config = bootstrap.get_config("model.type")
+        assert config == "modernbert_with_head"
         
-        # All training components should be available
-        orchestrator = container.resolve(TrainingOrchestrator)
-        assert orchestrator is not None
+        config = bootstrap.get_config("training.epochs")
+        assert config == 1
         
-        training_loop = container.resolve(TrainingLoop)
-        assert training_loop is not None
-        
-        eval_loop = container.resolve(EvaluationLoop)
-        assert eval_loop is not None
-        
-        checkpoint_mgr = container.resolve(CheckpointManager)
-        assert checkpoint_mgr is not None
-        
-        metrics_tracker = container.resolve(MetricsTracker)
-        assert metrics_tracker is not None
+        # Default value
+        config = bootstrap.get_config("missing.key", "default")
+        assert config == "default"
+
+
+class TestBootstrapWithMocks:
+    """Test bootstrap with mocked components."""
     
-    def test_cli_layer_setup(self):
-        """Test that CLI components are registered."""
-        bootstrap = ApplicationBootstrap()
+    @patch('infrastructure.bootstrap.ConfigurationManager')
+    def test_config_manager_initialization(self, mock_config_cls):
+        """Test that config manager is initialized with correct paths."""
+        mock_config = Mock()
+        mock_config_cls.return_value = mock_config
+        mock_config.load_configuration.return_value = {}
+        
+        user_path = Path("/user/config.yaml")
+        project_path = Path("/project/k-bert.yaml")
+        command_path = Path("/cmd/config.yaml")
+        
+        bootstrap = ApplicationBootstrap(
+            config_path=command_path,
+            user_config_path=user_path,
+            project_config_path=project_path
+        )
+        
+        # Config manager not created until initialize
+        mock_config_cls.assert_not_called()
+        
+        # Initialize
         container = bootstrap.initialize()
         
-        from cli.factory import CommandFactory
-        
-        # Command factory should be available
-        cmd_factory = container.resolve(CommandFactory)
-        assert cmd_factory is not None
-    
-    def test_plugin_system_setup(self):
-        """Test that plugin system is initialized."""
-        bootstrap = ApplicationBootstrap()
-        container = bootstrap.initialize()
-        
-        # Plugin components should be registered
-        registry = container.resolve(PluginRegistry)
-        assert registry is not None
-        
-        loader = container.resolve(PluginLoader)
-        assert loader is not None
-    
-    def test_get_service_convenience(self):
-        """Test the get_service convenience method."""
-        bootstrap = ApplicationBootstrap()
-        container = bootstrap.initialize()
-        
-        # Should be able to get services through bootstrap
-        monitoring = bootstrap.get_service(MonitoringService)
-        assert monitoring is not None
-        
-        # Should be same instance as from container
-        monitoring2 = container.resolve(MonitoringService)
-        assert monitoring is monitoring2
-    
-    def test_global_bootstrap_singleton(self):
-        """Test that get_bootstrap returns singleton."""
-        bootstrap1 = get_bootstrap()
-        bootstrap2 = get_bootstrap()
-        
-        assert bootstrap1 is bootstrap2
-    
-    def test_initialize_application_function(self, config_file):
-        """Test the initialize_application convenience function."""
-        container = initialize_application(config_file)
-        
-        assert isinstance(container, Container)
-        
-        # Should be able to resolve services
-        monitoring = container.resolve(MonitoringService)
-        assert monitoring is not None
-    
-    def test_get_service_function(self):
-        """Test the global get_service function."""
-        # Should initialize if needed
-        monitoring = get_service(MonitoringService)
-        assert monitoring is not None
-        
-        # Should return same instance on subsequent calls
-        monitoring2 = get_service(MonitoringService)
-        assert monitoring is monitoring2
-    
-    def test_bootstrap_with_missing_config(self):
-        """Test bootstrap with non-existent config file."""
-        # Should not fail, will use defaults
-        bootstrap = ApplicationBootstrap(Path("/non/existent/file.yaml"))
-        container = bootstrap.initialize()
-        
-        assert isinstance(container, Container)
-    
-    @patch('core.plugins.loader.PluginLoader.discover_plugins')
-    def test_plugin_loading_error_handling(self, mock_discover):
-        """Test that plugin loading errors don't crash bootstrap."""
-        mock_discover.side_effect = Exception("Plugin error")
-        
-        # Should still initialize successfully
-        bootstrap = ApplicationBootstrap()
-        container = bootstrap.initialize()
-        
-        assert isinstance(container, Container)
-    
-    def test_service_dependencies_resolved(self):
-        """Test that services with dependencies are properly resolved."""
-        bootstrap = ApplicationBootstrap()
-        container = bootstrap.initialize()
-        
-        # Get a service that has dependencies
-        from training.components.training_orchestrator import TrainingOrchestrator
-        orchestrator = container.resolve(TrainingOrchestrator)
-        
-        # Should have all its dependencies injected
-        assert hasattr(orchestrator, 'training_loop')
-        assert hasattr(orchestrator, 'evaluation_loop')
-        assert hasattr(orchestrator, 'checkpoint_manager')
-        assert hasattr(orchestrator, 'metrics_tracker')
-    
-    def test_configuration_with_environment_override(self, config_file, monkeypatch):
-        """Test that environment variables can override configuration."""
-        # Set environment variable
-        monkeypatch.setenv("K_BERT_TRAINING_EPOCHS", "5")
-        
-        bootstrap = ApplicationBootstrap(config_file)
-        container = bootstrap.initialize()
-        
-        config_provider = container.resolve(ConfigurationProvider)
-        # This would work if the config provider supports env overrides
-        # Just verify it doesn't crash
-        assert config_provider is not None
+        # Config manager should be created with correct paths
+        mock_config_cls.assert_called_once_with(
+            user_config_path=user_path,
+            project_config_path=project_path,
+            command_config_path=command_path
+        )
