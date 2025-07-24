@@ -446,7 +446,7 @@ class InfrastructureContainer:
             self.core_container,
             package_paths=package_paths,
             profiles=None,  # Use default profile for now
-            validate=False  # Disable validation due to dependency graph bug
+            validate=True  # Re-enabled after fixing dictionary iteration bug
         )
         
         if discovered_count == 0:

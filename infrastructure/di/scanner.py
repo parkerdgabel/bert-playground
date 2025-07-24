@@ -32,10 +32,14 @@ class DependencyGraph:
     def add_edge(self, from_node: Type, to_node: Type):
         """Add a dependency edge."""
         self.graph[from_node].add(to_node)
+        # Ensure to_node exists in graph to avoid defaultdict issues
+        if to_node not in self.graph:
+            self.graph[to_node]  # Creates empty set
         
     def has_cycle(self) -> bool:
         """Check if the graph has a cycle."""
-        for node in self.graph:
+        # Create a copy of keys to avoid dictionary modification during iteration
+        for node in list(self.graph):
             if node not in self.visited:
                 if self._has_cycle_util(node):
                     return True
@@ -69,7 +73,8 @@ class DependencyGraph:
                 visit(neighbor)
             stack.append(node)
             
-        for node in self.graph:
+        # Create a copy of keys to avoid dictionary modification during iteration
+        for node in list(self.graph):
             visit(node)
             
         return stack[::-1]
