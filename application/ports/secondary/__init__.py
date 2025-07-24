@@ -80,6 +80,9 @@ from .checkpointing import (
     CheckpointManager,
     CheckpointInfo,
 )
+from .numerical import (
+    NumericalOperations,
+)
 
 __all__ = [
     # Compute
@@ -144,4 +147,6 @@ __all__ = [
     # Checkpointing
     "CheckpointManager",
     "CheckpointInfo",
+    # Numerical
+    "NumericalOperations",
 ]
