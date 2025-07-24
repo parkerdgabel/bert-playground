@@ -2,13 +2,12 @@
 
 This module provides:
 - Enhanced container with port/adapter registration
-- Service registration for all domains
+- Auto-discovery decorator system
 - Configuration-driven adapter selection
 - Lifecycle management
 """
 
 from .container import Container, InfrastructureContainer
-from .registry import ServiceRegistry, AdapterRegistry
 
 # Import decorators
 from .decorators import (
@@ -53,14 +52,6 @@ from .decorators import (
     clear_registry,
 )
 
-# Import registration functions from services
-from .services import (
-    register_service,
-    register_singleton,
-    register_factory,
-    register_instance,
-)
-
 # Import scanner
 from .scanner import (
     ComponentScanner,
@@ -100,10 +91,6 @@ __all__ = [
     "Container",
     "InfrastructureContainer",
     
-    # Registries
-    "ServiceRegistry", 
-    "AdapterRegistry",
-    
     # Core decorators
     "component",
     "service",
@@ -133,12 +120,6 @@ __all__ = [
     
     # Configuration decorators
     "value",
-    
-    # Registration functions
-    "register_service",
-    "register_singleton",
-    "register_factory",
-    "register_instance",
     
     # Types
     "ComponentType",

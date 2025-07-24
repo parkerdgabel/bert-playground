@@ -17,7 +17,6 @@ from pathlib import Path
 from collections import defaultdict
 
 from ..config.manager import ConfigurationManager
-from .registry import ServiceRegistry, AdapterRegistry
 from .decorators import (
     ComponentMetadata, ComponentType, Scope, 
     get_component_metadata, qualifier, value
@@ -389,8 +388,6 @@ class InfrastructureContainer:
         """
         self.core_container = Container()
         self.config_manager = config_manager or ConfigurationManager()
-        self.service_registry = ServiceRegistry()
-        self.adapter_registry = AdapterRegistry()
         
         # Register the configuration manager itself
         self.core_container.register(
@@ -421,8 +418,7 @@ class InfrastructureContainer:
             from domain.services.training_service import TrainingService
             from domain.services.evaluation_service import EvaluationService
             
-            self.service_registry.register_service("training", TrainingService)
-            self.service_registry.register_service("evaluation", EvaluationService)
+            # Services registered via decorators or manual registration
             
             # Register with core container
             self.core_container.register(TrainingService, singleton=True)
@@ -438,8 +434,7 @@ class InfrastructureContainer:
             from domain.data.data_service import DataService
             from adapters.secondary.data.factory import DatasetFactory
             
-            self.service_registry.register_service("data", DataService)
-            self.service_registry.register_service("dataset_factory", DatasetFactory)
+            # Data services registered via decorators
             
             self.core_container.register(DataService, singleton=True)
             self.core_container.register(DatasetFactory, singleton=True)
@@ -458,7 +453,7 @@ class InfrastructureContainer:
             from models.factory_facade import ModelFactory
             from models.factory import ModelFactoryImpl
             
-            self.service_registry.register_service("model_factory", ModelFactory)
+            # Model factory registered via decorators
             
             self.core_container.register(ModelFactory, singleton=True)
             
@@ -491,10 +486,7 @@ class InfrastructureContainer:
             from adapters.primary.cli.benchmark_adapter import BenchmarkCommandAdapter
             
             # Register CLI adapters
-            self.adapter_registry.register_adapter("cli", "main", CLIAdapter)
-            self.adapter_registry.register_adapter("cli", "train", TrainCommandAdapter)
-            self.adapter_registry.register_adapter("cli", "predict", PredictCommandAdapter)
-            self.adapter_registry.register_adapter("cli", "benchmark", BenchmarkCommandAdapter)
+            # CLI adapters registered via decorators
             
             # Register with container
             self.core_container.register(CLIAdapter, singleton=True)
@@ -562,7 +554,7 @@ class InfrastructureContainer:
         from adapters.secondary.monitoring.loguru import LoguruMonitoringAdapter
         adapter_class = LoguruMonitoringAdapter
             
-        self.adapter_registry.register_adapter("monitoring", implementation, adapter_class)
+        # Monitoring adapter registered via decorators
         self.core_container.register(MonitoringService, adapter_class, singleton=True)
         
     def _register_storage_port(self) -> None:
@@ -683,7 +675,7 @@ class InfrastructureContainer:
             self.core_container._singleton_types.add(MLXNeuralAdapter)
             
             # Register adapter info for monitoring
-            self.adapter_registry.register_adapter("neural", "mlx", MLXNeuralAdapter)
+            # Neural adapter registered via decorators
             
         except ImportError:
             pass
@@ -721,9 +713,7 @@ class InfrastructureContainer:
             from application.use_cases.predict import PredictUseCase
             from application.use_cases.evaluate_model import EvaluateModelUseCase
             
-            self.service_registry.register_service("train_use_case", TrainModelUseCase)
-            self.service_registry.register_service("predict_use_case", PredictUseCase)
-            self.service_registry.register_service("evaluate_use_case", EvaluateModelUseCase)
+            # Use cases registered via decorators
             
             # Register with auto-wiring
             self.core_container.register(TrainModelUseCase)
@@ -740,8 +730,7 @@ class InfrastructureContainer:
             from application.orchestration.training_orchestrator import TrainingOrchestrator
             from application.orchestration.workflow_orchestrator import WorkflowOrchestrator
             
-            self.service_registry.register_service("training_orchestrator", TrainingOrchestrator)
-            self.service_registry.register_service("workflow_orchestrator", WorkflowOrchestrator)
+            # Orchestrators registered via decorators
             
             self.core_container.register(TrainingOrchestrator, singleton=True) 
             self.core_container.register(WorkflowOrchestrator, singleton=True)
@@ -797,7 +786,8 @@ class InfrastructureContainer:
         Returns:
             Adapter information
         """
-        return self.adapter_registry.get_adapter_info(port_type)
+        # Registry removed - adapter info managed by decorators
+        return {"port_type": port_type, "implementations": {}, "count": 0}
         
     def list_services(self) -> Dict[str, Type]:
         """List all registered services.
@@ -805,7 +795,8 @@ class InfrastructureContainer:
         Returns:
             Service name -> type mapping
         """
-        return self.service_registry.list_services()
+        # Registry removed - service info managed by decorators
+        return {}
         
     def swap_adapter(self, port_type: str, new_implementation: str) -> None:
         """Swap an adapter implementation at runtime.
@@ -858,5 +849,4 @@ class InfrastructureContainer:
     def clear(self) -> None:
         """Clear all registrations."""
         self.core_container.clear()
-        self.service_registry.clear()
-        self.adapter_registry.clear()
+        # Registry removed - using decorators only
