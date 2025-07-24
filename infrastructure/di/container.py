@@ -8,12 +8,20 @@ hexagonal architecture, with support for:
 - Lifecycle management
 """
 
-from typing import Any, Dict, Optional, Type, TypeVar, get_type_hints, Callable
+from typing import (
+    Any, Dict, Optional, Type, TypeVar, get_type_hints, Callable,
+    Union, List, Set, get_origin, get_args
+)
 import inspect
 from pathlib import Path
+from collections import defaultdict
 
 from ..config.manager import ConfigurationManager
 from .registry import ServiceRegistry, AdapterRegistry
+from .decorators import (
+    ComponentMetadata, ComponentType, Scope, 
+    get_component_metadata, qualifier, value
+)
 
 T = TypeVar("T")
 
@@ -34,13 +42,20 @@ class Container:
         self._singletons: Dict[Type, Any] = {}
         self._singleton_types: set = set()
         
+        # Enhanced metadata tracking
+        self._metadata: Dict[Type, ComponentMetadata] = {}
+        self._qualifiers: Dict[str, Dict[Type, Type]] = defaultdict(dict)
+        self._primary_implementations: Dict[Type, Type] = {}
+        self._config_values: Dict[str, Any] = {}
+        
     def register(
         self, 
         service_type: Type[T], 
         implementation: Any = None,
         factory: Optional[Callable] = None,
         instance: bool = False,
-        singleton: bool = False
+        singleton: bool = False,
+        metadata: Optional[ComponentMetadata] = None
     ) -> None:
         """Register a service in the container.
         
@@ -50,7 +65,31 @@ class Container:
             factory: Factory function to create instances
             instance: Whether implementation is already an instance
             singleton: Whether to use singleton lifecycle
+            metadata: Optional component metadata
         """
+        # Store metadata if provided
+        if metadata:
+            self._metadata[service_type] = metadata
+            
+            # Handle qualifiers
+            for qualifier_name, qualifier_value in metadata.qualifiers.items():
+                if qualifier_name == "primary" and qualifier_value:
+                    self._primary_implementations[service_type] = implementation or service_type
+                elif isinstance(qualifier_name, str):
+                    self._qualifiers[qualifier_name][service_type] = implementation or service_type
+        
+        # Auto-detect metadata from decorated classes
+        elif implementation and hasattr(implementation, "_di_metadata"):
+            comp_metadata = get_component_metadata(implementation)
+            if comp_metadata:
+                self._metadata[service_type] = comp_metadata
+                
+                # Override singleton based on scope
+                if comp_metadata.scope == Scope.SINGLETON:
+                    singleton = True
+                elif comp_metadata.scope == Scope.TRANSIENT:
+                    singleton = False
+                    
         if instance:
             self._singletons[service_type] = implementation
         elif factory:
@@ -70,11 +109,12 @@ class Container:
         """
         self._factories[service_type] = factory
         
-    def resolve(self, service_type: Type[T]) -> T:
+    def resolve(self, service_type: Type[T], qualifier_name: Optional[str] = None) -> T:
         """Resolve a service from the container.
         
         Args:
             service_type: The service type to resolve
+            qualifier_name: Optional qualifier name for specific implementation
             
         Returns:
             Service instance
@@ -82,6 +122,12 @@ class Container:
         Raises:
             KeyError: If service not registered
         """
+        # Handle qualified resolution
+        if qualifier_name:
+            qualified_types = self._qualifiers.get(qualifier_name, {})
+            if service_type in qualified_types:
+                return self.resolve(qualified_types[service_type])
+                
         # Check for existing singleton
         if service_type in self._singletons:
             return self._singletons[service_type]
@@ -97,14 +143,26 @@ class Container:
         if service_type in self._services:
             implementation = self._services[service_type]
             instance = self._create_instance(implementation)
+            
+            # Call post-construct method if defined
+            metadata = self._metadata.get(service_type)
+            if metadata and metadata.init_method:
+                init_method = getattr(instance, metadata.init_method, None)
+                if init_method and callable(init_method):
+                    init_method()
+                    
             if service_type in self._singleton_types:
                 self._singletons[service_type] = instance
             return instance
             
+        # Try to resolve primary implementation
+        if service_type in self._primary_implementations:
+            return self.resolve(self._primary_implementations[service_type])
+            
         raise KeyError(f"Service {service_type} not registered")
         
     def _create_instance(self, implementation: Type[T]) -> T:
-        """Create an instance with dependency injection.
+        """Create an instance with enhanced dependency injection.
         
         Args:
             implementation: The class to instantiate
@@ -122,13 +180,84 @@ class Container:
                 
             # Try to resolve parameter type
             if param.annotation != param.empty:
+                param_type = param.annotation
+                origin = get_origin(param_type)
+                
+                # Handle Optional types
+                if origin is Union:
+                    args = get_args(param_type)
+                    # Check if it's Optional (Union with None)
+                    non_none_types = [t for t in args if t is not type(None)]
+                    if len(args) == 2 and type(None) in args and non_none_types:
+                        # It's Optional[T]
+                        try:
+                            params[param_name] = self.resolve(non_none_types[0])
+                        except KeyError:
+                            # Optional dependency not found, use None
+                            params[param_name] = None
+                        continue
+                        
+                # Handle List types (multiple implementations)
+                elif origin is list or origin is List:
+                    args = get_args(param_type)
+                    if args:
+                        item_type = args[0]
+                        # Find all implementations of the type
+                        implementations = []
+                        for service_type, impl in self._services.items():
+                            if self._is_assignable(impl, item_type):
+                                implementations.append(self.resolve(service_type))
+                        params[param_name] = implementations
+                        continue
+                        
+                # Handle Set types (unique implementations)
+                elif origin is set or origin is Set:
+                    args = get_args(param_type)
+                    if args:
+                        item_type = args[0]
+                        # Find all implementations of the type
+                        implementations = set()
+                        for service_type, impl in self._services.items():
+                            if self._is_assignable(impl, item_type):
+                                implementations.add(self.resolve(service_type))
+                        params[param_name] = implementations
+                        continue
+                
+                # Handle Annotated types (qualifiers and values)
+                elif hasattr(param_type, "__metadata__"):
+                    # Extract base type and metadata
+                    base_type = get_args(param_type)[0]
+                    metadata = param_type.__metadata__
+                    
+                    for meta in metadata:
+                        # Handle qualifier
+                        if hasattr(meta, "name") and hasattr(meta, "__class__") and meta.__class__.__name__ == "Qualifier":
+                            params[param_name] = self.resolve(base_type, qualifier_name=meta.name)
+                            break
+                        # Handle value injection
+                        elif hasattr(meta, "key") and hasattr(meta, "__class__") and meta.__class__.__name__ == "Value":
+                            params[param_name] = self._config_values.get(meta.key, meta.default)
+                            break
+                    else:
+                        # No special metadata, resolve normally
+                        params[param_name] = self.resolve(base_type)
+                    continue
+                    
+                # Normal type resolution
                 try:
-                    params[param_name] = self.resolve(param.annotation)
+                    params[param_name] = self.resolve(param_type)
                 except KeyError:
                     if param.default == param.empty:
                         raise
                         
         return implementation(**params)
+    
+    def _is_assignable(self, implementation: Type, interface: Type) -> bool:
+        """Check if implementation is assignable to interface."""
+        try:
+            return issubclass(implementation, interface)
+        except TypeError:
+            return False
         
     def has(self, service_type: Type) -> bool:
         """Check if a service is registered.
@@ -159,6 +288,87 @@ class Container:
             list(self._factories.keys()) +
             list(self._singletons.keys())
         ))
+    
+    def inject_config(self, key: str, value: Any) -> None:
+        """Inject a configuration value for @value decorators.
+        
+        Args:
+            key: Configuration key
+            value: Configuration value
+        """
+        self._config_values[key] = value
+        
+    def get_config(self, key: str, default: Any = None) -> Any:
+        """Get an injected configuration value.
+        
+        Args:
+            key: Configuration key
+            default: Default value if not found
+            
+        Returns:
+            Configuration value
+        """
+        return self._config_values.get(key, default)
+    
+    def register_decorator(self, cls: Type[T]) -> Type[T]:
+        """Register a decorated component automatically.
+        
+        Args:
+            cls: The decorated class
+            
+        Returns:
+            The class (for decorator chaining)
+        """
+        metadata = get_component_metadata(cls)
+        if not metadata:
+            return cls
+            
+        # Determine scope
+        singleton = metadata.scope == Scope.SINGLETON
+        
+        # Register for each interface
+        if metadata.interfaces:
+            for interface in metadata.interfaces:
+                self.register(interface, cls, singleton=singleton, metadata=metadata)
+        else:
+            # Register as self
+            self.register(cls, cls, singleton=singleton, metadata=metadata)
+            
+        # Handle adapters
+        if metadata.port_type:
+            self.register(metadata.port_type, cls, singleton=singleton, metadata=metadata)
+            
+        return cls
+    
+    def auto_wire(self, implementation: Type[T]) -> T:
+        """Create an instance with automatic dependency injection.
+        
+        This is an alias for _create_instance for backward compatibility.
+        
+        Args:
+            implementation: The class to instantiate
+            
+        Returns:
+            Created instance
+        """
+        return self._create_instance(implementation)
+    
+    def create_child(self) -> "Container":
+        """Create a child container for scoped resolution.
+        
+        Returns:
+            Child container
+        """
+        child = Container()
+        # Copy services but not singletons
+        child._services = self._services.copy()
+        child._factories = self._factories.copy()
+        child._singleton_types = self._singleton_types.copy()
+        child._metadata = self._metadata.copy()
+        child._qualifiers = self._qualifiers.copy()
+        child._primary_implementations = self._primary_implementations.copy()
+        child._config_values = self._config_values.copy()
+        return child
 
 
 class InfrastructureContainer:
