@@ -13,7 +13,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch, mock_open
 
 from adapters.secondary.storage.file_storage import FileStorageAdapter, ModelFileStorageAdapter
-from ports.secondary.storage import StorageKey, StorageValue, Metadata
+from application.ports.secondary.storage import StorageKey, StorageValue, Metadata
 
 
 class TestFileStorageAdapter:

@@ -9,7 +9,7 @@ from typing import Optional, Tuple
 import mlx.core as mx
 import mlx.nn as nn
 
-from ports.secondary.neural import Module
+from application.ports.secondary.neural import Module
 from .mlx_backend import MLXModule
 
 

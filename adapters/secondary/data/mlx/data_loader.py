@@ -7,7 +7,7 @@ import numpy as np
 
 from domain.entities.dataset import Dataset, DataBatch
 from .token_sequence import TokenSequence
-from ports.secondary.data import DataLoaderPort
+from application.ports.secondary.data import DataLoaderPort
 from adapters.secondary.data.base import BaseDataAdapter
 from .dataset import MLXDatasetWrapper
 from .transforms import MLXPaddingTransform

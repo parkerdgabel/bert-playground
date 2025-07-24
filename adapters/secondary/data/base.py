@@ -3,7 +3,7 @@
 from abc import ABC
 from typing import Any, Dict, Optional, List, Iterator
 from domain.entities.dataset import Dataset, DataBatch, DatasetSplit
-from ports.secondary.data import DataLoaderPort
+from application.ports.secondary.data import DataLoaderPort
 
 
 class BaseDataAdapter(ABC, DataLoaderPort):

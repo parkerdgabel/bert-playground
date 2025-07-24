@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
-from ports.secondary.storage import StorageService as StoragePort
-from ports.secondary.monitoring import MonitoringService as MonitoringPort
+from application.ports.secondary.storage import StorageService as StoragePort
+from application.ports.secondary.monitoring import MonitoringService as MonitoringPort
 
 
 @dataclass

@@ -16,7 +16,7 @@ from domain.services.training_service import (
     TrainingConfig, TrainingService, TrainingState, TrainingMetrics,
     OptimizerType, SchedulerType
 )
-from ports.primary.training import TrainingResult
+from application.ports.primary.training import TrainingResult
 
 
 class TestTrainModelUseCase:
@@ -410,8 +410,8 @@ class TestTrainModelUseCase:
         
         # Verify the dependencies are properly injected and of correct types
         from domain.services.training import ModelTrainingService
-        from ports.secondary.storage import StorageService
-        from ports.secondary.monitoring import MonitoringService
+        from application.ports.secondary.storage import StorageService
+        from application.ports.secondary.monitoring import MonitoringService
         
         assert isinstance(di_use_case.training_service, ModelTrainingService)
         # Note: These will be mock instances due to our test configuration

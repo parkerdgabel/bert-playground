@@ -21,7 +21,7 @@ from rich.syntax import Syntax
 from loguru import logger
 
 from infrastructure.bootstrap import get_service
-from ports.secondary.configuration import ConfigurationProvider
+from application.ports.secondary.configuration import ConfigurationProvider
 
 
 console = Console()

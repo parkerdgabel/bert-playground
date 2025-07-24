@@ -16,7 +16,7 @@ from safetensors import safe_open
 from safetensors.mlx import save_file
 
 from infrastructure.di import adapter, Scope
-from ports.secondary.storage import (
+from application.ports.secondary.storage import (
     ModelCheckpoint,
     ModelMetadata,
     ModelStorageService,

@@ -7,7 +7,7 @@ from datetime import datetime
 from contextlib import contextmanager
 
 from infrastructure.di import adapter, Scope
-from ports.secondary.monitoring import MonitoringService
+from application.ports.secondary.monitoring import MonitoringService
 from ..base import BaseMonitoringAdapter, BaseProgressBar
 from .config import MLflowConfig
 # object removed - not defined in ports

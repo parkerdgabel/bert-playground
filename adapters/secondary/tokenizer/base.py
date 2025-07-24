@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Optional, Union, Any
 from pathlib import Path
 
-from ports.secondary.tokenizer import TokenizerPort
+from application.ports.secondary.tokenizer import TokenizerPort
 from .token_sequence import TokenSequence
 
 

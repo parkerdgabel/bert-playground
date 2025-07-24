@@ -85,11 +85,11 @@ def test_ports_are_protocols():
     """Test that ports are defined as protocols."""
     print("\nTesting port definitions...")
     
-    from ports.secondary.compute import ComputeBackend
-    from ports.secondary.monitoring import MonitoringService
-    from ports.secondary.storage import StorageService
-    from ports.secondary.tokenizer import TokenizerPort
-    from ports.secondary.data import DataLoaderPort
+    from application.ports.secondary.compute import ComputeBackend
+    from application.ports.secondary.monitoring import MonitoringService
+    from application.ports.secondary.storage import StorageService
+    from application.ports.secondary.tokenizer import TokenizerPort
+    from application.ports.secondary.data import DataLoaderPort
     
     # Check they are protocols (have __annotations__)
     ports = [ComputeBackend, MonitoringService, StorageService, 

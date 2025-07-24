@@ -9,10 +9,10 @@ from domain.entities.model import (
     BertModel, ModelArchitecture, ModelType, TaskType, 
     TaskHead, ModelSpecification, ActivationType, AttentionType
 )
-from infrastructure.di import service
+from domain.registry import domain_service, ServiceScope
 
 
-@service
+@domain_service(scope=ServiceScope.SINGLETON)
 class ModelBuilder:
     """Builds model specifications in a framework-agnostic way.
     

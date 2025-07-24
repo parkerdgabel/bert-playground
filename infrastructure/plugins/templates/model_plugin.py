@@ -9,7 +9,7 @@ import mlx.core as mx
 from loguru import logger
 
 from infrastructure.plugins import PluginBase, PluginContext, PluginError
-from ports.secondary.plugins import ModelPlugin
+from application.ports.secondary.plugins import ModelPlugin
 
 
 class CustomModelPlugin(PluginBase, ModelPlugin):

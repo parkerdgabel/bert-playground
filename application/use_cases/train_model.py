@@ -14,12 +14,12 @@ from domain.services.training_service import (
     TrainingConfig, TrainingService, TrainingState,
     OptimizerType, SchedulerType
 )
-from ports.primary.training import TrainingResult
-from ports.secondary.storage import StorageService
-from ports.secondary.monitoring import MonitoringService
-from ports.secondary.configuration import ConfigurationProvider
-from ports.secondary.checkpointing import CheckpointManager
-from ports.secondary.metrics import MetricsCollector
+from application.ports.primary.training import TrainingResult
+from application.ports.secondary.storage import StorageService
+from application.ports.secondary.monitoring import MonitoringService
+from application.ports.secondary.configuration import ConfigurationProvider
+from application.ports.secondary.checkpointing import CheckpointManager
+from application.ports.secondary.metrics import MetricsCollector
 
 
 @use_case

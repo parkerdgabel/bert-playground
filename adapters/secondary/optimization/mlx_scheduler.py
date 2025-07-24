@@ -4,7 +4,7 @@ from typing import Any, Optional
 import math
 
 from infrastructure.di import adapter, Scope
-from ports.secondary.optimization import LRScheduler, SchedulerConfig
+from application.ports.secondary.optimization import LRScheduler, SchedulerConfig
 
 
 @adapter(LRScheduler, scope=Scope.SINGLETON)

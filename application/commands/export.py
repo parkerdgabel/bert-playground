@@ -11,9 +11,9 @@ from application.dto.export import ExportRequestDTO, ExportResponseDTO
 from domain.entities.model import BertModel
 from domain.services import TokenizationService
 from domain.protocols.models import Model
-from ports.secondary.compute import ComputeBackend as ComputePort
-from ports.secondary.monitoring import MonitoringService as MonitoringPort
-from ports.secondary.storage import StorageService as StoragePort
+from application.ports.secondary.compute import ComputeBackend as ComputePort
+from application.ports.secondary.monitoring import MonitoringService as MonitoringPort
+from application.ports.secondary.storage import StorageService as StoragePort
 
 
 @dataclass

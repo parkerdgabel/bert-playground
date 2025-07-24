@@ -9,10 +9,10 @@ import pandas as pd
 
 from domain.entities.dataset import Dataset
 from domain.services import TokenizationService
-from ports.secondary.data import DataLoaderPort
-from ports.secondary.storage import StorageService as StoragePort
-from ports.secondary.monitoring import MonitoringService as MonitoringPort
-from ports.secondary.tokenizer import TokenizerPort
+from application.ports.secondary.data import DataLoaderPort
+from application.ports.secondary.storage import StorageService as StoragePort
+from application.ports.secondary.monitoring import MonitoringService as MonitoringPort
+from application.ports.secondary.tokenizer import TokenizerPort
 
 
 class DataProcessingStep(Enum):

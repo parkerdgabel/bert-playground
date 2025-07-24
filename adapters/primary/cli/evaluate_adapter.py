@@ -21,7 +21,7 @@ from loguru import logger
 from application.dto.evaluation import EvaluationRequestDTO
 from application.use_cases.evaluate_model import EvaluateModelUseCase
 from infrastructure.bootstrap import get_service
-from ports.secondary.configuration import ConfigurationProvider
+from application.ports.secondary.configuration import ConfigurationProvider
 
 
 console = Console()

@@ -7,7 +7,7 @@ from datetime import datetime
 import re
 
 from infrastructure.di import adapter, Scope
-from ports.secondary.checkpointing import CheckpointManager
+from application.ports.secondary.checkpointing import CheckpointManager
 from domain.entities.model import BertModel
 from domain.entities.training import TrainingState
 from adapters.secondary.storage.base import BaseCheckpointAdapter

@@ -5,7 +5,7 @@ import mlx.core as mx
 import numpy as np
 
 from infrastructure.di import adapter, Scope
-from ports.secondary.metrics import MetricsCalculatorPort
+from application.ports.secondary.metrics import MetricsCalculatorPort
 from adapters.secondary.compute.mlx.utils import convert_from_mlx_array
 
 

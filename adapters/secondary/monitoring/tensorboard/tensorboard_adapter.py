@@ -6,7 +6,7 @@ from datetime import datetime
 import json
 
 from infrastructure.di import adapter, Scope
-from ports.secondary.monitoring import MonitoringService
+from application.ports.secondary.monitoring import MonitoringService
 from ..base import BaseMonitoringAdapter, BaseProgressBar
 from .writer import TensorBoardWriter
 # object removed - not defined in ports

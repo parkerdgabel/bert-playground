@@ -7,8 +7,8 @@ import pickle
 from pathlib import Path
 from datetime import datetime
 
-from ports.secondary.storage import StorageService
-from ports.secondary.checkpointing import CheckpointManager
+from application.ports.secondary.storage import StorageService
+from application.ports.secondary.checkpointing import CheckpointManager
 from domain.protocols.models import Model
 from domain.protocols.training import TrainingState
 

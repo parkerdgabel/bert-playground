@@ -10,7 +10,7 @@ import numpy as np
 
 from infrastructure.di import adapter, Scope
 from domain.protocols.compute import Array, DataType
-from ports.secondary.compute import ComputeBackend, ArrayLike, Device, DType, Shape
+from application.ports.secondary.compute import ComputeBackend, ArrayLike, Device, DType, Shape
 from adapters.secondary.compute.base import BaseComputeAdapter
 from .utils import convert_to_mlx_array, get_mlx_device_info
 

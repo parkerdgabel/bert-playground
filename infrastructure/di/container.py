@@ -435,10 +435,10 @@ class InfrastructureContainer:
         # Package paths to scan for decorated components
         package_paths = [
             "domain",
-            "application", 
+            "application",  # This includes application.ports now
             "infrastructure.adapters",
-            "adapters",
-            "ports"
+            "adapters"
+            # "ports" removed - now in application.ports
         ]
         
         # Auto-discover and register components

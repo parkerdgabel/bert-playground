@@ -7,8 +7,8 @@ import mlx.nn as nn
 import mlx.optimizers as optim
 
 from infrastructure.di import adapter, Scope
-from ports.secondary.optimization import Optimizer, OptimizerConfig
-from ports.secondary.compute import Module, Array
+from application.ports.secondary.optimization import Optimizer, OptimizerConfig
+from application.ports.secondary.compute import Module, Array
 
 
 @adapter(Optimizer, scope=Scope.SINGLETON)

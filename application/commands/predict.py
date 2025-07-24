@@ -11,10 +11,10 @@ from domain.entities.model import BertModel
 from domain.entities.dataset import Dataset
 from domain.services import TokenizationService
 from domain.protocols.models import Model
-from ports.secondary.data import DataLoaderPort
-from ports.secondary.compute import ComputeBackend as ComputePort
-from ports.secondary.monitoring import MonitoringService as MonitoringPort
-from ports.secondary.storage import StorageService as StoragePort
+from application.ports.secondary.data import DataLoaderPort
+from application.ports.secondary.compute import ComputeBackend as ComputePort
+from application.ports.secondary.monitoring import MonitoringService as MonitoringPort
+from application.ports.secondary.storage import StorageService as StoragePort
 
 
 @dataclass

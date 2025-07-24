@@ -14,8 +14,8 @@ from loguru import logger
 # Import dependency injection and ports
 from infrastructure.bootstrap import get_service
 from domain.protocols.compute import Array, DataType
-from ports.secondary.compute import ComputeBackend
-from ports.secondary.tokenizer import TokenizerPort
+from application.ports.secondary.compute import ComputeBackend
+from application.ports.secondary.tokenizer import TokenizerPort
 
 
 class TokenizerCache:

@@ -11,11 +11,11 @@ from domain.entities.metrics import TrainingMetrics
 from domain.entities.model import BertModel, ModelArchitecture
 from domain.entities.dataset import Dataset
 from domain.services import ModelTrainingService, TokenizationService, CheckpointingService
-from ports.secondary.data import DataLoaderPort
-from ports.secondary.compute import ComputeBackend
-from ports.secondary.monitoring import MonitoringService
-from ports.secondary.storage import StorageService
-from ports.secondary.checkpointing import CheckpointManager
+from application.ports.secondary.data import DataLoaderPort
+from application.ports.secondary.compute import ComputeBackend
+from application.ports.secondary.monitoring import MonitoringService
+from application.ports.secondary.storage import StorageService
+from application.ports.secondary.checkpointing import CheckpointManager
 
 
 @dataclass

@@ -378,13 +378,13 @@ def configured_container(clean_registry):
     container = Container()
     
     # Register mock implementations for common ports
-    from ports.secondary.storage import StorageService, ModelStorageService
-    from ports.secondary.monitoring import MonitoringService
-    from ports.secondary.compute import ComputeBackend
-    from ports.secondary.neural import NeuralBackend
-    from ports.secondary.tokenizer import TokenizerPort
-    from ports.secondary.checkpointing import CheckpointManager
-    from ports.secondary.metrics import MetricsCollector
+    from application.ports.secondary.storage import StorageService, ModelStorageService
+    from application.ports.secondary.monitoring import MonitoringService
+    from application.ports.secondary.compute import ComputeBackend
+    from application.ports.secondary.neural import NeuralBackend
+    from application.ports.secondary.tokenizer import TokenizerPort
+    from application.ports.secondary.checkpointing import CheckpointManager
+    from application.ports.secondary.metrics import MetricsCollector
     
     # Create mock implementations
     mock_storage = AsyncMock(spec=StorageService)

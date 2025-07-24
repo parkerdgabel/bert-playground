@@ -12,7 +12,7 @@ from typing import Any
 from loguru import logger
 
 from infrastructure.di import adapter, Scope
-from ports.secondary.monitoring import (
+from application.ports.secondary.monitoring import (
     ExperimentInfo,
     LogLevel,
     Metric,
@@ -20,7 +20,7 @@ from ports.secondary.monitoring import (
     RunInfo,
     RunStatus,
 )
-from ports.secondary.metrics import MetricType
+from application.ports.secondary.metrics import MetricType
 
 
 @adapter(MonitoringService, scope=Scope.SINGLETON)

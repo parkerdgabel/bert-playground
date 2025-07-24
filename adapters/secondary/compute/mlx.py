@@ -13,8 +13,8 @@ import mlx.optimizers as optim
 import numpy as np
 
 from infrastructure.di import adapter, Scope
-from ports.secondary.compute import ComputeBackend, Device, DType, Shape
-from ports.secondary.neural import (
+from application.ports.secondary.compute import ComputeBackend, Device, DType, Shape
+from application.ports.secondary.neural import (
     ActivationType,
     GradientDict,
     LossType,

@@ -11,10 +11,10 @@ from domain.entities.training import TrainingSession
 from domain.entities.metrics import TrainingMetrics
 from domain.entities.model import BertModel
 from domain.services import ModelTrainingService, EvaluationService
-from ports.secondary.compute import ComputeBackend as ComputePort
-from ports.secondary.monitoring import MonitoringService as MonitoringPort
-from ports.secondary.checkpointing import CheckpointManager as CheckpointPort
-from ports.secondary.metrics import MetricsCollector as MetricsCalculatorPort
+from application.ports.secondary.compute import ComputeBackend as ComputePort
+from application.ports.secondary.monitoring import MonitoringService as MonitoringPort
+from application.ports.secondary.checkpointing import CheckpointManager as CheckpointPort
+from application.ports.secondary.metrics import MetricsCollector as MetricsCalculatorPort
 from domain.protocols.models import Model
 
 

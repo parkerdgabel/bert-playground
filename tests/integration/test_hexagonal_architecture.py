@@ -99,11 +99,11 @@ def test_service_orchestration():
     container = Container()
     
     # Register mock ports
-    from ports.secondary.compute import ComputePort
-    from ports.secondary.monitoring import MonitoringPort
-    from ports.secondary.checkpoint import CheckpointPort
-    from ports.secondary.metrics import MetricsPort
-    from ports.secondary.tokenizer import TokenizerPort
+    from application.ports.secondary.compute import ComputePort
+    from application.ports.secondary.monitoring import MonitoringPort
+    from application.ports.secondary.checkpoint import CheckpointPort
+    from application.ports.secondary.metrics import MetricsPort
+    from application.ports.secondary.tokenizer import TokenizerPort
     
     container.register(ComputePort, AsyncMock(spec=ComputePort), instance=True)
     container.register(MonitoringPort, AsyncMock(spec=MonitoringPort), instance=True)
@@ -190,7 +190,7 @@ def test_hexagonal_principles():
     print("✓ Domain has no framework dependencies")
     
     # Test 2: Ports are defined as protocols
-    from ports.secondary.compute import ComputePort
+    from application.ports.secondary.compute import ComputePort
     assert hasattr(ComputePort, '__annotations__')
     print("✓ Ports are properly defined as protocols")
     

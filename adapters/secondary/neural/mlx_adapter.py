@@ -12,7 +12,7 @@ import mlx.core as mx
 
 from domain.entities.model import BertModel
 from domain.entities.dataset import DataBatch
-from ports.secondary.neural import NeuralBackend, LossType, InitializationType
+from application.ports.secondary.neural import NeuralBackend, LossType, InitializationType
 from adapters.secondary.neural.mlx_backend import MLXNeuralBackend
 from adapters.secondary.compute.mlx.compute_adapter import MLXComputeAdapter
 from adapters.secondary.compute.mlx.model_adapter import MLXModelAdapter

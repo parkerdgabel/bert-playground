@@ -10,10 +10,10 @@ from datetime import datetime
 from domain.entities.model import BertModel
 from domain.entities.training import TrainingSession, TrainingState
 from domain.exceptions import CheckpointError
-from infrastructure.di import service
+from domain.registry import domain_service, ServiceScope
 
 
-@service
+@domain_service()
 class CheckpointingService:
     """Service for checkpoint management business logic.
     

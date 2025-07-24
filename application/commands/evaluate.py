@@ -9,13 +9,13 @@ from application.dto.evaluation import EvaluationRequestDTO, EvaluationResponseD
 from domain.entities.model import BertModel
 from domain.entities.dataset import Dataset
 from domain.entities.metrics import EvaluationMetrics
-from ports.secondary.metrics import MetricType
+from application.ports.secondary.metrics import MetricType
 from domain.services import EvaluationService
-from ports.secondary.data import DataLoaderPort
-from ports.secondary.compute import ComputeBackend as ComputePort
-from ports.secondary.monitoring import MonitoringService as MonitoringPort
-from ports.secondary.storage import StorageService as StoragePort
-from ports.secondary.metrics import MetricsCollector as MetricsCalculatorPort
+from application.ports.secondary.data import DataLoaderPort
+from application.ports.secondary.compute import ComputeBackend as ComputePort
+from application.ports.secondary.monitoring import MonitoringService as MonitoringPort
+from application.ports.secondary.storage import StorageService as StoragePort
+from application.ports.secondary.metrics import MetricsCollector as MetricsCalculatorPort
 
 
 @dataclass

@@ -11,10 +11,10 @@ from domain.entities.training import TrainingSession, TrainingState, TrainingCon
 from domain.entities.dataset import Dataset, DataBatch
 from domain.entities.metrics import TrainingMetrics, EvaluationMetrics
 from domain.exceptions import TrainingError, ModelNotInitializedError
-from infrastructure.di import service
+from domain.registry import domain_service, ServiceScope
 
 
-@service
+@domain_service()
 class ModelTrainingService:
     """Service for orchestrating model training logic.
     

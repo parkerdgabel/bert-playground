@@ -16,8 +16,8 @@ from application.dto.prediction import (
     PredictionResponseDTO,
     PredictionFormat
 )
-from ports.secondary.storage import StorageService
-from ports.secondary.monitoring import MonitoringService
+from application.ports.secondary.storage import StorageService
+from application.ports.secondary.monitoring import MonitoringService
 
 
 @use_case

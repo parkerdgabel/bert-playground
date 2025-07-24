@@ -12,7 +12,7 @@ from collections import defaultdict
 from domain.entities.model import BertModel, TaskType
 from domain.entities.dataset import Dataset, DataBatch
 from domain.entities.metrics import EvaluationMetrics
-from infrastructure.di import service
+from domain.registry import domain_service, ServiceScope
 
 
 class MetricType(Enum):
@@ -76,7 +76,7 @@ class PredictionResult:
     metadata: Dict[str, Any] = None
 
 
-@service
+@domain_service()
 class EvaluationEngine:
     """Engine for model evaluation logic.
     

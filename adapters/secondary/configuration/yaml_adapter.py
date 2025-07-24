@@ -8,7 +8,7 @@ import yaml
 from pydantic import BaseModel, ValidationError
 
 from infrastructure.di import adapter, Scope
-from ports.secondary.configuration import (
+from application.ports.secondary.configuration import (
     ConfigDict,
     ConfigPath,
     ConfigRegistry,

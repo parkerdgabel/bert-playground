@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Type, TypeVar, Union
 from loguru import logger
 
 from infrastructure.di import Container, get_container
-from ports.secondary.plugins import (
+from application.ports.secondary.plugins import (
     AugmenterPlugin,
     DataLoaderPlugin,
     FeatureExtractorPlugin,

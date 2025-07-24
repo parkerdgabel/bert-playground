@@ -7,7 +7,7 @@ import json
 import uuid
 
 from infrastructure.di import adapter, Scope
-from ports.secondary.monitoring import MonitoringService
+from application.ports.secondary.monitoring import MonitoringService
 from ..base import BaseMonitoringAdapter, BaseProgressBar
 from .formatters import MetricsFormatter, TableFormatter
 # object removed - not defined in ports

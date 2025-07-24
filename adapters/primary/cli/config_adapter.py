@@ -13,7 +13,7 @@ from rich.panel import Panel
 import yaml
 
 from infrastructure.bootstrap import get_service
-from ports.secondary.configuration import ConfigurationProvider
+from application.ports.secondary.configuration import ConfigurationProvider
 from adapters.primary.cli.base import CLIAdapter
 
 

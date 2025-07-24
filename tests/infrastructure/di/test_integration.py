@@ -134,7 +134,7 @@ class TestDIServiceIntegration:
         from domain.services.training import ModelTrainingService
         
         # Register mock dependencies in both containers
-        from ports.secondary.compute import ComputeBackend
+        from application.ports.secondary.compute import ComputeBackend
         mock1 = AsyncMock(spec=ComputeBackend)
         mock2 = AsyncMock(spec=ComputeBackend)
         

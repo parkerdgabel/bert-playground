@@ -11,9 +11,9 @@ from typing import Optional, Dict, Any, List
 from infrastructure.di import use_case
 from application.dto.evaluation import EvaluationRequestDTO, EvaluationResponseDTO
 from domain.services.evaluation_service import EvaluationService
-from ports.secondary.storage import StorageService
-from ports.secondary.monitoring import MonitoringService
-from ports.secondary.metrics import MetricsCollector
+from application.ports.secondary.storage import StorageService
+from application.ports.secondary.monitoring import MonitoringService
+from application.ports.secondary.metrics import MetricsCollector
 
 
 @use_case

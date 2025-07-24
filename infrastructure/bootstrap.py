@@ -67,7 +67,10 @@ class ApplicationBootstrap:
             # 3. Initialize the container (auto-discovery happens here)
             self.container.initialize()
             
-            # 4. Validate the complete setup
+            # 4. Wire domain services into the container
+            self._wire_domain_services()
+            
+            # 5. Validate the complete setup
             self._validate_setup()
             
             self._initialized = True
@@ -97,6 +100,36 @@ class ApplicationBootstrap:
         """Setup dependency injection container."""
         self.container = InfrastructureContainer(self.config_manager)
             
+    def _wire_domain_services(self) -> None:
+        """Wire domain services into the DI container.
+        
+        This bridges the pure domain registry with the infrastructure DI system.
+        """
+        try:
+            # Resolve the domain service wiring from application layer
+            from application.services.domain_service_wiring import DomainServiceWiring
+            
+            # Check if it's already registered (from auto-discovery)
+            if self.container.has(DomainServiceWiring):
+                wiring_service = self.container.resolve(DomainServiceWiring)
+            else:
+                # Manually register and resolve it
+                wiring_service = DomainServiceWiring()
+                self.container.core_container.register(
+                    DomainServiceWiring, 
+                    wiring_service, 
+                    instance=True
+                )
+            
+            # Wire all domain services
+            wiring_service.wire_domain_services(self.container.core_container)
+            
+        except ImportError as e:
+            # Domain service wiring is optional - only needed if domain uses the registry
+            pass
+        except Exception as e:
+            raise RuntimeError(f"Failed to wire domain services: {e}") from e
+    
     def _validate_setup(self) -> None:
         """Validate the complete application setup."""
         # Validate configuration is loaded

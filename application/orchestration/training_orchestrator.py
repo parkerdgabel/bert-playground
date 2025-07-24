@@ -17,8 +17,8 @@ from application.dto.training import TrainingRequestDTO, TrainingResponseDTO
 from application.dto.evaluation import EvaluationRequestDTO, EvaluationResponseDTO
 from application.use_cases.train_model import TrainModelUseCase
 from application.use_cases.evaluate_model import EvaluateModelUseCase
-from ports.secondary.monitoring import MonitoringService
-from ports.secondary.storage import StorageService
+from application.ports.secondary.monitoring import MonitoringService
+from application.ports.secondary.storage import StorageService
 
 
 @dataclass

@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Type
 
 from infrastructure.plugins.registry import PluginRegistry as InfraRegistry
 from infrastructure.plugins.base import PluginBase
-from ports.secondary.plugins import Plugin, PluginMetadata
+from application.ports.secondary.plugins import Plugin, PluginMetadata
 
 
 class PluginRegistryAdapter:
@@ -213,7 +213,7 @@ class PluginRegistryAdapter:
     
     def _get_plugin_type(self, plugin: Plugin) -> str:
         """Determine plugin type string."""
-        from ports.secondary.plugins import (
+        from application.ports.secondary.plugins import (
             HeadPlugin, AugmenterPlugin, FeatureExtractorPlugin,
             DataLoaderPlugin, ModelPlugin, MetricPlugin
         )

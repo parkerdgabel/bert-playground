@@ -9,8 +9,8 @@ import tempfile
 from datetime import datetime
 
 from infrastructure.di import adapter, Scope
-from ports.secondary.storage import StorageService
-from ports.secondary.checkpointing import CheckpointManager
+from application.ports.secondary.storage import StorageService
+from application.ports.secondary.checkpointing import CheckpointManager
 from domain.entities.model import BertModel
 from domain.entities.training import TrainingState
 from adapters.secondary.storage.base import BaseStorageAdapter, BaseCheckpointAdapter

@@ -16,8 +16,8 @@ from application.dto.prediction import PredictionRequestDTO, PredictionResponseD
 from application.use_cases.train_model import TrainModelUseCase
 from application.use_cases.evaluate_model import EvaluateModelUseCase
 from application.use_cases.predict import PredictUseCase
-from ports.secondary.monitoring import MonitoringService
-from ports.secondary.storage import StorageService
+from application.ports.secondary.monitoring import MonitoringService
+from application.ports.secondary.storage import StorageService
 
 
 class WorkflowStage(Enum):

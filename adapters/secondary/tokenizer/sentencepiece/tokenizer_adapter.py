@@ -6,7 +6,7 @@ from pathlib import Path
 import json
 
 from infrastructure.di import adapter, Scope
-from ports.secondary.tokenizer import TokenizerPort
+from application.ports.secondary.tokenizer import TokenizerPort
 from adapters.secondary.tokenizer.base import BaseTokenizerAdapter
 
 

@@ -8,8 +8,8 @@ from datetime import datetime
 import re
 
 from infrastructure.di import adapter, Scope
-from ports.secondary.checkpointing import CheckpointManager, CheckpointInfo
-from ports.secondary.optimization import Optimizer
+from application.ports.secondary.checkpointing import CheckpointManager, CheckpointInfo
+from application.ports.secondary.optimization import Optimizer
 from domain.protocols.models import Model
 
 

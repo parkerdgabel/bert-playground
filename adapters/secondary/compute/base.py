@@ -2,7 +2,7 @@
 
 from abc import ABC
 from typing import Any, Dict, Optional
-from ports.secondary.compute import ComputeBackend
+from application.ports.secondary.compute import ComputeBackend
 
 
 class BaseComputeAdapter(ABC, ComputeBackend):

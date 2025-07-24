@@ -5,7 +5,7 @@ from typing import List, Dict, Optional, Union, Any
 from pathlib import Path
 
 from infrastructure.di import adapter, Scope
-from ports.secondary.tokenizer import TokenizerPort
+from application.ports.secondary.tokenizer import TokenizerPort
 from adapters.secondary.tokenizer.base import BaseTokenizerAdapter
 
 

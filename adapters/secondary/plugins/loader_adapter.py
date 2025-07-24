@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Type, Union
 from infrastructure.plugins.loader import PluginDiscovery, PluginLoader
 from infrastructure.plugins.registry import PluginRegistry
 from infrastructure.plugins.base import PluginBase, PluginMetadata as InfraPluginMetadata
-from ports.secondary.plugins import (
+from application.ports.secondary.plugins import (
     Plugin, PluginMetadata, HeadPlugin, AugmenterPlugin,
     FeatureExtractorPlugin, DataLoaderPlugin, ModelPlugin, MetricPlugin
 )

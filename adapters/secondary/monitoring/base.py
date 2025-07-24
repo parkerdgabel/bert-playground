@@ -2,7 +2,7 @@
 
 from typing import Dict, Any, Optional, List
 from abc import ABC
-from ports.secondary.monitoring import MonitoringService
+from application.ports.secondary.monitoring import MonitoringService
 from domain.entities.metrics import TrainingMetrics, EvaluationMetrics
 from domain.entities.training import TrainingSession
 

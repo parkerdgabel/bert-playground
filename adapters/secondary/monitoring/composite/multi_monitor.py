@@ -5,7 +5,7 @@ import logging
 from contextlib import contextmanager
 
 from infrastructure.di import adapter, Scope
-from ports.secondary.monitoring import MonitoringService
+from application.ports.secondary.monitoring import MonitoringService
 from domain.entities.metrics import TrainingMetrics, EvaluationMetrics
 from domain.entities.training import TrainingSession
 

@@ -14,8 +14,8 @@ import numpy as np
 
 from infrastructure.di import adapter, Scope
 from domain.protocols.compute import Array, DataType
-from ports.secondary.compute import ArrayLike, Device, DType, Shape
-from ports.secondary.neural import (
+from application.ports.secondary.compute import ArrayLike, Device, DType, Shape
+from application.ports.secondary.neural import (
     ActivationType,
     AttentionConfig,
     AttentionMask,

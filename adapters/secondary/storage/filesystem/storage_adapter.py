@@ -11,7 +11,7 @@ import tempfile
 from contextlib import contextmanager
 
 from infrastructure.di import adapter, Scope
-from ports.secondary.storage import StorageService
+from application.ports.secondary.storage import StorageService
 from adapters.secondary.storage.base import BaseStorageAdapter
 
 

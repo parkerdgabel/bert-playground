@@ -21,6 +21,11 @@ from .decorators import (
 from .container import Container
 
 
+class ArchitecturalViolationError(Exception):
+    """Raised when hexagonal architecture rules are violated."""
+    pass
+
+
 class DependencyGraph:
     """Simple dependency graph for detecting circular dependencies."""
     
@@ -320,9 +325,10 @@ class ComponentScanner:
         Returns:
             Layer name
         """
-        if component_type in [ComponentType.DOMAIN_SERVICE, ComponentType.PORT]:
+        if component_type == ComponentType.DOMAIN_SERVICE:
             return "domain"
-        elif component_type in [ComponentType.APPLICATION_SERVICE, ComponentType.USE_CASE]:
+        elif component_type in [ComponentType.APPLICATION_SERVICE, ComponentType.USE_CASE, ComponentType.PORT]:
+            # Ports belong in the application layer - they define the boundaries of the application
             return "application"
         elif component_type in [ComponentType.ADAPTER, ComponentType.REPOSITORY, 
                                 ComponentType.GATEWAY, ComponentType.CONTROLLER]:
@@ -348,8 +354,84 @@ class ComponentScanner:
             "unknown": ["domain", "application", "infrastructure"]
         }
         
+        # Additional validation rules for hexagonal architecture
+        if from_layer == "domain" and to_layer != "domain":
+            # Domain must not depend on any other layer
+            raise ArchitecturalViolationError(
+                f"Domain layer violation: Domain components must not depend on {to_layer} layer"
+            )
+        
+        # Port-specific validation
+        from_type = get_component_metadata(from_component).component_type if from_component else None
+        to_type = get_component_metadata(to_component).component_type if to_component else None
+        
+        # Ports must be in application layer
+        if from_type == ComponentType.PORT and from_layer != "application":
+            raise ArchitecturalViolationError(
+                f"Port placement violation: Ports must be in application layer, not {from_layer}"
+            )
+        
+        # Adapters must not be in domain layer
+        if from_type == ComponentType.ADAPTER and from_layer == "domain":
+            raise ArchitecturalViolationError(
+                "Adapter placement violation: Adapters must not be in domain layer"
+            )
+        
+        # Domain services must not import from ports
+        if (from_type == ComponentType.DOMAIN_SERVICE and 
+            to_type == ComponentType.PORT):
+            raise ArchitecturalViolationError(
+                "Domain service violation: Domain services must not depend on ports"
+            )
+        
         return to_layer in allowed.get(from_layer, [])
         
+    def validate_hexagonal_architecture(self) -> List[str]:
+        """Validate that all components follow hexagonal architecture rules.
+        
+        Returns:
+            List of violation messages (empty if all valid)
+        """
+        violations = []
+        
+        for component in self.discovered_components:
+            metadata = get_component_metadata(component)
+            if not metadata:
+                continue
+                
+            component_layer = self._get_layer_for_component_type(metadata.component_type)
+            module_layer = self._get_layer_from_module(component.__module__)
+            
+            # Check component is in correct layer
+            if component_layer != module_layer and component_layer != "unknown":
+                violations.append(
+                    f"{component.__name__} ({metadata.component_type.value}) is in {module_layer} "
+                    f"but should be in {component_layer}"
+                )
+            
+            # Check ports are in application layer
+            if metadata.component_type == ComponentType.PORT and module_layer != "application":
+                violations.append(
+                    f"Port {component.__name__} must be in application layer, not {module_layer}"
+                )
+            
+            # Check adapters are not in domain
+            if metadata.component_type == ComponentType.ADAPTER and module_layer == "domain":
+                violations.append(
+                    f"Adapter {component.__name__} must not be in domain layer"
+                )
+            
+            # Check domain services don't depend on infrastructure
+            if metadata.component_type == ComponentType.DOMAIN_SERVICE:
+                for dep_name, dep_type in metadata.dependencies.items():
+                    dep_module = getattr(dep_type, '__module__', '')
+                    if 'infrastructure' in dep_module or 'adapters' in dep_module:
+                        violations.append(
+                            f"Domain service {component.__name__} depends on infrastructure: {dep_name}"
+                        )
+        
+        return violations
+
     def generate_report(self) -> str:
         """Generate a report of discovered components.
         
@@ -375,10 +457,20 @@ class ComponentScanner:
                 report.append(f"  - {component.__name__} (scope: {scope})")
             report.append("")
             
+        # Architecture validation
+        violations = self.validate_hexagonal_architecture()
+        if violations:
+            report.append("ARCHITECTURE VIOLATIONS")
+            report.append("-" * 30)
+            for violation in violations:
+                report.append(f"  ⚠️  {violation}")
+            report.append("")
+            
         # Summary
         report.append("SUMMARY")
         report.append("-" * 30)
         report.append(f"Total components: {len(self.discovered_components)}")
+        report.append(f"Architecture violations: {len(violations)}")
         
         return "\n".join(report)
 

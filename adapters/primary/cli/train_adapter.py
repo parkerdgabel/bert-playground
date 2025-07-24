@@ -22,7 +22,7 @@ from loguru import logger
 from application.dto.training import TrainingRequestDTO
 from application.use_cases.train_model import TrainModelUseCase
 from infrastructure.bootstrap import get_service
-from ports.secondary.configuration import ConfigurationProvider
+from application.ports.secondary.configuration import ConfigurationProvider
 
 
 console = Console()
