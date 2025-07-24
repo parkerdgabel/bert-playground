@@ -3,11 +3,35 @@
 This port defines the numerical operations interface that the application core uses
 for mathematical computations. It's a driven port implemented by adapters
 for different numerical libraries (numpy, MLX, JAX, etc.).
+
+This port now supports lazy evaluation and function transformation capabilities
+to enable MLX/JAX optimizations like JIT compilation, automatic differentiation,
+and vectorization.
 """
 
-from typing import Any, List, Optional, Protocol, Tuple, runtime_checkable
+from typing import Any, Callable, List, Optional, Protocol, Tuple, TypeVar, runtime_checkable
+from typing_extensions import TypeAlias
+from abc import abstractmethod
+from enum import Enum
 
 from infrastructure.di import port
+
+# Type variables and aliases
+T = TypeVar('T')
+F = TypeVar('F', bound=Callable[..., Any])
+
+# Lazy array type that supports tracing/compilation
+LazyArray: TypeAlias = Any  # Framework-specific lazy array type
+EagerArray: TypeAlias = Any  # Framework-specific eager array type
+ComputationGraph: TypeAlias = Any  # Framework-specific computation graph
+
+
+class EvaluationMode(Enum):
+    """Evaluation modes for computations."""
+    
+    LAZY = "lazy"  # Build computation graph without evaluation
+    EAGER = "eager"  # Evaluate immediately
+    JIT = "jit"  # JIT compile and evaluate
 
 
 @port()
@@ -20,112 +44,238 @@ class NumericalOperations(Protocol):
     pure without direct dependencies on numerical libraries.
     
     Implementations might use numpy, MLX, JAX, or other numerical backends.
+    
+    Key features:
+    - Lazy evaluation: Operations return computation graphs by default
+    - Function transformation: Support for JIT, grad, vmap
+    - Explicit evaluation: Methods to materialize results when needed
+    - Type safety: Clear separation between lazy and eager arrays
     """
-
-    def mean(self, values: List[float]) -> float:
-        """Calculate the arithmetic mean of a list of values.
+    
+    @property
+    @abstractmethod
+    def supports_lazy_evaluation(self) -> bool:
+        """Whether this backend supports lazy evaluation."""
+        ...
+    
+    @property
+    @abstractmethod
+    def supports_jit(self) -> bool:
+        """Whether this backend supports JIT compilation."""
+        ...
+    
+    @property
+    @abstractmethod
+    def supports_autodiff(self) -> bool:
+        """Whether this backend supports automatic differentiation."""
+        ...
+    
+    @property
+    @abstractmethod
+    def supports_vmap(self) -> bool:
+        """Whether this backend supports vectorization."""
+        ...
+    
+    # Evaluation control methods
+    
+    def set_evaluation_mode(self, mode: EvaluationMode) -> None:
+        """Set the evaluation mode for subsequent operations.
         
         Args:
-            values: List of numerical values
+            mode: Evaluation mode to use
+        """
+        ...
+    
+    def eval(self, computation: LazyArray | ComputationGraph) -> EagerArray:
+        """Explicitly evaluate a lazy computation.
+        
+        Args:
+            computation: Lazy array or computation graph
             
         Returns:
-            The arithmetic mean
+            Eagerly evaluated array
+        """
+        ...
+    
+    def make_lazy(self, array: EagerArray) -> LazyArray:
+        """Convert an eager array to lazy evaluation.
+        
+        Args:
+            array: Eager array
+            
+        Returns:
+            Lazy array
+        """
+        ...
+    
+    # Function transformation methods
+    
+    def jit(self, fn: F, static_argnums: Optional[Tuple[int, ...]] = None) -> F:
+        """JIT compile a function for faster execution.
+        
+        Args:
+            fn: Function to compile
+            static_argnums: Indices of static arguments
+            
+        Returns:
+            JIT compiled function
+        """
+        ...
+    
+    def grad(self, fn: Callable[..., LazyArray], argnums: int | Tuple[int, ...] = 0) -> Callable[..., LazyArray | Tuple[LazyArray, ...]]:
+        """Create gradient function using automatic differentiation.
+        
+        Args:
+            fn: Function to differentiate
+            argnums: Argument indices to differentiate with respect to
+            
+        Returns:
+            Gradient function
+        """
+        ...
+    
+    def value_and_grad(self, fn: Callable[..., LazyArray], argnums: int | Tuple[int, ...] = 0) -> Callable[..., Tuple[LazyArray, LazyArray | Tuple[LazyArray, ...]]]:
+        """Create function that returns both value and gradient.
+        
+        Args:
+            fn: Function to differentiate
+            argnums: Argument indices to differentiate with respect to
+            
+        Returns:
+            Function returning (value, gradient)
+        """
+        ...
+    
+    def vmap(self, fn: F, in_axes: int | Tuple[int | None, ...] = 0, out_axes: int = 0) -> F:
+        """Vectorize a function to operate on batches.
+        
+        Args:
+            fn: Function to vectorize
+            in_axes: Axes to map over for inputs
+            out_axes: Axes to map over for outputs
+            
+        Returns:
+            Vectorized function
+        """
+        ...
+    
+    def stop_gradient(self, array: LazyArray) -> LazyArray:
+        """Stop gradient propagation through an array.
+        
+        Args:
+            array: Array to stop gradients for
+            
+        Returns:
+            Array with gradients stopped
+        """
+        ...
+
+    # Original operations now return lazy arrays by default
+    
+    def mean(self, values: List[float] | LazyArray) -> LazyArray:
+        """Calculate the arithmetic mean of values.
+        
+        Args:
+            values: List of numerical values or lazy array
+            
+        Returns:
+            Lazy array containing the mean (evaluate with eval())
             
         Raises:
             ValueError: If values is empty
         """
         ...
 
-    def std(self, values: List[float], ddof: int = 0) -> float:
-        """Calculate the standard deviation of a list of values.
+    def std(self, values: List[float] | LazyArray, ddof: int = 0) -> LazyArray:
+        """Calculate the standard deviation of values.
         
         Args:
-            values: List of numerical values
+            values: List of numerical values or lazy array
             ddof: Delta degrees of freedom (default: 0 for population std)
             
         Returns:
-            The standard deviation
+            Lazy array containing the standard deviation
             
         Raises:
             ValueError: If values is empty
         """
         ...
 
-    def correlation(self, x: List[float], y: List[float]) -> float:
-        """Calculate the Pearson correlation coefficient between two lists.
+    def correlation(self, x: List[float] | LazyArray, y: List[float] | LazyArray) -> LazyArray:
+        """Calculate the Pearson correlation coefficient.
         
         Args:
-            x: First list of values
-            y: Second list of values
+            x: First array of values
+            y: Second array of values
             
         Returns:
-            Correlation coefficient between -1 and 1
+            Lazy array containing correlation coefficient
             
         Raises:
-            ValueError: If lists have different lengths or are empty
+            ValueError: If arrays have different lengths or are empty
         """
         ...
 
-    def clip(self, value: float, min_val: float, max_val: float) -> float:
+    def clip(self, value: float | LazyArray, min_val: float, max_val: float) -> LazyArray:
         """Clip a value to be within the specified range.
         
         Args:
-            value: The value to clip
+            value: The value or array to clip
             min_val: Minimum allowed value
             max_val: Maximum allowed value
             
         Returns:
-            Clipped value between min_val and max_val
+            Lazy array containing clipped value
             
         Raises:
             ValueError: If min_val > max_val
         """
         ...
 
-    def softmax(self, values: List[float]) -> List[float]:
+    def softmax(self, values: List[float] | LazyArray) -> LazyArray:
         """Apply softmax function to convert values to probabilities.
         
         Args:
-            values: List of values (logits)
+            values: Array of values (logits)
             
         Returns:
-            List of probabilities that sum to 1.0
+            Lazy array of probabilities that sum to 1.0
             
         Raises:
             ValueError: If values is empty
         """
         ...
 
-    def stack_arrays(self, arrays: List[Any]) -> Any:
+    def stack_arrays(self, arrays: List[LazyArray]) -> LazyArray:
         """Stack a list of arrays along a new axis.
         
         Args:
-            arrays: List of arrays with the same shape
+            arrays: List of lazy arrays with the same shape
             
         Returns:
-            Stacked array with one additional dimension
+            Lazy array with one additional dimension
             
         Raises:
             ValueError: If arrays is empty or arrays have incompatible shapes
         """
         ...
 
-    def array_mean(self, array: Any, axis: Optional[int] = None) -> Any:
+    def array_mean(self, array: LazyArray, axis: Optional[int] = None) -> LazyArray:
         """Calculate mean of an array along specified axis.
         
         Args:
-            array: Input array
+            array: Input lazy array
             axis: Axis along which to compute mean. None for overall mean.
             
         Returns:
-            Mean value(s). Scalar if axis is None, array otherwise.
+            Lazy array containing mean value(s)
             
         Raises:
             ValueError: If axis is out of bounds
         """
         ...
 
-    def array_sum(self, array: Any, axis: Optional[int] = None) -> Any:
+    def array_sum(self, array: LazyArray, axis: Optional[int] = None) -> LazyArray:
         """Calculate sum of an array along specified axis.
         
         Args:
@@ -140,7 +290,7 @@ class NumericalOperations(Protocol):
         """
         ...
 
-    def array_std(self, array: Any, axis: Optional[int] = None, ddof: int = 0) -> Any:
+    def array_std(self, array: LazyArray, axis: Optional[int] = None, ddof: int = 0) -> LazyArray:
         """Calculate standard deviation of an array along specified axis.
         
         Args:
@@ -156,7 +306,7 @@ class NumericalOperations(Protocol):
         """
         ...
 
-    def array_shape(self, array: Any) -> Tuple[int, ...]:
+    def array_shape(self, array: LazyArray) -> Tuple[int, ...]:
         """Get the shape of an array.
         
         Args:
@@ -167,7 +317,7 @@ class NumericalOperations(Protocol):
         """
         ...
 
-    def zeros_like(self, array: Any) -> Any:
+    def zeros_like(self, array: LazyArray) -> LazyArray:
         """Create an array of zeros with the same shape as input.
         
         Args:
@@ -178,7 +328,7 @@ class NumericalOperations(Protocol):
         """
         ...
 
-    def ones_like(self, array: Any) -> Any:
+    def ones_like(self, array: LazyArray) -> LazyArray:
         """Create an array of ones with the same shape as input.
         
         Args:
@@ -189,7 +339,7 @@ class NumericalOperations(Protocol):
         """
         ...
 
-    def array_max(self, array: Any, axis: Optional[int] = None) -> Any:
+    def array_max(self, array: LazyArray, axis: Optional[int] = None) -> LazyArray:
         """Find maximum value in array along specified axis.
         
         Args:
@@ -201,7 +351,7 @@ class NumericalOperations(Protocol):
         """
         ...
 
-    def array_min(self, array: Any, axis: Optional[int] = None) -> Any:
+    def array_min(self, array: LazyArray, axis: Optional[int] = None) -> LazyArray:
         """Find minimum value in array along specified axis.
         
         Args:
@@ -213,7 +363,7 @@ class NumericalOperations(Protocol):
         """
         ...
 
-    def array_clip(self, array: Any, min_val: float, max_val: float) -> Any:
+    def array_clip(self, array: LazyArray, min_val: float, max_val: float) -> LazyArray:
         """Clip all values in an array to specified range.
         
         Args:
@@ -229,7 +379,7 @@ class NumericalOperations(Protocol):
         """
         ...
 
-    def array_multiply(self, array: Any, scalar: float) -> Any:
+    def array_multiply(self, array: LazyArray, scalar: float) -> LazyArray:
         """Multiply array by scalar value.
         
         Args:
@@ -241,7 +391,7 @@ class NumericalOperations(Protocol):
         """
         ...
 
-    def array_add(self, array1: Any, array2: Any) -> Any:
+    def array_add(self, array1: LazyArray, array2: LazyArray) -> LazyArray:
         """Element-wise addition of two arrays.
         
         Args:
@@ -256,7 +406,7 @@ class NumericalOperations(Protocol):
         """
         ...
 
-    def array_log(self, array: Any, epsilon: float = 1e-15) -> Any:
+    def array_log(self, array: LazyArray, epsilon: float = 1e-15) -> LazyArray:
         """Natural logarithm of array elements with numerical stability.
         
         Args:
@@ -268,7 +418,7 @@ class NumericalOperations(Protocol):
         """
         ...
 
-    def array_power(self, array: Any, exponent: float) -> Any:
+    def array_power(self, array: LazyArray, exponent: float) -> LazyArray:
         """Raise array elements to specified power.
         
         Args:
@@ -280,7 +430,7 @@ class NumericalOperations(Protocol):
         """
         ...
 
-    def array_argsort(self, array: Any, axis: Optional[int] = -1) -> Any:
+    def array_argsort(self, array: LazyArray, axis: Optional[int] = -1) -> LazyArray:
         """Get indices that would sort an array.
         
         Args:
@@ -292,7 +442,7 @@ class NumericalOperations(Protocol):
         """
         ...
 
-    def array_corrcoef(self, x: Any, y: Optional[Any] = None) -> Any:
+    def array_corrcoef(self, x: LazyArray, y: Optional[LazyArray] = None) -> LazyArray:
         """Calculate correlation coefficient matrix.
         
         Args:
@@ -304,14 +454,60 @@ class NumericalOperations(Protocol):
         """
         ...
 
-    def maximum(self, array: Any, value: float) -> Any:
+    def maximum(self, array: LazyArray, value: float) -> LazyArray:
         """Element-wise maximum of array and scalar.
         
         Args:
-            array: Input array
+            array: Input lazy array
             value: Scalar value to compare against
             
         Returns:
-            Array with element-wise maximum values
+            Lazy array with element-wise maximum values
+        """
+        ...
+    
+    # Additional lazy evaluation helpers
+    
+    def is_lazy(self, array: Any) -> bool:
+        """Check if an array is lazy (not yet evaluated).
+        
+        Args:
+            array: Array to check
+            
+        Returns:
+            True if array is lazy, False if eager
+        """
+        ...
+    
+    def batch_eval(self, computations: List[LazyArray]) -> List[EagerArray]:
+        """Evaluate multiple lazy computations efficiently.
+        
+        Args:
+            computations: List of lazy arrays to evaluate
+            
+        Returns:
+            List of eager arrays
+        """
+        ...
+    
+    def create_computation_graph(self, fn: Callable[..., LazyArray]) -> ComputationGraph:
+        """Create a computation graph from a function.
+        
+        Args:
+            fn: Function that returns a lazy array
+            
+        Returns:
+            Computation graph representation
+        """
+        ...
+    
+    def optimize_graph(self, graph: ComputationGraph) -> ComputationGraph:
+        """Optimize a computation graph for better performance.
+        
+        Args:
+            graph: Computation graph to optimize
+            
+        Returns:
+            Optimized computation graph
         """
         ...

@@ -3,24 +3,30 @@
 This port defines the neural network interface that the application core uses
 for building and working with neural networks. It's a driven port implemented
 by adapters for different frameworks (MLX, PyTorch, JAX, etc.).
+
+This port now supports lazy evaluation for neural network operations.
 """
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Protocol, runtime_checkable, Callable, Optional, Iterator, Dict, Tuple
+from typing import Any, Protocol, runtime_checkable, Callable, Optional, Iterator, Dict, Tuple, TypeVar
 
 from typing_extensions import TypeAlias
 from infrastructure.di import port
 
 # Import base types from compute port
-from .compute import Array, Shape
+from .compute import Array, Shape, LazyArray, EagerArray, BackendCapability
 
 # Type aliases
 NeuralModule: TypeAlias = Any  # Framework-specific module type
 Parameter: TypeAlias = Any  # Framework-specific parameter type
 ParameterDict: TypeAlias = Dict[str, Parameter]
 GradientDict: TypeAlias = Dict[str, Array]
+LazyModule: TypeAlias = Any  # Module that builds computation graphs
+CompiledModule: TypeAlias = Any  # JIT-compiled module
+
+F = TypeVar('F', bound=Callable[..., Any])
 
 
 class ActivationType(Enum):
@@ -250,16 +256,99 @@ class NeuralBackend(Protocol):
     
     This interface provides high-level neural network building blocks
     that the application core uses. Implemented by framework-specific adapters.
+    
+    Key features:
+    - Lazy module construction for computation graphs
+    - Support for JIT compilation of modules
+    - Functional transformations (grad, vmap) on modules
+    - Explicit evaluation control
     """
 
     @property
+    @abstractmethod
     def name(self) -> str:
         """Name of the neural backend."""
         ...
 
     @property
+    @abstractmethod
     def supports_mixed_precision(self) -> bool:
         """Whether backend supports mixed precision training."""
+        ...
+    
+    @property
+    @abstractmethod
+    def supports_lazy_modules(self) -> bool:
+        """Whether backend supports lazy module construction."""
+        ...
+    
+    @property
+    @abstractmethod
+    def supports_module_jit(self) -> bool:
+        """Whether backend supports JIT compilation of modules."""
+        ...
+    
+    # Module transformation methods
+    
+    def make_lazy_module(self, module: NeuralModule) -> LazyModule:
+        """Convert a module to lazy evaluation mode.
+        
+        Args:
+            module: Module to convert
+            
+        Returns:
+            Lazy module that builds computation graphs
+        """
+        ...
+    
+    def compile_module(
+        self,
+        module: NeuralModule,
+        example_inputs: Optional[Dict[str, Array]] = None,
+        static_argnames: Optional[list[str]] = None
+    ) -> CompiledModule:
+        """JIT compile a neural module.
+        
+        Args:
+            module: Module to compile
+            example_inputs: Example inputs for tracing
+            static_argnames: Names of static arguments
+            
+        Returns:
+            Compiled module
+        """
+        ...
+    
+    def functional_module(
+        self,
+        module: NeuralModule
+    ) -> tuple[Callable, ParameterDict]:
+        """Convert module to functional form.
+        
+        Args:
+            module: Module to convert
+            
+        Returns:
+            Tuple of (forward_fn, parameters)
+        """
+        ...
+    
+    def vmap_module(
+        self,
+        module: NeuralModule,
+        in_axes: Dict[str, int | None] | None = None,
+        out_axes: int = 0
+    ) -> NeuralModule:
+        """Vectorize a module to handle batched inputs.
+        
+        Args:
+            module: Module to vectorize
+            in_axes: Input axes to map over
+            out_axes: Output axes
+            
+        Returns:
+            Vectorized module
+        """
         ...
 
     def create_embeddings(
@@ -503,7 +592,7 @@ class NeuralBackend(Protocol):
         input: Array,
         weight: Array,
         bias: Optional[Array] = None
-    ) -> Array:
+    ) -> LazyArray:
         """Linear transformation (fully connected layer).
         
         Args:
@@ -512,7 +601,7 @@ class NeuralBackend(Protocol):
             bias: Optional bias [out_features]
             
         Returns:
-            Output array [*, out_features]
+            Lazy output array [*, out_features]
         """
         ...
 
@@ -521,7 +610,7 @@ class NeuralBackend(Protocol):
         input: Array,
         weight: Array,
         padding_idx: Optional[int] = None
-    ) -> Array:
+    ) -> LazyArray:
         """Embedding lookup.
         
         Args:
@@ -530,7 +619,7 @@ class NeuralBackend(Protocol):
             padding_idx: Optional padding index
             
         Returns:
-            Embeddings [*, embedding_dim]
+            Lazy embeddings [*, embedding_dim]
         """
         ...
 
@@ -541,7 +630,7 @@ class NeuralBackend(Protocol):
         weight: Optional[Array] = None,
         bias: Optional[Array] = None,
         eps: float = 1e-5
-    ) -> Array:
+    ) -> LazyArray:
         """Layer normalization.
         
         Args:
@@ -552,7 +641,7 @@ class NeuralBackend(Protocol):
             eps: Epsilon for numerical stability
             
         Returns:
-            Normalized array
+            Lazy normalized array
         """
         ...
 
@@ -562,7 +651,7 @@ class NeuralBackend(Protocol):
         p: float = 0.5,
         training: bool = True,
         seed: Optional[int] = None
-    ) -> Array:
+    ) -> LazyArray:
         """Dropout regularization.
         
         Args:
@@ -572,7 +661,7 @@ class NeuralBackend(Protocol):
             seed: Random seed
             
         Returns:
-            Array with dropout applied
+            Lazy array with dropout applied
         """
         ...
 
@@ -580,7 +669,7 @@ class NeuralBackend(Protocol):
         self,
         input: Array,
         dim: int = -1
-    ) -> Array:
+    ) -> LazyArray:
         """Softmax activation.
         
         Args:
@@ -588,7 +677,7 @@ class NeuralBackend(Protocol):
             dim: Dimension to apply softmax over
             
         Returns:
-            Softmax output
+            Lazy softmax output
         """
         ...
 
@@ -598,7 +687,7 @@ class NeuralBackend(Protocol):
         target: Array,
         reduction: str = "mean",
         ignore_index: int = -100
-    ) -> Array:
+    ) -> LazyArray:
         """Cross entropy loss.
         
         Args:
@@ -608,7 +697,7 @@ class NeuralBackend(Protocol):
             ignore_index: Index to ignore
             
         Returns:
-            Loss value
+            Lazy loss value
         """
         ...
 
@@ -621,7 +710,7 @@ class NeuralBackend(Protocol):
         dropout_p: float = 0.0,
         scale: Optional[float] = None,
         training: bool = True,
-    ) -> tuple[Array, Optional[Array]]:
+    ) -> tuple[LazyArray, Optional[LazyArray]]:
         """Scaled dot-product attention.
         
         Args:
@@ -634,11 +723,11 @@ class NeuralBackend(Protocol):
             training: Whether in training mode
             
         Returns:
-            Tuple of (attention output, attention weights)
+            Tuple of (lazy attention output, lazy attention weights)
         """
         ...
 
-    def gelu(self, input: Array, approximate: bool = False) -> Array:
+    def gelu(self, input: Array, approximate: bool = False) -> LazyArray:
         """GELU activation function.
         
         Args:
@@ -646,11 +735,11 @@ class NeuralBackend(Protocol):
             approximate: Whether to use approximate version
             
         Returns:
-            GELU output
+            Lazy GELU output
         """
         ...
 
-    def swiglu(self, input: Array, gate: Array) -> Array:
+    def swiglu(self, input: Array, gate: Array) -> LazyArray:
         """SwiGLU activation function.
         
         Args:
@@ -658,7 +747,7 @@ class NeuralBackend(Protocol):
             gate: Gate array
             
         Returns:
-            SwiGLU output
+            Lazy SwiGLU output
         """
         ...
     
@@ -688,7 +777,7 @@ class NeuralBackend(Protocol):
         targets: Array,
         loss_type: LossType = LossType.CROSS_ENTROPY,
         **kwargs: Any,
-    ) -> Array:
+    ) -> LazyArray:
         """Compute loss between predictions and targets.
         
         Args:
@@ -698,7 +787,7 @@ class NeuralBackend(Protocol):
             **kwargs: Additional loss-specific parameters
             
         Returns:
-            Loss value
+            Lazy loss value
         """
         ...
     
@@ -707,7 +796,7 @@ class NeuralBackend(Protocol):
         loss: Array,
         model: NeuralModule,
         retain_graph: bool = False,
-    ) -> Dict[str, Array]:
+    ) -> Dict[str, LazyArray]:
         """Perform backward pass to compute gradients.
         
         Args:
@@ -716,7 +805,27 @@ class NeuralBackend(Protocol):
             retain_graph: Whether to retain computation graph
             
         Returns:
-            Dictionary of gradients
+            Dictionary of lazy gradients
+        """
+        ...
+    
+    def compute_gradients(
+        self,
+        loss_fn: Callable[..., Array],
+        model: NeuralModule,
+        *args,
+        **kwargs
+    ) -> tuple[Array, Dict[str, Array]]:
+        """Compute gradients using automatic differentiation.
+        
+        Args:
+            loss_fn: Loss function
+            model: Neural network model
+            *args: Arguments to loss function
+            **kwargs: Keyword arguments to loss function
+            
+        Returns:
+            Tuple of (loss_value, gradients)
         """
         ...
     
@@ -741,7 +850,59 @@ class NeuralBackend(Protocol):
             Tuple of (updated_parameters, updated_optimizer_state)
         """
         ...
+    
+    # Evaluation helpers
+    
+    def eval_module(
+        self,
+        module: NeuralModule | LazyModule,
+        inputs: Dict[str, Array]
+    ) -> Dict[str, EagerArray]:
+        """Evaluate a module and force computation.
+        
+        Args:
+            module: Module to evaluate
+            inputs: Input data
+            
+        Returns:
+            Dictionary of eager arrays
+        """
+        ...
+    
+    def trace_module(
+        self,
+        module: NeuralModule,
+        example_inputs: Dict[str, Array]
+    ) -> ComputationGraph:
+        """Trace module execution to build computation graph.
+        
+        Args:
+            module: Module to trace
+            example_inputs: Example inputs for tracing
+            
+        Returns:
+            Computation graph
+        """
+        ...
+    
+    def profile_module(
+        self,
+        module: NeuralModule,
+        inputs: Dict[str, Array],
+        num_runs: int = 10
+    ) -> Dict[str, Any]:
+        """Profile module performance.
+        
+        Args:
+            module: Module to profile
+            inputs: Input data
+            num_runs: Number of runs for profiling
+            
+        Returns:
+            Profile statistics
+        """
+        ...
 
 
-# Alias for compatibility
+# Aliases for compatibility
 NeuralPort = NeuralBackend
