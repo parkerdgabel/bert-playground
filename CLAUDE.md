@@ -19,15 +19,30 @@ k-bert is a state-of-the-art BERT implementation using Apple's MLX framework, de
 
 ```
 bert-playground/
-├── cli/                     # CLI application (k-bert command)
-│   ├── commands/           # Command implementations
-│   │   ├── train, predict, benchmark, info  # Core commands
-│   │   ├── config/        # Configuration management
-│   │   ├── project/       # Project scaffolding
-│   │   └── competition/   # Kaggle integration (future)
-│   ├── config/            # Configuration system
-│   ├── plugins/           # Plugin system for custom components
-│   └── utils/             # CLI utilities
+├── domain/                 # Core business logic (Hexagonal Architecture)
+│   ├── entities/          # Domain entities
+│   ├── services/          # Domain services
+│   └── value_objects/     # Value objects
+├── application/            # Application layer (Use Cases)
+│   ├── use_cases/         # Application use cases
+│   ├── services/          # Application services
+│   └── dto/               # Data transfer objects
+├── infrastructure/         # Infrastructure layer
+│   ├── bootstrap.py       # Application initialization
+│   ├── config/            # Configuration management
+│   ├── di/                # Dependency injection system
+│   └── plugins/           # Plugin system
+├── adapters/               # Adapters (Hexagonal Architecture)
+│   ├── primary/           # Driving adapters (CLI, API)
+│   │   └── cli/           # CLI application (k-bert command)
+│   └── secondary/         # Driven adapters
+│       ├── compute/       # MLX compute adapters
+│       ├── storage/       # Storage adapters
+│       ├── tokenizer/     # Tokenizer adapters
+│       └── monitoring/    # Monitoring adapters
+├── ports/                  # Port definitions (interfaces)
+│   ├── primary/           # Driving ports
+│   └── secondary/         # Driven ports
 ├── models/                 # Model implementations
 │   ├── bert/              # BERT architectures
 │   ├── heads/             # Task-specific heads
@@ -108,6 +123,101 @@ Plugins are automatically discovered and registered when running from a project 
 - **LoRA**: Use for memory-efficient fine-tuning
 - **Pre-tokenization**: Enable with `--use-pretokenized` for faster loading
 
+## Architecture Overview
+
+### Hexagonal Architecture (Ports and Adapters)
+
+The project follows hexagonal architecture principles to ensure clean separation of concerns:
+
+1. **Domain Layer** (`domain/`): Pure business logic with no external dependencies
+   - Domain services contain core algorithms and business rules
+   - Entities represent core domain concepts
+   - No framework or infrastructure code
+
+2. **Application Layer** (`application/`): Orchestrates domain logic
+   - Use cases define application workflows
+   - Application services coordinate between domain and infrastructure
+   - DTOs handle data transformation
+
+3. **Ports** (`ports/`): Define interfaces (contracts)
+   - Primary ports: Interfaces for driving adapters (e.g., CLI commands)
+   - Secondary ports: Interfaces for driven adapters (e.g., storage, compute)
+   - All ports are Protocol-based for type safety
+
+4. **Adapters** (`adapters/`): Implement port interfaces
+   - Primary adapters: CLI, REST API (future)
+   - Secondary adapters: MLX compute, file storage, HuggingFace tokenizers
+   - Adapters are swappable via configuration
+
+5. **Infrastructure** (`infrastructure/`): Cross-cutting concerns
+   - Bootstrap: Application initialization
+   - DI Container: Dependency injection and lifecycle management
+   - Configuration: Hierarchical config system
+   - Plugins: Extension mechanism
+
+### Dependency Injection System
+
+The project uses a decorator-based DI system for automatic component discovery and wiring:
+
+#### Component Decorators
+
+```python
+from infrastructure.di import service, adapter, port, use_case, repository
+
+# Domain service
+@service(scope="singleton")
+class TrainingService:
+    def __init__(self, compute: ComputeBackend):
+        self.compute = compute
+
+# Adapter implementation
+@adapter(port=StorageService, priority=100)
+class FileStorageAdapter:
+    def save(self, path: str, data: Any) -> None:
+        # Implementation
+
+# Port definition
+@port
+class StorageService(Protocol):
+    def save(self, path: str, data: Any) -> None: ...
+```
+
+#### Key Features
+
+1. **Auto-discovery**: Components are automatically discovered via decorators
+2. **Scope Management**: Singleton or transient lifecycle
+3. **Circular Dependency Detection**: Validates dependency graph at startup
+4. **Configuration-driven**: Adapters can be selected via configuration
+5. **Type Safety**: Full type checking with Protocol support
+
+#### Available Decorators
+
+- `@service`: Domain services (business logic)
+- `@adapter`: Port implementations
+- `@port`: Port interfaces (protocols)
+- `@use_case`: Application use cases
+- `@repository`: Data repositories
+- `@factory`: Factory classes
+- `@component`: Generic components
+
+#### Container Usage
+
+```python
+# Bootstrap automatically initializes the container
+from infrastructure.bootstrap import initialize_application
+
+container = initialize_application()
+
+# Resolve services
+training_service = container.resolve(TrainingService)
+storage = container.resolve(StorageService)  # Gets configured adapter
+
+# Health check
+health = container.health_check()
+print(f"Services: {health['services_count']}")
+print(f"Adapters: {health['adapters']}")
+```
+
 ## Development Best Practices
 
 ### Repository Hygiene
@@ -115,6 +225,12 @@ Plugins are automatically discovered and registered when running from a project 
 - **Documentation**: Only create docs when explicitly requested
 - **Clean State**: Leave the repository in a polished state
 - **Commits**: Make focused commits with clear messages
+
+### Architecture Guidelines
+- **Domain Purity**: Domain layer must not depend on infrastructure
+- **Port-Adapter Pattern**: Always define ports before implementing adapters
+- **DI Decorators**: Use appropriate decorators for automatic registration
+- **Configuration Over Code**: Prefer configuration for adapter selection
 
 ### Testing Requirements
 - **Mandatory Testing**: ALWAYS run tests after changes

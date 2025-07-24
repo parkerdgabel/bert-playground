@@ -455,9 +455,34 @@ class InfrastructureContainer:
     
     def _configure_adapters(self) -> None:
         """Configure adapters based on configuration settings."""
-        # This is where we would implement configuration-driven adapter selection
-        # For now, rely on auto-discovery and decorator priorities
-        pass
+        # Get adapter configuration
+        config = self.config_manager.load_configuration()
+        adapter_config = config.get("adapters", {})
+        
+        if not adapter_config:
+            # No adapter configuration, use defaults
+            return
+        
+        from .decorators import ComponentType, get_component_metadata
+        
+        # Process each configured adapter selection
+        for port_name, adapter_spec in adapter_config.items():
+            if isinstance(adapter_spec, dict) and "implementation" in adapter_spec:
+                impl_name = adapter_spec["implementation"]
+                
+                # Find the adapter class by name
+                for service_type in self.core_container.list_services():
+                    metadata = self.core_container._metadata.get(service_type)
+                    if (metadata and 
+                        metadata.component_type == ComponentType.ADAPTER and
+                        service_type.__name__.lower() == impl_name.lower()):
+                        
+                        # Found the adapter, update its priority to make it primary
+                        metadata.priority = 1000  # High priority for configured adapters
+                        
+                        # If qualifiers are specified, add them
+                        if "qualifiers" in adapter_spec:
+                            metadata.qualifiers.update(adapter_spec["qualifiers"])
     
     def _validate_setup(self) -> None:
         """Validate that required components are properly registered."""
@@ -512,11 +537,28 @@ class InfrastructureContainer:
         Returns:
             Adapter information dictionary
         """
-        # TODO: Implement based on decorator metadata
+        from .decorators import ComponentType, get_component_metadata
+        
+        implementations = {}
+        
+        # Search through all registered services for adapters of this port
+        for service_type in self.core_container.list_services():
+            metadata = self.core_container._metadata.get(service_type)
+            if metadata and metadata.component_type == ComponentType.ADAPTER:
+                # Check if this adapter implements the specified port
+                if metadata.port_type and metadata.port_type.__name__ == port_type:
+                    implementations[service_type.__name__] = {
+                        "type": service_type,
+                        "scope": metadata.scope.value,
+                        "priority": metadata.priority,
+                        "qualifiers": dict(metadata.qualifiers),
+                        "profiles": list(metadata.profiles) if metadata.profiles else []
+                    }
+        
         return {
             "port_type": port_type,
-            "implementations": {},
-            "count": 0
+            "implementations": implementations,
+            "count": len(implementations)
         }
     
     def list_services(self) -> Dict[str, Type]:
@@ -525,8 +567,14 @@ class InfrastructureContainer:
         Returns:
             Dictionary of service names to types
         """
-        # TODO: Implement based on decorator metadata
-        return {}
+        services = {}
+        
+        # Get all registered services from core container
+        for service_type in self.core_container.list_services():
+            # Use the service's class name as key
+            services[service_type.__name__] = service_type
+            
+        return services
     
     def health_check(self) -> Dict[str, Any]:
         """Perform health check on the container.
@@ -534,13 +582,88 @@ class InfrastructureContainer:
         Returns:
             Health check results
         """
-        return {
+        from .decorators import ComponentType
+        
+        health = {
             "initialized": self._initialized,
             "services_count": len(self.core_container.list_services()),
-            "config_manager_available": self.has(ConfigurationManager)
+            "config_manager_available": self.has(ConfigurationManager),
+            "components_by_type": {},
+            "singleton_count": 0,
+            "transient_count": 0,
+            "adapters": {},
+            "ports_with_adapters": []
         }
+        
+        # Count components by type and scope
+        for service_type in self.core_container.list_services():
+            metadata = self.core_container._metadata.get(service_type)
+            if metadata:
+                # Count by component type
+                comp_type = metadata.component_type.value
+                health["components_by_type"][comp_type] = health["components_by_type"].get(comp_type, 0) + 1
+                
+                # Count by scope
+                if metadata.scope.value == "singleton":
+                    health["singleton_count"] += 1
+                else:
+                    health["transient_count"] += 1
+                
+                # Track adapters and their ports
+                if metadata.component_type == ComponentType.ADAPTER and metadata.port_type:
+                    port_name = metadata.port_type.__name__
+                    if port_name not in health["adapters"]:
+                        health["adapters"][port_name] = []
+                        health["ports_with_adapters"].append(port_name)
+                    health["adapters"][port_name].append(service_type.__name__)
+        
+        # Add container state info
+        health["total_metadata_entries"] = len(self.core_container._metadata)
+        health["total_qualifiers"] = len(self.core_container._qualifiers)
+        
+        return health
     
     def clear(self) -> None:
         """Clear all registrations."""
         self.core_container.clear()
         self._initialized = False
+    
+    def get_service_metadata(self, service_type: Type) -> Optional[ComponentMetadata]:
+        """Get metadata for a registered service.
+        
+        Args:
+            service_type: The service type
+            
+        Returns:
+            Component metadata or None if not found
+        """
+        return self.core_container._metadata.get(service_type)
+    
+    def get_services_by_type(self, component_type: ComponentType) -> List[Type]:
+        """Get all services of a specific component type.
+        
+        Args:
+            component_type: The component type to filter by
+            
+        Returns:
+            List of service types
+        """
+        from .decorators import ComponentType
+        
+        services = []
+        for service_type in self.core_container.list_services():
+            metadata = self.core_container._metadata.get(service_type)
+            if metadata and metadata.component_type == component_type:
+                services.append(service_type)
+        return services
+    
+    def get_primary_implementation(self, interface: Type) -> Optional[Type]:
+        """Get the primary implementation for an interface.
+        
+        Args:
+            interface: The interface type
+            
+        Returns:
+            Primary implementation type or None
+        """
+        return self.core_container._primary_implementations.get(interface)
