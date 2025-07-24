@@ -7,4 +7,5 @@ This package contains implementations of secondary ports that the domain drives:
 - monitoring: Logging, metrics, and experiment tracking
 - data: Data loading and processing implementations
 - tokenizer: Tokenization implementations
+- numerical: Numerical operations implementations (NumPy, etc.)
 """

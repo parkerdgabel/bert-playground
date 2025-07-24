@@ -1,6 +1,6 @@
 """Competition-related domain events."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
@@ -10,9 +10,9 @@ from .base import DomainEvent
 @dataclass
 class CompetitionJoined(DomainEvent):
     """Event raised when joining a competition."""
-    competition_id: str
-    competition_name: str
-    platform: str
+    competition_id: str = ""
+    competition_name: str = ""
+    platform: str = ""
     team_name: Optional[str] = None
     
     def __post_init__(self):
@@ -23,10 +23,10 @@ class CompetitionJoined(DomainEvent):
 @dataclass
 class CompetitionDataDownloaded(DomainEvent):
     """Event raised when competition data is downloaded."""
-    competition_id: str
-    data_size_mb: float
-    file_count: int
-    download_duration_seconds: float
+    competition_id: str = ""
+    data_size_mb: float = 0.0
+    file_count: int = 0
+    download_duration_seconds: float = 0.0
     
     def __post_init__(self):
         super().__post_init__()
@@ -36,12 +36,12 @@ class CompetitionDataDownloaded(DomainEvent):
 @dataclass
 class CompetitionDeadlineApproaching(DomainEvent):
     """Event raised when competition deadline is approaching."""
-    competition_id: str
-    deadline: datetime
-    days_remaining: int
-    hours_remaining: int
-    submission_count: int
-    submissions_remaining: int
+    competition_id: str = ""
+    deadline: datetime = field(default_factory=datetime.now)
+    days_remaining: int = 0
+    hours_remaining: int = 0
+    submission_count: int = 0
+    submissions_remaining: int = 0
     
     def __post_init__(self):
         super().__post_init__()
@@ -61,7 +61,7 @@ class CompetitionDeadlineApproaching(DomainEvent):
 @dataclass
 class CompetitionCompleted(DomainEvent):
     """Event raised when competition ends."""
-    competition_id: str
+    competition_id: str = ""
     final_rank: Optional[int] = None
     total_participants: Optional[int] = None
     final_score: Optional[float] = None

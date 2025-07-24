@@ -16,7 +16,7 @@ from typing_extensions import TypeAlias
 from infrastructure.di import port
 
 # Import base types from compute port
-from .compute import Array, Shape, LazyArray, EagerArray, BackendCapability
+from .compute import Array, Shape, LazyArray, EagerArray, BackendCapability, ComputationGraph
 
 # Type aliases
 NeuralModule: TypeAlias = Any  # Framework-specific module type
