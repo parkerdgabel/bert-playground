@@ -14,9 +14,9 @@ from datetime import datetime
 
 from application.use_cases.train_model import TrainModelUseCase
 from application.dto.training import TrainingRequestDTO
-from adapters.secondary.storage.file_storage import FileStorageAdapter
-from adapters.secondary.monitoring.loguru import LoguruMonitoringAdapter
-from adapters.secondary.configuration.yaml_adapter import YamlConfigurationAdapter
+from infrastructure.adapters.secondary.storage.file_storage import FileStorageAdapter
+from infrastructure.adapters.secondary.monitoring.loguru import LoguruMonitoringAdapter
+from infrastructure.adapters.secondary.configuration.yaml_adapter import YamlConfigurationAdapter
 from domain.services.training_service import TrainingService, TrainingConfig
 
 
@@ -72,8 +72,8 @@ class TestTrainingWorkflowE2E:
     async def di_training_use_case(self, integration_container, temp_dir):
         """Create training use case using DI container with real implementations."""
         # Override some services with test-specific configurations
-        from adapters.secondary.storage.file_storage import FileStorageAdapter
-        from adapters.secondary.monitoring.loguru import LoguruMonitoringAdapter
+        from infrastructure.adapters.secondary.storage.file_storage import FileStorageAdapter
+        from infrastructure.adapters.secondary.monitoring.loguru import LoguruMonitoringAdapter
         
         # Replace some adapters with test-friendly versions
         integration_container.register(

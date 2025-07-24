@@ -12,7 +12,7 @@ import shutil
 from pathlib import Path
 from unittest.mock import Mock, patch, mock_open
 
-from adapters.secondary.storage.file_storage import FileStorageAdapter, ModelFileStorageAdapter
+from infrastructure.adapters.secondary.storage.file_storage import FileStorageAdapter, ModelFileStorageAdapter
 from application.ports.secondary.storage import StorageKey, StorageValue, Metadata
 
 

@@ -107,13 +107,13 @@ def test_adapter_structure():
     """Test that adapters are organized correctly."""
     print("\nTesting adapter structure...")
     
-    import adapters.secondary.compute.mlx
-    import adapters.secondary.monitoring.console
-    import adapters.secondary.storage.filesystem
-    import adapters.secondary.tokenizer.huggingface
+    import infrastructure.adapters.secondary.compute.mlx
+    import infrastructure.adapters.secondary.monitoring.console
+    import infrastructure.adapters.secondary.storage.filesystem
+    import infrastructure.adapters.secondary.tokenizer.huggingface
     
     # Test MLX compute adapter
-    from adapters.secondary.compute.mlx.compute_adapter import MLXComputeAdapter
+    from infrastructure.adapters.secondary.compute.mlx.compute_adapter import MLXComputeAdapter
     adapter = MLXComputeAdapter()
     
     # Check it has required methods

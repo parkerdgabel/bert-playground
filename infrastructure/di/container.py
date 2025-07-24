@@ -436,8 +436,8 @@ class InfrastructureContainer:
         package_paths = [
             "domain",
             "application",  # This includes application.ports now
-            "infrastructure.adapters",
-            "adapters"
+            "infrastructure.adapters"  # All adapters now here
+            # "adapters" removed - now in infrastructure.adapters
             # "ports" removed - now in application.ports
         ]
         

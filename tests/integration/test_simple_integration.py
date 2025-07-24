@@ -72,7 +72,7 @@ def test_decorated_components():
         pass
     
     try:
-        from adapters.secondary.tokenizer.huggingface import HuggingFaceTokenizerAdapter
+        from infrastructure.adapters.secondary.tokenizer.huggingface import HuggingFaceTokenizerAdapter
         # This should work if the adapter is decorated
         pass
     except ImportError:

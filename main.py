@@ -70,7 +70,7 @@ def main():
         monitoring.log_info("Application initialized successfully")
         
         # Import and run the CLI app
-        from adapters.primary.cli.app import app, main_with_di
+        from infrastructure.adapters.primary.cli.app import app, main_with_di
         
         # Run the CLI with DI container
         main_with_di(container)

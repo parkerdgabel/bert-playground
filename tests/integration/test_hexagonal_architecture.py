@@ -20,13 +20,13 @@ from application.dto.training import TrainingRequestDTO
 from infrastructure.di.container import Container
 
 # Adapter imports
-from adapters.secondary.compute.mlx.compute_adapter import MLXComputeAdapter
-from adapters.secondary.data.mlx.data_loader import MLXDataLoader
-from adapters.secondary.monitoring.console.console_adapter import ConsoleMonitoringAdapter
-from adapters.secondary.storage.filesystem.storage_adapter import FilesystemStorageAdapter
-from adapters.secondary.storage.filesystem.checkpoint_adapter import FilesystemCheckpointAdapter
-from adapters.secondary.tokenizer.huggingface.tokenizer_adapter import HuggingFaceTokenizerAdapter
-from adapters.secondary.metrics.mlx.metrics_calculator import MLXMetricsCalculator
+from infrastructure.adapters.secondary.compute.mlx.compute_adapter import MLXComputeAdapter
+from infrastructure.adapters.secondary.data.mlx.data_loader import MLXDataLoader
+from infrastructure.adapters.secondary.monitoring.console.console_adapter import ConsoleMonitoringAdapter
+from infrastructure.adapters.secondary.storage.filesystem.storage_adapter import FilesystemStorageAdapter
+from infrastructure.adapters.secondary.storage.filesystem.checkpoint_adapter import FilesystemCheckpointAdapter
+from infrastructure.adapters.secondary.tokenizer.huggingface.tokenizer_adapter import HuggingFaceTokenizerAdapter
+from infrastructure.adapters.secondary.metrics.mlx.metrics_calculator import MLXMetricsCalculator
 
 
 def test_domain_entities():

@@ -19,30 +19,32 @@ k-bert is a state-of-the-art BERT implementation using Apple's MLX framework, de
 
 ```
 bert-playground/
-├── domain/                 # Core business logic (Hexagonal Architecture)
+├── domain/                 # Core business logic (Pure, no external dependencies)
 │   ├── entities/          # Domain entities
-│   ├── services/          # Domain services
-│   └── value_objects/     # Value objects
-├── application/            # Application layer (Use Cases)
+│   ├── services/          # Domain services (use @domain_service)
+│   ├── value_objects/     # Value objects
+│   ├── protocols/         # Domain-internal protocols
+│   └── registry.py        # Domain service registry
+├── application/            # Application layer (Orchestration)
 │   ├── use_cases/         # Application use cases
 │   ├── services/          # Application services
-│   └── dto/               # Data transfer objects
-├── infrastructure/         # Infrastructure layer
+│   ├── dto/               # Data transfer objects
+│   └── ports/             # Port interfaces (boundaries)
+│       ├── primary/       # Driving ports (incoming)
+│       └── secondary/     # Driven ports (outgoing)
+├── infrastructure/         # Infrastructure layer (Technical implementations)
+│   ├── adapters/          # All adapter implementations
+│   │   ├── primary/       # Driving adapters
+│   │   │   └── cli/       # CLI application (k-bert command)
+│   │   └── secondary/     # Driven adapters
+│   │       ├── compute/   # MLX compute adapters
+│   │       ├── storage/   # Storage adapters
+│   │       ├── tokenizer/ # Tokenizer adapters
+│   │       └── monitoring/# Monitoring adapters
 │   ├── bootstrap.py       # Application initialization
 │   ├── config/            # Configuration management
 │   ├── di/                # Dependency injection system
 │   └── plugins/           # Plugin system
-├── adapters/               # Adapters (Hexagonal Architecture)
-│   ├── primary/           # Driving adapters (CLI, API)
-│   │   └── cli/           # CLI application (k-bert command)
-│   └── secondary/         # Driven adapters
-│       ├── compute/       # MLX compute adapters
-│       ├── storage/       # Storage adapters
-│       ├── tokenizer/     # Tokenizer adapters
-│       └── monitoring/    # Monitoring adapters
-├── ports/                  # Port definitions (interfaces)
-│   ├── primary/           # Driving ports
-│   └── secondary/         # Driven ports
 ├── models/                 # Model implementations
 │   ├── bert/              # BERT architectures
 │   ├── heads/             # Task-specific heads
