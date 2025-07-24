@@ -6,8 +6,6 @@ from contextlib import contextmanager
 
 from infrastructure.di import adapter, Scope
 from application.ports.secondary.monitoring import MonitoringService
-from domain.entities.metrics import TrainingMetrics, EvaluationMetrics
-from domain.entities.training import TrainingSession
 
 
 logger = logging.getLogger(__name__)
@@ -83,19 +81,19 @@ class MultiMonitorAdapter(MonitoringService):
         """
         self._call_all("log_metrics", metrics, step=step, epoch=epoch)
     
-    def log_training_metrics(self, metrics: TrainingMetrics) -> None:
+    def log_training_metrics(self, metrics: Dict[str, Any]) -> None:
         """Log training metrics to all adapters.
         
         Args:
-            metrics: Training metrics object
+            metrics: Training metrics as dictionary
         """
         self._call_all("log_training_metrics", metrics)
     
-    def log_evaluation_metrics(self, metrics: EvaluationMetrics) -> None:
+    def log_evaluation_metrics(self, metrics: Dict[str, Any]) -> None:
         """Log evaluation metrics to all adapters.
         
         Args:
-            metrics: Evaluation metrics object
+            metrics: Evaluation metrics as dictionary
         """
         self._call_all("log_evaluation_metrics", metrics)
     
@@ -203,11 +201,11 @@ class MultiMonitorAdapter(MonitoringService):
         
         return CompositeProgressBar(valid_bars, self.fail_fast)
     
-    def log_training_session(self, session: TrainingSession) -> None:
+    def log_training_session(self, session: Dict[str, Any]) -> None:
         """Log complete training session to all adapters.
         
         Args:
-            session: Training session object
+            session: Training session data as dictionary
         """
         self._call_all("log_training_session", session)
     

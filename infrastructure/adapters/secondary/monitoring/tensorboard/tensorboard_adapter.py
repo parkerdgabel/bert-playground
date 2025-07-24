@@ -9,8 +9,6 @@ from infrastructure.di import adapter, Scope
 from application.ports.secondary.monitoring import MonitoringService
 from ..base import BaseMonitoringAdapter, BaseProgressBar
 from .writer import TensorBoardWriter
-# object removed - not defined in ports
-from domain.entities.training import TrainingSession
 
 
 @adapter(MonitoringService, scope=Scope.SINGLETON)
@@ -386,46 +384,59 @@ class TensorBoardMonitoringAdapter(BaseMonitoringAdapter):
         
         return comparison
     
-    def log_training_session(self, session: TrainingSession) -> None:
+    def log_training_session(self, session: Dict[str, Any]) -> None:
         """Log complete training session information.
         
         Args:
-            session: Training session object
+            session: Training session data as dictionary
         """
         # First call parent implementation
         super().log_training_session(session)
         
         # Log training curves as histograms
-        if session.state.train_loss_history:
+        state = session.get('state', {})
+        train_loss_history = state.get('train_loss_history', [])
+        if train_loss_history:
             self._writer.add_histogram(
                 self._get_tag("training/loss_distribution"),
-                session.state.train_loss_history
+                train_loss_history
             )
         
-        if session.state.learning_rate_history:
+        learning_rate_history = state.get('learning_rate_history', [])
+        if learning_rate_history:
             self._writer.add_histogram(
                 self._get_tag("training/lr_distribution"),
-                session.state.learning_rate_history
+                learning_rate_history
             )
         
         # Create summary text
+        session_id = session.get('session_id', 'unknown')
+        state = session.get('state', {})
+        config = session.get('config', {})
+        checkpoint_paths = session.get('checkpoint_paths', [])
+        
+        # Handle optimizer type which might be enum or dict
+        optimizer_type = config.get('optimizer_type', 'N/A')
+        if isinstance(optimizer_type, dict) and 'value' in optimizer_type:
+            optimizer_type = optimizer_type['value']
+        
         summary = f"""
         Training Session Summary
         =======================
-        Session ID: {session.session_id}
-        Total Epochs: {session.state.epoch}
-        Total Steps: {session.state.global_step}
-        Best Metric: {session.state.best_metric}
-        Best Metric Epoch: {session.state.best_metric_epoch}
+        Session ID: {session_id}
+        Total Epochs: {state.get('epoch', 'N/A')}
+        Total Steps: {state.get('global_step', 'N/A')}
+        Best Metric: {state.get('best_metric', 'N/A')}
+        Best Metric Epoch: {state.get('best_metric_epoch', 'N/A')}
         
         Configuration:
-        - Epochs: {session.config.num_epochs}
-        - Batch Size: {session.config.batch_size}
-        - Learning Rate: {session.config.learning_rate}
-        - Optimizer: {session.config.optimizer_type.value}
+        - Epochs: {config.get('num_epochs', 'N/A')}
+        - Batch Size: {config.get('batch_size', 'N/A')}
+        - Learning Rate: {config.get('learning_rate', 'N/A')}
+        - Optimizer: {optimizer_type}
         
         Checkpoints:
-        {chr(10).join(session.checkpoint_paths)}
+        {chr(10).join(checkpoint_paths)}
         """
         
         self._writer.add_text("summary", summary)

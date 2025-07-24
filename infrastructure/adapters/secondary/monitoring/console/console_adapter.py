@@ -10,8 +10,6 @@ from infrastructure.di import adapter, Scope
 from application.ports.secondary.monitoring import MonitoringService
 from ..base import BaseMonitoringAdapter, BaseProgressBar
 from .formatters import MetricsFormatter, TableFormatter
-# object removed - not defined in ports
-from domain.entities.training import TrainingSession
 
 
 @adapter(MonitoringService, scope=Scope.SINGLETON)
@@ -392,11 +390,11 @@ class ConsoleMonitoringAdapter(BaseMonitoringAdapter):
         # Return empty comparison
         return {run_id: {"metrics": {}, "params": {}} for run_id in run_ids}
     
-    def log_training_session(self, session: TrainingSession) -> None:
+    def log_training_session(self, session: Dict[str, Any]) -> None:
         """Log complete training session information.
         
         Args:
-            session: Training session object
+            session: Training session data as dictionary
         """
         # First call parent implementation
         super().log_training_session(session)
@@ -406,27 +404,35 @@ class ConsoleMonitoringAdapter(BaseMonitoringAdapter):
             from rich.panel import Panel
             
             # Create a tree view of the session
-            tree = Tree(f"Training Session: {session.session_id}")
+            session_id = session.get('session_id', 'unknown')
+            tree = Tree(f"Training Session: {session_id}")
             
             # Configuration branch
             config_branch = tree.add("Configuration")
-            config_branch.add(f"Epochs: {session.config.num_epochs}")
-            config_branch.add(f"Batch Size: {session.config.batch_size}")
-            config_branch.add(f"Learning Rate: {session.config.learning_rate}")
-            config_branch.add(f"Optimizer: {session.config.optimizer_type.value}")
+            config = session.get('config', {})
+            config_branch.add(f"Epochs: {config.get('num_epochs', 'N/A')}")
+            config_branch.add(f"Batch Size: {config.get('batch_size', 'N/A')}")
+            config_branch.add(f"Learning Rate: {config.get('learning_rate', 'N/A')}")
+            optimizer_type = config.get('optimizer_type', 'N/A')
+            if isinstance(optimizer_type, dict) and 'value' in optimizer_type:
+                optimizer_type = optimizer_type['value']
+            config_branch.add(f"Optimizer: {optimizer_type}")
             
             # Results branch
             results_branch = tree.add("Results")
-            results_branch.add(f"Total Epochs: {session.state.epoch}")
-            results_branch.add(f"Total Steps: {session.state.global_step}")
-            if session.state.best_metric:
-                results_branch.add(f"Best Metric: {MetricsFormatter.format_metric_value(session.state.best_metric)}")
-                results_branch.add(f"Best Epoch: {session.state.best_metric_epoch}")
+            state = session.get('state', {})
+            results_branch.add(f"Total Epochs: {state.get('epoch', 'N/A')}")
+            results_branch.add(f"Total Steps: {state.get('global_step', 'N/A')}")
+            best_metric = state.get('best_metric')
+            if best_metric is not None:
+                results_branch.add(f"Best Metric: {MetricsFormatter.format_metric_value(best_metric)}")
+                results_branch.add(f"Best Epoch: {state.get('best_metric_epoch', 'N/A')}")
             
             # Checkpoints branch
-            if session.checkpoint_paths:
+            checkpoint_paths = session.get('checkpoint_paths', [])
+            if checkpoint_paths:
                 ckpt_branch = tree.add("Checkpoints")
-                for path in session.checkpoint_paths[-3:]:  # Show last 3
+                for path in checkpoint_paths[-3:]:  # Show last 3
                     ckpt_branch.add(path)
             
             self._console.print(Panel(tree, title="Session Summary", border_style="green"))

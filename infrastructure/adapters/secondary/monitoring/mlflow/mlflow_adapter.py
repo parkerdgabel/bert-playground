@@ -10,8 +10,6 @@ from infrastructure.di import adapter, Scope
 from application.ports.secondary.monitoring import MonitoringService
 from ..base import BaseMonitoringAdapter, BaseProgressBar
 from .config import MLflowConfig
-# object removed - not defined in ports
-from domain.entities.training import TrainingSession
 
 
 @adapter(MonitoringService, scope=Scope.SINGLETON)
@@ -367,19 +365,20 @@ class MLflowMonitoringAdapter(BaseMonitoringAdapter):
         
         return comparison
     
-    def log_training_session(self, session: TrainingSession) -> None:
+    def log_training_session(self, session: Dict[str, Any]) -> None:
         """Log complete training session information.
         
         Args:
-            session: Training session object
+            session: Training session data as dictionary
         """
         # First call parent implementation
         super().log_training_session(session)
         
         # Log model if configured
-        if self.config.log_models and session.checkpoint_paths:
+        checkpoint_paths = session.get('checkpoint_paths', [])
+        if self.config.log_models and checkpoint_paths:
             # Log the final checkpoint as a model
-            final_checkpoint = session.checkpoint_paths[-1]
+            final_checkpoint = checkpoint_paths[-1]
             if os.path.exists(final_checkpoint):
                 self.mlflow.log_artifact(
                     final_checkpoint,

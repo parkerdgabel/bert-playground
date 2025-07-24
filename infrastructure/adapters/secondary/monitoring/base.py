@@ -3,8 +3,6 @@
 from typing import Dict, Any, Optional, List
 from abc import ABC
 from application.ports.secondary.monitoring import MonitoringService
-from domain.entities.metrics import TrainingMetrics, EvaluationMetrics
-from domain.entities.training import TrainingSession
 
 
 class BaseMonitoringAdapter(MonitoringService, ABC):
@@ -17,85 +15,117 @@ class BaseMonitoringAdapter(MonitoringService, ABC):
         self._run_params: Dict[str, Any] = {}
         self._run_artifacts: List[str] = []
     
-    def log_training_metrics(self, metrics: TrainingMetrics) -> None:
+    def log_training_metrics(self, metrics: Dict[str, Any]) -> None:
         """Log training metrics.
         
         Args:
-            metrics: Training metrics object
+            metrics: Training metrics as dictionary
         """
-        self.log_metrics(
-            metrics.to_dict(),
-            step=metrics.step,
-            epoch=metrics.epoch,
-        )
+        # Extract step and epoch if present
+        step = metrics.get('step')
+        epoch = metrics.get('epoch')
+        
+        # Create metrics dict without step/epoch for logging
+        metric_dict = {k: v for k, v in metrics.items() 
+                      if k not in ['step', 'epoch'] and isinstance(v, (int, float))}
+        
+        self.log_metrics(metric_dict, step=step, epoch=epoch)
     
-    def log_evaluation_metrics(self, metrics: EvaluationMetrics) -> None:
+    def log_evaluation_metrics(self, metrics: Dict[str, Any]) -> None:
         """Log evaluation metrics.
         
         Args:
-            metrics: Evaluation metrics object
+            metrics: Evaluation metrics as dictionary
         """
-        metric_dict = metrics.to_dict()
-        
         # Log main metrics
-        self.log_metrics({
+        main_metrics = {
             f"eval/{k}": v 
-            for k, v in metric_dict.items() 
-            if isinstance(v, (int, float))
-        })
+            for k, v in metrics.items() 
+            if isinstance(v, (int, float)) and not k.startswith('per_class_')
+        }
+        if main_metrics:
+            self.log_metrics(main_metrics)
         
         # Log per-class metrics separately if available
-        if metrics.per_class_precision:
-            for class_name, value in metrics.per_class_precision.items():
+        per_class_precision = metrics.get('per_class_precision', {})
+        if per_class_precision:
+            for class_name, value in per_class_precision.items():
                 self.log_metrics({f"eval/precision_{class_name}": value})
         
-        if metrics.per_class_recall:
-            for class_name, value in metrics.per_class_recall.items():
+        per_class_recall = metrics.get('per_class_recall', {})
+        if per_class_recall:
+            for class_name, value in per_class_recall.items():
                 self.log_metrics({f"eval/recall_{class_name}": value})
         
-        if metrics.per_class_f1:
-            for class_name, value in metrics.per_class_f1.items():
+        per_class_f1 = metrics.get('per_class_f1', {})
+        if per_class_f1:
+            for class_name, value in per_class_f1.items():
                 self.log_metrics({f"eval/f1_{class_name}": value})
     
-    def log_training_session(self, session: TrainingSession) -> None:
+    def log_training_session(self, session: Dict[str, Any]) -> None:
         """Log complete training session information.
         
         Args:
-            session: Training session object
+            session: Training session data as dictionary
         """
-        # Log hyperparameters
+        # Extract config and create hyperparameters dict
+        config = session.get('config', {})
+        
+        # Handle optimizer_type and scheduler_type which might be enums or dicts
+        optimizer_type = config.get('optimizer_type', 'unknown')
+        if isinstance(optimizer_type, dict) and 'value' in optimizer_type:
+            optimizer_type = optimizer_type['value']
+        
+        scheduler_type = config.get('scheduler_type', 'unknown')
+        if isinstance(scheduler_type, dict) and 'value' in scheduler_type:
+            scheduler_type = scheduler_type['value']
+        
         config_dict = {
-            "num_epochs": session.config.num_epochs,
-            "batch_size": session.config.batch_size,
-            "learning_rate": session.config.learning_rate,
-            "optimizer": session.config.optimizer_type.value,
-            "scheduler": session.config.scheduler_type.value,
-            "max_grad_norm": session.config.max_grad_norm,
-            "weight_decay": session.config.weight_decay,
-            "warmup_steps": session.config.warmup_steps,
-            "seed": session.config.seed,
+            "num_epochs": config.get('num_epochs'),
+            "batch_size": config.get('batch_size'),
+            "learning_rate": config.get('learning_rate'),
+            "optimizer": optimizer_type,
+            "scheduler": scheduler_type,
+            "max_grad_norm": config.get('max_grad_norm'),
+            "weight_decay": config.get('weight_decay'),
+            "warmup_steps": config.get('warmup_steps'),
+            "seed": config.get('seed'),
         }
+        # Filter out None values
+        config_dict = {k: v for k, v in config_dict.items() if v is not None}
         self.log_hyperparameters(config_dict)
         
+        # Extract state info
+        state = session.get('state', {})
+        session_id = session.get('session_id', 'unknown')
+        metadata = session.get('metadata', {})
+        
         # Log session metadata
+        context = {
+            "session_id": session_id,
+            "total_epochs": state.get('epoch'),
+            "total_steps": state.get('global_step'),
+            "best_metric": state.get('best_metric'),
+            "best_metric_epoch": state.get('best_metric_epoch'),
+        }
+        # Add metadata
+        context.update(metadata)
+        # Filter out None values
+        context = {k: v for k, v in context.items() if v is not None}
+        
         self.log_message(
-            f"Training session {session.session_id} completed",
-            context={
-                "session_id": session.session_id,
-                "total_epochs": session.state.epoch,
-                "total_steps": session.state.global_step,
-                "best_metric": session.state.best_metric,
-                "best_metric_epoch": session.state.best_metric_epoch,
-                **session.metadata
-            }
+            f"Training session {session_id} completed",
+            context=context
         )
         
         # Log final metrics if available
-        if session.final_metrics:
-            self.log_metrics(session.final_metrics)
+        final_metrics = session.get('final_metrics')
+        if final_metrics:
+            self.log_metrics(final_metrics)
         
         # Log checkpoint paths as artifacts metadata
-        for checkpoint_path in session.checkpoint_paths:
+        checkpoint_paths = session.get('checkpoint_paths', [])
+        for checkpoint_path in checkpoint_paths:
             self.log_message(
                 f"Checkpoint saved: {checkpoint_path}",
                 level="INFO",
