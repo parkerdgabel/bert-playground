@@ -9,8 +9,10 @@ from domain.entities.model import (
     BertModel, ModelArchitecture, ModelType, TaskType, 
     TaskHead, ModelSpecification, ActivationType, AttentionType
 )
+from infrastructure.di import service
 
 
+@service
 class ModelBuilder:
     """Builds model specifications in a framework-agnostic way.
     

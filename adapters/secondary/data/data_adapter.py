@@ -12,24 +12,26 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 import pandas as pd
 from loguru import logger
 
+from infrastructure.di import adapter, repository, factory, Scope
 # Domain interfaces
-from domain.data.interfaces import (
+from application.data.interfaces import (
     DataRepository, DataCache, TokenizerAdapter, DataLoader,
     DataValidatorAdapter, TextProcessorAdapter, DataAugmentationAdapter,
     TemplateEngine, DatasetFactory, MetricsCollector, FileSystemAdapter,
     ComputeBackendAdapter
 )
-from domain.data.models import (
+from application.data.models import (
     DatasetSpec, DataSample, DataBatch, Dataset, DataValidationResult
 )
 
 # Infrastructure components
 from .loaders.mlx_loader import MLXDataLoader, MLXLoaderConfig
-from .tokenizers.mlx_tokenizer import MLXTokenizer
+from ..tokenizer.mlx.tokenizer_adapter import MLXTokenizer
 from .cache.factory import create_cache
 from .preprocessing.tokenizer_cache import TokenizerCache
 
 
+@repository
 class FileSystemDataRepository(DataRepository):
     """File system implementation of data repository."""
     
@@ -275,6 +277,7 @@ class DataValidationAdapter(DataValidatorAdapter):
         return result
 
 
+@factory(Dataset)
 class SimpleDatasetFactory(DatasetFactory):
     """Simple implementation of dataset factory."""
     

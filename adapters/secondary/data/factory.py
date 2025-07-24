@@ -9,9 +9,10 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
-# from ports.secondary.data import DatasetFactory as DatasetFactoryPort  # No data port exists
-from domain.data import DataConfig, DatasetType
-from ..tokenizer.mlx_tokenizer import MLXTokenizer
+from infrastructure.di import factory
+from application.data.interfaces import DatasetFactory as DatasetFactoryPort
+from application.data.data_models import DataConfig, DatasetType
+from ..tokenizer.mlx.tokenizer_adapter import MLXTokenizer
 from .loaders.mlx_loader import MLXDataLoader, MLXLoaderConfig
 
 # Import the original factory functions for backward compatibility
@@ -41,6 +42,7 @@ except ImportError:
             raise NotImplementedError("Original CSVDataset not available")
 
 
+@factory(Any)  # Produces various dataset types
 class DatasetFactory(DatasetFactoryPort):
     """Concrete implementation of dataset factory port."""
     
@@ -94,8 +96,9 @@ class DatasetFactory(DatasetFactoryPort):
         return dataset
 
 
+@factory(MLXDataLoader)
 class MLXDataLoaderFactory:
-    """Factory for creating MLX data loaders."""
+    """Factory for creating MLX data loaders."
     
     def create_dataloader(
         self,
@@ -126,6 +129,7 @@ class MLXDataLoaderFactory:
         )
 
 
+@factory(dict)
 class DataPipelineFactory:
     """Factory for creating complete data pipelines."""
     

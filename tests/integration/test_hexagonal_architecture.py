@@ -80,7 +80,7 @@ def test_adapters():
 
 
 def test_service_orchestration():
-    """Test that domain services can orchestrate adapters."""
+    """Test that domain services can orchestrate adapters using DI."""
     print("\nTesting service orchestration...")
     
     # Create mock dataset
@@ -90,19 +90,38 @@ def test_service_orchestration():
         metadata={"num_samples": 0}
     )
     
-    # Create services with mock adapters
-    training_service = ModelTrainingService(
-        compute_port=None,  # Would be injected
-        monitoring_port=None,
-        checkpoint_port=None,
-        metrics_calculator=None
-    )
+    # Create container and register services
+    from infrastructure.di.container import Container
+    from infrastructure.di.decorators import clear_registry
+    from unittest.mock import AsyncMock
     
-    tokenization_service = TokenizationService(
-        tokenizer_port=None  # Would be injected
-    )
+    clear_registry()
+    container = Container()
     
-    print("✓ Services created successfully")
+    # Register mock ports
+    from ports.secondary.compute import ComputePort
+    from ports.secondary.monitoring import MonitoringPort
+    from ports.secondary.checkpoint import CheckpointPort
+    from ports.secondary.metrics import MetricsPort
+    from ports.secondary.tokenizer import TokenizerPort
+    
+    container.register(ComputePort, AsyncMock(spec=ComputePort), instance=True)
+    container.register(MonitoringPort, AsyncMock(spec=MonitoringPort), instance=True)
+    container.register(CheckpointPort, AsyncMock(spec=CheckpointPort), instance=True)
+    container.register(MetricsPort, AsyncMock(spec=MetricsPort), instance=True)
+    container.register(TokenizerPort, AsyncMock(spec=TokenizerPort), instance=True)
+    
+    # Register and resolve services through DI
+    container.register_decorator(ModelTrainingService)
+    container.register_decorator(TokenizationService)
+    
+    training_service = container.resolve(ModelTrainingService)
+    tokenization_service = container.resolve(TokenizationService)
+    
+    assert training_service is not None
+    assert tokenization_service is not None
+    
+    print("✓ Services created successfully via DI")
 
 
 def test_dependency_injection():

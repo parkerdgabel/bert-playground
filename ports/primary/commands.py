@@ -6,10 +6,12 @@ to execute training operations. It's a driving port in hexagonal architecture.
 
 from typing import Any, Protocol, runtime_checkable, Optional
 
+from infrastructure.di import port
 from domain.protocols.models import Model
 from domain.protocols.data import DataLoader
 
 
+@port()
 @runtime_checkable
 class CommandContext(Protocol):
     """Context for command execution that external actors provide."""
@@ -39,6 +41,7 @@ class CommandContext(Protocol):
     config: dict[str, Any]
 
 
+@port()
 @runtime_checkable
 class CommandResult(Protocol):
     """Result of command execution that external actors receive."""
@@ -51,6 +54,7 @@ class CommandResult(Protocol):
     should_skip_remaining: bool
 
 
+@port()
 @runtime_checkable
 class Command(Protocol):
     """Command pattern for training operations.
@@ -100,6 +104,7 @@ class Command(Protocol):
         ...
 
 
+@port()
 @runtime_checkable
 class Pipeline(Protocol):
     """Pipeline of commands that external actors can execute."""

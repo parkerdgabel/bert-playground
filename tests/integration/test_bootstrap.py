@@ -104,6 +104,12 @@ training:
         
         dataset_factory = container.resolve(DatasetFactory)
         assert dataset_factory is not None
+        
+        # Test that decorated domain services are also available
+        from domain.services.training import ModelTrainingService
+        training_service = container.resolve(ModelTrainingService)
+        assert training_service is not None
+        assert isinstance(training_service, ModelTrainingService)
     
     def test_application_services_setup(self):
         """Test that application services are registered."""

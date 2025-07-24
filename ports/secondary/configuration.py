@@ -6,9 +6,10 @@ for different configuration sources (YAML, JSON, environment variables, etc.).
 """
 
 from pathlib import Path
-from typing import Any, Protocol, TypeVar, runtime_checkable, Callable
+from typing import Any, Protocol, TypeVar, runtime_checkable, Callable, Optional
 
 from typing_extensions import TypeAlias
+from infrastructure.di import port
 
 # Type aliases
 ConfigValue: TypeAlias = Any
@@ -18,6 +19,7 @@ ConfigPath: TypeAlias = str | Path
 T = TypeVar("T")
 
 
+@port()
 @runtime_checkable
 class ConfigurationProvider(Protocol):
     """Secondary port for configuration management.
@@ -30,8 +32,8 @@ class ConfigurationProvider(Protocol):
     def load(
         self,
         path: ConfigPath,
-        environment: str | None = None,
-        overrides: ConfigDict | None = None
+        environment: Optional[str] = None,
+        overrides: Optional[ConfigDict] = None
     ) -> ConfigDict:
         """Load configuration from a source.
         
@@ -53,7 +55,7 @@ class ConfigurationProvider(Protocol):
         self,
         config: ConfigDict,
         path: ConfigPath,
-        format: str | None = None
+        format: Optional[str] = None
     ) -> None:
         """Save configuration to a destination.
         
@@ -220,6 +222,7 @@ class ConfigurationProvider(Protocol):
         ...
 
 
+@port()
 @runtime_checkable
 class ConfigRegistry(Protocol):
     """Registry for managing multiple configuration sources.
@@ -253,7 +256,7 @@ class ConfigRegistry(Protocol):
 
     def load_all(
         self,
-        environment: str | None = None
+        environment: Optional[str] = None
     ) -> ConfigDict:
         """Load and merge all registered configurations.
         
@@ -265,7 +268,7 @@ class ConfigRegistry(Protocol):
         """
         ...
 
-    def get_source(self, name: str) -> ConfigurationProvider | None:
+    def get_source(self, name: str) -> Optional[ConfigurationProvider]:
         """Get a specific configuration source.
         
         Args:
@@ -300,7 +303,7 @@ class ConfigRegistry(Protocol):
         """
         ...
 
-    def get_environment(self) -> str | None:
+    def get_environment(self) -> Optional[str]:
         """Get the active environment.
         
         Returns:

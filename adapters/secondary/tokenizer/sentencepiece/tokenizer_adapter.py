@@ -5,10 +5,12 @@ from typing import List, Dict, Optional, Union, Any, Tuple
 from pathlib import Path
 import json
 
-
+from infrastructure.di import adapter, Scope
+from ports.secondary.tokenizer import TokenizerPort
 from adapters.secondary.tokenizer.base import BaseTokenizerAdapter
 
 
+@adapter(TokenizerPort, scope=Scope.SINGLETON)
 class SentencePieceTokenizerAdapter(BaseTokenizerAdapter):
     """SentencePiece implementation of TokenizerPort."""
     

@@ -39,6 +39,11 @@ class TestTrainModelUseCase:
         """Create use case instance with mocked dependencies."""
         return TrainModelUseCase(**mock_dependencies)
     
+    @pytest.fixture 
+    def di_use_case(self, use_case_container):
+        """Create use case instance using DI container."""
+        return use_case_container.resolve(TrainModelUseCase)
+    
     @pytest.fixture
     def valid_request(self):
         """Create a valid training request."""
@@ -391,3 +396,23 @@ class TestTrainModelUseCase:
         
         # Verify checkpoints were saved
         assert use_case._save_checkpoint.call_count > 0
+    
+    async def test_di_container_integration(self, di_use_case, valid_request):
+        """Test that the use case works with DI container dependency injection."""
+        # This test verifies that all dependencies are properly injected
+        assert di_use_case is not None
+        assert hasattr(di_use_case, 'training_service')
+        assert hasattr(di_use_case, 'storage_port')
+        assert hasattr(di_use_case, 'monitoring_port')
+        assert hasattr(di_use_case, 'config_port')
+        assert hasattr(di_use_case, 'checkpoint_port')
+        assert hasattr(di_use_case, 'metrics_port')
+        
+        # Verify the dependencies are properly injected and of correct types
+        from domain.services.training import ModelTrainingService
+        from ports.secondary.storage import StorageService
+        from ports.secondary.monitoring import MonitoringService
+        
+        assert isinstance(di_use_case.training_service, ModelTrainingService)
+        # Note: These will be mock instances due to our test configuration
+        # In integration tests, they would be real implementations

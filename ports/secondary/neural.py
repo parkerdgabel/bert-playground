@@ -11,6 +11,7 @@ from enum import Enum
 from typing import Any, Protocol, runtime_checkable, Callable, Optional, Iterator, Dict, Tuple
 
 from typing_extensions import TypeAlias
+from infrastructure.di import port
 
 # Import base types from compute port
 from .compute import Array, Shape
@@ -242,6 +243,7 @@ class Module(ABC):
         )
 
 
+@port()
 @runtime_checkable
 class NeuralBackend(Protocol):
     """Secondary port for neural network operations.
@@ -500,7 +502,7 @@ class NeuralBackend(Protocol):
         self,
         input: Array,
         weight: Array,
-        bias: Array | None = None
+        bias: Optional[Array] = None
     ) -> Array:
         """Linear transformation (fully connected layer).
         
@@ -518,7 +520,7 @@ class NeuralBackend(Protocol):
         self,
         input: Array,
         weight: Array,
-        padding_idx: int | None = None
+        padding_idx: Optional[int] = None
     ) -> Array:
         """Embedding lookup.
         
@@ -536,8 +538,8 @@ class NeuralBackend(Protocol):
         self,
         input: Array,
         normalized_shape: Shape,
-        weight: Array | None = None,
-        bias: Array | None = None,
+        weight: Optional[Array] = None,
+        bias: Optional[Array] = None,
         eps: float = 1e-5
     ) -> Array:
         """Layer normalization.
@@ -559,7 +561,7 @@ class NeuralBackend(Protocol):
         input: Array,
         p: float = 0.5,
         training: bool = True,
-        seed: int | None = None
+        seed: Optional[int] = None
     ) -> Array:
         """Dropout regularization.
         
@@ -615,11 +617,11 @@ class NeuralBackend(Protocol):
         query: Array,
         key: Array,
         value: Array,
-        mask: Array | None = None,
+        mask: Optional[Array] = None,
         dropout_p: float = 0.0,
-        scale: float | None = None,
+        scale: Optional[float] = None,
         training: bool = True,
-    ) -> tuple[Array, Array | None]:
+    ) -> tuple[Array, Optional[Array]]:
         """Scaled dot-product attention.
         
         Args:

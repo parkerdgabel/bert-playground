@@ -4,8 +4,10 @@ This port defines the protocols for plugin-based extensions to the system.
 Plugins allow external actors to extend functionality without modifying core code.
 """
 
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 from dataclasses import dataclass
+
+from infrastructure.di import port
 
 
 @dataclass
@@ -26,6 +28,7 @@ class PluginMetadata:
             self.requirements = []
 
 
+@runtime_checkable
 class Plugin(Protocol):
     """Base protocol for all plugins."""
     
@@ -49,7 +52,8 @@ class Plugin(Protocol):
         ...
 
 
-class HeadPlugin(Plugin):
+@runtime_checkable
+class HeadPlugin(Plugin, Protocol):
     """Protocol for custom head implementations."""
     
     def forward(
@@ -97,7 +101,8 @@ class HeadPlugin(Plugin):
         ...
 
 
-class AugmenterPlugin(Plugin):
+@runtime_checkable
+class AugmenterPlugin(Plugin, Protocol):
     """Protocol for data augmentation plugins."""
     
     def augment(
@@ -123,7 +128,8 @@ class AugmenterPlugin(Plugin):
         ...
 
 
-class FeatureExtractorPlugin(Plugin):
+@runtime_checkable
+class FeatureExtractorPlugin(Plugin, Protocol):
     """Protocol for feature extraction plugins."""
     
     def extract_features(
@@ -147,7 +153,8 @@ class FeatureExtractorPlugin(Plugin):
         ...
 
 
-class DataLoaderPlugin(Plugin):
+@runtime_checkable
+class DataLoaderPlugin(Plugin, Protocol):
     """Protocol for custom data loading plugins."""
     
     def load_data(
@@ -183,7 +190,8 @@ class DataLoaderPlugin(Plugin):
         ...
 
 
-class ModelPlugin(Plugin):
+@runtime_checkable
+class ModelPlugin(Plugin, Protocol):
     """Protocol for custom model architectures."""
     
     def create_model(
@@ -211,7 +219,8 @@ class ModelPlugin(Plugin):
         ...
 
 
-class MetricPlugin(Plugin):
+@runtime_checkable
+class MetricPlugin(Plugin, Protocol):
     """Protocol for custom metrics."""
     
     def compute(

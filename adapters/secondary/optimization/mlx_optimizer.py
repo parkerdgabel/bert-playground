@@ -6,10 +6,12 @@ import mlx.core as mx
 import mlx.nn as nn
 import mlx.optimizers as optim
 
+from infrastructure.di import adapter, Scope
 from ports.secondary.optimization import Optimizer, OptimizerConfig
 from ports.secondary.compute import Module, Array
 
 
+@adapter(Optimizer, scope=Scope.SINGLETON)
 class MLXOptimizerAdapter:
     """MLX implementation of the Optimizer port."""
     

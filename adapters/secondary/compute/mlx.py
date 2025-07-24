@@ -12,7 +12,8 @@ import mlx.nn as nn
 import mlx.optimizers as optim
 import numpy as np
 
-from ports.secondary.compute import ComputePort, Device, DType, Shape
+from infrastructure.di import adapter, Scope
+from ports.secondary.compute import ComputeBackend, Device, DType, Shape
 from ports.secondary.neural import (
     ActivationType,
     GradientDict,
@@ -26,7 +27,8 @@ from ports.secondary.neural import (
 )
 
 
-class MLXComputeAdapter(ComputePort):
+@adapter(ComputeBackend, scope=Scope.SINGLETON)
+class MLXComputeAdapter(ComputeBackend):
     """MLX implementation of the ComputePort."""
 
     @property
@@ -427,6 +429,7 @@ class MLXRotaryEmbedding(MLXModule):
         return cos, sin
 
 
+@adapter(NeuralBackend, scope=Scope.SINGLETON)
 class MLXNeuralBackend(NeuralBackend):
     """MLX implementation of the NeuralBackend protocol."""
     

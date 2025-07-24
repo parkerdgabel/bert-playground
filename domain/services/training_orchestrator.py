@@ -13,6 +13,7 @@ from domain.entities.model import BertModel
 from domain.entities.dataset import Dataset, DataBatch
 from domain.entities.training import TrainingSession, TrainingState, TrainingConfig
 from domain.entities.metrics import TrainingMetrics, EvaluationMetrics
+from infrastructure.di import service
 
 
 class TrainingPhase(Enum):
@@ -102,6 +103,7 @@ class TrainingProgress:
             return False
 
 
+@service
 class TrainingOrchestrator:
     """Orchestrates the training process.
     

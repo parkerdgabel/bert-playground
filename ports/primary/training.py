@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable, Optional
 
+from infrastructure.di import port
 from domain.protocols.data import DataLoader
 from domain.protocols.models import Model
 
@@ -132,6 +133,7 @@ class TrainingResult:
         }
 
 
+@port()
 @runtime_checkable
 class TrainerConfig(Protocol):
     """Configuration protocol for trainers - what external actors provide."""
@@ -180,6 +182,7 @@ class TrainerConfig(Protocol):
         ...
 
 
+@port()
 @runtime_checkable
 class Trainer(Protocol):
     """Primary training port - the main training API exposed to external actors.
@@ -264,6 +267,7 @@ class Trainer(Protocol):
         ...
 
 
+@port()
 @runtime_checkable
 class TrainingStrategy(Protocol):
     """Strategy pattern for different training approaches.

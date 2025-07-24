@@ -6,8 +6,9 @@ adapters for different metric libraries.
 """
 
 from enum import Enum
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable, Optional
 
+from infrastructure.di import port
 from .compute import Array
 
 
@@ -29,6 +30,7 @@ class MetricType(Enum):
     CUSTOM = "custom"
 
 
+@port()
 @runtime_checkable
 class Metric(Protocol):
     """Secondary port for individual metric computation.
@@ -99,6 +101,7 @@ class Metric(Protocol):
         ...
 
 
+@port()
 @runtime_checkable
 class MetricsCollector(Protocol):
     """Secondary port for collecting and managing multiple metrics.
@@ -107,7 +110,7 @@ class MetricsCollector(Protocol):
     of metrics. The application core depends on this for tracking metrics.
     """
 
-    def add_metric(self, name: str, value: float, step: int | None = None) -> None:
+    def add_metric(self, name: str, value: float, step: Optional[int] = None) -> None:
         """Add a single metric value.
         
         Args:
@@ -117,7 +120,7 @@ class MetricsCollector(Protocol):
         """
         ...
 
-    def add_metrics(self, metrics: dict[str, float], step: int | None = None) -> None:
+    def add_metrics(self, metrics: dict[str, float], step: Optional[int] = None) -> None:
         """Add multiple metric values.
         
         Args:
@@ -212,7 +215,7 @@ class MetricsCollector(Protocol):
         self,
         name: str,
         show: bool = True,
-        save_path: str | None = None
+        save_path: Optional[str] = None
     ) -> None:
         """Plot a metric over time.
         

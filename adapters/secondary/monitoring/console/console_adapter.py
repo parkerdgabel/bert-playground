@@ -6,12 +6,15 @@ from datetime import datetime
 import json
 import uuid
 
+from infrastructure.di import adapter, Scope
+from ports.secondary.monitoring import MonitoringService
 from ..base import BaseMonitoringAdapter, BaseProgressBar
 from .formatters import MetricsFormatter, TableFormatter
 # object removed - not defined in ports
 from domain.entities.training import TrainingSession
 
 
+@adapter(MonitoringService, scope=Scope.SINGLETON)
 class ConsoleMonitoringAdapter(BaseMonitoringAdapter):
     """Console implementation of the MonitoringService using Rich for beautiful output."""
     

@@ -6,8 +6,9 @@ to save, load, and manage models. It's a driving port in hexagonal architecture.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable, Optional
 
+from infrastructure.di import port
 from domain.protocols.models import Model
 
 
@@ -17,7 +18,7 @@ class ModelInfo:
     
     name: str
     path: Path
-    version: str | None
+    version: Optional[str]
     created_at: str
     size_bytes: int
     metrics: dict[str, float]
@@ -36,6 +37,7 @@ class ModelInfo:
         }
 
 
+@port()
 @runtime_checkable
 class ModelManager(Protocol):
     """Primary port for model management operations.
@@ -47,7 +49,7 @@ class ModelManager(Protocol):
         self,
         model: Model,
         name: str,
-        version: str | None = None,
+        version: Optional[str] = None,
         metadata: dict[str, Any] | None = None,
         metrics: dict[str, float] | None = None,
     ) -> ModelInfo:
@@ -68,8 +70,8 @@ class ModelManager(Protocol):
     def load_model(
         self,
         name: str,
-        version: str | None = None,
-        device: str | None = None,
+        version: Optional[str] = None,
+        device: Optional[str] = None,
     ) -> Model:
         """Load a model.
         
@@ -85,7 +87,7 @@ class ModelManager(Protocol):
     
     def list_models(
         self,
-        name_pattern: str | None = None,
+        name_pattern: Optional[str] = None,
         include_versions: bool = False,
     ) -> list[ModelInfo]:
         """List available models.
@@ -102,7 +104,7 @@ class ModelManager(Protocol):
     def delete_model(
         self,
         name: str,
-        version: str | None = None,
+        version: Optional[str] = None,
         force: bool = False,
     ) -> bool:
         """Delete a model.
@@ -120,8 +122,8 @@ class ModelManager(Protocol):
     def get_model_info(
         self,
         name: str,
-        version: str | None = None,
-    ) -> ModelInfo | None:
+        version: Optional[str] = None,
+    ) -> Optional[ModelInfo]:
         """Get information about a model.
         
         Args:
@@ -138,7 +140,7 @@ class ModelManager(Protocol):
         name: str,
         export_path: Path,
         format: str = "onnx",
-        version: str | None = None,
+        version: Optional[str] = None,
     ) -> Path:
         """Export a model to a different format.
         
@@ -194,7 +196,7 @@ def save_model(
 
 def load_model(
     path: Path,
-    device: str | None = None,
+    device: Optional[str] = None,
 ) -> Model:
     """Load a model from disk.
     
@@ -213,7 +215,7 @@ def load_model(
 
 
 def list_models(
-    directory: Path | None = None,
+    directory: Optional[Path] = None,
 ) -> list[str]:
     """List available models in a directory.
     

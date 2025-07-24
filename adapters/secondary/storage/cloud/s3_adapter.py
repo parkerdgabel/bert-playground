@@ -7,11 +7,15 @@ from typing import Any, List, Optional, Dict
 from pathlib import Path
 import tempfile
 
+from infrastructure.di import adapter, Scope
+from ports.secondary.storage import StorageService
+from ports.secondary.checkpointing import CheckpointManager
 from domain.entities.model import BertModel
 from domain.entities.training import TrainingState
 from adapters.secondary.storage.base import BaseStorageAdapter, BaseCheckpointAdapter
 
 
+@adapter(StorageService, scope=Scope.SINGLETON)
 class S3StorageAdapter(BaseStorageAdapter):
     """AWS S3 implementation of the StoragePort."""
     
@@ -315,6 +319,7 @@ class S3StorageAdapter(BaseStorageAdapter):
         return content_types.get(format, 'application/octet-stream')
 
 
+@adapter(CheckpointManager, scope=Scope.SINGLETON)
 class S3CheckpointAdapter(BaseCheckpointAdapter):
     """S3 implementation of the CheckpointPort."""
     

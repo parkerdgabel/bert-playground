@@ -50,8 +50,20 @@ def main():
     logger.info("Starting k-bert application with hexagonal architecture")
     
     try:
-        # Initialize the application with all dependencies
-        container = initialize_application()
+        # Initialize the application with all dependencies using auto-discovery
+        container = initialize_application(
+            auto_discover=True,
+            package_paths=[
+                "domain",
+                "application",
+                "infrastructure", 
+                "adapters",
+                "ports",
+            ],
+            profiles=None,  # Use default profile
+        )
+        
+        logger.info("Application initialized with auto-discovery")
         
         # Get monitoring service to confirm it's working
         monitoring = get_service(MonitoringService)

@@ -6,9 +6,10 @@ by adapters for different storage backends (filesystem, cloud, database).
 """
 
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable, Optional
 
 from typing_extensions import TypeAlias
+from infrastructure.di import port
 
 # Type aliases for clarity
 StorageKey: TypeAlias = str | Path
@@ -28,13 +29,14 @@ class ModelCheckpoint:
     step: int
     epoch: int
     train_loss: float
-    val_loss: float | None
+    val_loss: Optional[float]
     metrics: dict[str, float]
     created_at: datetime
     size_bytes: int
     is_best: bool = False
 
 
+@port()
 @runtime_checkable
 class StorageService(Protocol):
     """Secondary port for general storage operations.
@@ -47,7 +49,7 @@ class StorageService(Protocol):
         self, 
         key: StorageKey, 
         value: StorageValue, 
-        metadata: Metadata | None = None
+        metadata: Optional[Metadata] = None
     ) -> None:
         """Save a value to storage.
         
@@ -102,8 +104,8 @@ class StorageService(Protocol):
 
     def list_keys(
         self, 
-        prefix: StorageKey | None = None,
-        pattern: str | None = None
+        prefix: Optional[StorageKey] = None,
+        pattern: Optional[str] = None
     ) -> list[StorageKey]:
         """List all keys in storage.
         
@@ -116,7 +118,7 @@ class StorageService(Protocol):
         """
         ...
 
-    def get_metadata(self, key: StorageKey) -> Metadata | None:
+    def get_metadata(self, key: StorageKey) -> Optional[Metadata]:
         """Get metadata for a stored value.
         
         Args:
@@ -155,6 +157,7 @@ class StorageService(Protocol):
         ...
 
 
+@port()
 @runtime_checkable
 class ModelStorageService(Protocol):
     """Specialized storage port for ML models.
@@ -169,7 +172,7 @@ class ModelStorageService(Protocol):
         path: Path,
         include_optimizer: bool = True,
         include_metrics: bool = True,
-        metadata: Metadata | None = None
+        metadata: Optional[Metadata] = None
     ) -> None:
         """Save a model with its associated state.
         
@@ -188,7 +191,7 @@ class ModelStorageService(Protocol):
         model_class: type[Any] | None = None,
         load_optimizer: bool = True,
         load_metrics: bool = True
-    ) -> tuple[Any, Metadata | None]:
+    ) -> tuple[Any, Optional[Metadata]]:
         """Load a model with its associated state.
         
         Args:
@@ -206,7 +209,7 @@ class ModelStorageService(Protocol):
         self,
         checkpoint_data: dict[str, Any],
         path: Path,
-        keep_last_n: int | None = None
+        keep_last_n: Optional[int] = None
     ) -> None:
         """Save a training checkpoint.
         

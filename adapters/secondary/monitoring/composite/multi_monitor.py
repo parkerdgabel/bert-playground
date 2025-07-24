@@ -4,6 +4,7 @@ from typing import Dict, Any, Optional, List
 import logging
 from contextlib import contextmanager
 
+from infrastructure.di import adapter, Scope
 from ports.secondary.monitoring import MonitoringService
 from domain.entities.metrics import TrainingMetrics, EvaluationMetrics
 from domain.entities.training import TrainingSession
@@ -12,6 +13,7 @@ from domain.entities.training import TrainingSession
 logger = logging.getLogger(__name__)
 
 
+@adapter(MonitoringService, scope=Scope.SINGLETON)
 class MultiMonitorAdapter(MonitoringService):
     """Composite adapter that uses multiple monitoring adapters simultaneously."""
     

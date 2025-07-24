@@ -7,8 +7,10 @@ without any dependencies on specific tokenizer implementations.
 from typing import List, Optional, Dict, Any, Union
 from dataclasses import dataclass
 from domain.entities.dataset import DataBatch, DataSample
+from infrastructure.di import service
 
 
+@service
 class TokenizationService:
     """Service for text tokenization business logic.
     

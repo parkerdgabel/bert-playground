@@ -8,6 +8,7 @@ different optimization backends.
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable, Callable, Optional
 
+from infrastructure.di import port
 from .compute import Array, Module
 
 
@@ -67,6 +68,7 @@ class SchedulerConfig:
         }
 
 
+@port()
 @runtime_checkable
 class Optimizer(Protocol):
     """Secondary port for optimization operations.
@@ -147,6 +149,7 @@ class Optimizer(Protocol):
         ...
 
 
+@port()
 @runtime_checkable
 class LRScheduler(Protocol):
     """Secondary port for learning rate scheduling.

@@ -9,6 +9,8 @@ from enum import Enum
 from typing import Any, Dict, Iterator, List, Optional, Protocol, Tuple, runtime_checkable
 from typing_extensions import TypeAlias
 
+from infrastructure.di import port
+
 # Type aliases
 DataSource: TypeAlias = str | Any  # Path, URL, or data source identifier
 
@@ -30,6 +32,7 @@ class DataSplit(Enum):
     PREDICTION = "prediction"
 
 
+@port()
 @runtime_checkable
 class DataLoaderPort(Protocol):
     """Secondary port for data loading operations.
@@ -134,6 +137,7 @@ class DataLoaderPort(Protocol):
         ...
 
 
+@port()
 @runtime_checkable
 class DataTransformPort(Protocol):
     """Secondary port for data transformation operations."""
@@ -205,6 +209,7 @@ class DataTransformPort(Protocol):
         ...
 
 
+@port()
 @runtime_checkable  
 class DataCachePort(Protocol):
     """Secondary port for data caching operations."""

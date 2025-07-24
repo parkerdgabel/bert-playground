@@ -7,6 +7,7 @@ from typing import Any, TypeVar
 import yaml
 from pydantic import BaseModel, ValidationError
 
+from infrastructure.di import adapter, Scope
 from ports.secondary.configuration import (
     ConfigDict,
     ConfigPath,
@@ -18,6 +19,7 @@ from ports.secondary.configuration import (
 T = TypeVar("T")
 
 
+@adapter(ConfigurationProvider, scope=Scope.SINGLETON)
 class YamlConfigurationAdapter:
     """YAML implementation of the ConfigurationProvider port."""
 

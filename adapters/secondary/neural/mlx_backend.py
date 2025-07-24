@@ -12,6 +12,7 @@ import mlx.nn as nn
 import mlx.optimizers as optim
 import numpy as np
 
+from infrastructure.di import adapter, Scope
 from domain.protocols.compute import Array, DataType
 from ports.secondary.compute import ArrayLike, Device, DType, Shape
 from ports.secondary.neural import (
@@ -305,6 +306,7 @@ class MLXRotaryEmbedding(MLXModule):
         return cos, sin
 
 
+@adapter(NeuralBackend, scope=Scope.SINGLETON)
 class MLXNeuralBackend(NeuralBackend):
     """MLX implementation of the NeuralBackend protocol."""
     

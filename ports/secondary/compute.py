@@ -10,6 +10,8 @@ from typing import Any, Callable, Dict, List, Optional, Protocol, Sequence, Tupl
 import numpy as np
 from typing_extensions import TypeAlias
 
+from infrastructure.di import port
+
 # Import domain types
 from domain.protocols.compute import Array, Module, DataType
 
@@ -20,6 +22,7 @@ DType: TypeAlias = Any
 Shape: TypeAlias = tuple[int, ...]
 
 
+@port()
 @runtime_checkable
 class ComputeBackend(Protocol):
     """Secondary port for compute operations.
@@ -41,8 +44,8 @@ class ComputeBackend(Protocol):
     def array(
         self,
         data: ArrayLike,
-        dtype: DataType | DType | None = None,
-        device: Device | None = None
+        dtype: DataType | Optional[DType] = None,
+        device: Optional[Device] = None
     ) -> Array:
         """Create an array from data.
         
@@ -59,8 +62,8 @@ class ComputeBackend(Protocol):
     def zeros(
         self,
         shape: Shape,
-        dtype: DataType | DType | None = None,
-        device: Device | None = None
+        dtype: DataType | Optional[DType] = None,
+        device: Optional[Device] = None
     ) -> Array:
         """Create array of zeros.
         
@@ -77,8 +80,8 @@ class ComputeBackend(Protocol):
     def ones(
         self,
         shape: Shape,
-        dtype: DataType | DType | None = None,
-        device: Device | None = None
+        dtype: DataType | Optional[DType] = None,
+        device: Optional[Device] = None
     ) -> Array:
         """Create array of ones.
         
@@ -95,9 +98,9 @@ class ComputeBackend(Protocol):
     def randn(
         self,
         shape: Shape,
-        dtype: DataType | DType | None = None,
-        device: Device | None = None,
-        seed: int | None = None
+        dtype: DataType | Optional[DType] = None,
+        device: Optional[Device] = None,
+        seed: Optional[int] = None
     ) -> Array:
         """Create array with normal random values.
         
@@ -126,8 +129,8 @@ class ComputeBackend(Protocol):
     def from_numpy(
         self,
         array: np.ndarray,
-        dtype: DataType | DType | None = None,
-        device: Device | None = None
+        dtype: DataType | Optional[DType] = None,
+        device: Optional[Device] = None
     ) -> Array:
         """Create array from numpy.
         

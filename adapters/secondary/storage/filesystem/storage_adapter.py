@@ -10,9 +10,12 @@ import glob
 import tempfile
 from contextlib import contextmanager
 
+from infrastructure.di import adapter, Scope
+from ports.secondary.storage import StorageService
 from adapters.secondary.storage.base import BaseStorageAdapter
 
 
+@adapter(StorageService, scope=Scope.SINGLETON)
 class FilesystemStorageAdapter(BaseStorageAdapter):
     """Filesystem implementation of the StoragePort."""
     

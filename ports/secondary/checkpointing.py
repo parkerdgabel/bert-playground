@@ -7,8 +7,9 @@ by adapters for different storage backends.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable, Optional
 
+from infrastructure.di import port
 from domain.protocols.models import Model
 from .optimization import Optimizer
 
@@ -21,7 +22,7 @@ class CheckpointInfo:
     step: int
     epoch: int
     train_loss: float
-    val_loss: float | None
+    val_loss: Optional[float]
     metrics: dict[str, float]
     created_at: str
     size_bytes: int
@@ -42,6 +43,7 @@ class CheckpointInfo:
         }
 
 
+@port()
 @runtime_checkable
 class CheckpointManager(Protocol):
     """Secondary port for checkpoint management.
@@ -82,7 +84,7 @@ class CheckpointManager(Protocol):
         self,
         path: Path,
         model: Model,
-        optimizer: Optimizer | None = None,
+        optimizer: Optional[Optimizer] = None,
         strict: bool = True,
     ) -> dict[str, Any]:
         """Load a training checkpoint.
@@ -98,7 +100,7 @@ class CheckpointManager(Protocol):
         """
         ...
 
-    def get_best_checkpoint(self) -> CheckpointInfo | None:
+    def get_best_checkpoint(self) -> Optional[CheckpointInfo]:
         """Get information about the best checkpoint.
         
         Returns:
@@ -106,7 +108,7 @@ class CheckpointManager(Protocol):
         """
         ...
 
-    def get_latest_checkpoint(self) -> CheckpointInfo | None:
+    def get_latest_checkpoint(self) -> Optional[CheckpointInfo]:
         """Get information about the latest checkpoint.
         
         Returns:
@@ -126,7 +128,7 @@ class CheckpointManager(Protocol):
         self,
         keep_best: int = 1,
         keep_last: int = 1,
-        keep_every_n_epochs: int | None = None,
+        keep_every_n_epochs: Optional[int] = None,
     ) -> list[Path]:
         """Remove old checkpoints according to retention policy.
         
@@ -162,7 +164,7 @@ class CheckpointManager(Protocol):
         """
         ...
 
-    def get_checkpoint_info(self, path: Path) -> CheckpointInfo | None:
+    def get_checkpoint_info(self, path: Path) -> Optional[CheckpointInfo]:
         """Get information about a specific checkpoint.
         
         Args:

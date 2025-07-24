@@ -8,12 +8,14 @@ import mlx.nn as nn
 import mlx.optimizers as optim
 import numpy as np
 
+from infrastructure.di import adapter, Scope
 from domain.protocols.compute import Array, DataType
 from ports.secondary.compute import ComputeBackend, ArrayLike, Device, DType, Shape
 from adapters.secondary.compute.base import BaseComputeAdapter
 from .utils import convert_to_mlx_array, get_mlx_device_info
 
 
+@adapter(ComputeBackend, scope=Scope.SINGLETON)
 class MLXComputeAdapter(BaseComputeAdapter):
     """MLX implementation of the ComputeBackend for tensor and array operations.
     

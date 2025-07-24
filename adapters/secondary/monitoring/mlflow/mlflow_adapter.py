@@ -6,12 +6,15 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 from contextlib import contextmanager
 
+from infrastructure.di import adapter, Scope
+from ports.secondary.monitoring import MonitoringService
 from ..base import BaseMonitoringAdapter, BaseProgressBar
 from .config import MLflowConfig
 # object removed - not defined in ports
 from domain.entities.training import TrainingSession
 
 
+@adapter(MonitoringService, scope=Scope.SINGLETON)
 class MLflowMonitoringAdapter(BaseMonitoringAdapter):
     """MLflow implementation of the MonitoringService."""
     

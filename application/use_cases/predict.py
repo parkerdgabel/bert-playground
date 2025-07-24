@@ -10,6 +10,7 @@ from typing import Optional, Dict, Any, List
 import json
 import csv
 
+from infrastructure.di import use_case
 from application.dto.prediction import (
     PredictionRequestDTO, 
     PredictionResponseDTO,
@@ -19,6 +20,7 @@ from ports.secondary.storage import StorageService
 from ports.secondary.monitoring import MonitoringService
 
 
+@use_case
 class PredictUseCase:
     """Use case for generating predictions with a trained model.
     

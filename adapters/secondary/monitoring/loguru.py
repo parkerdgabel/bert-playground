@@ -11,6 +11,7 @@ from typing import Any
 
 from loguru import logger
 
+from infrastructure.di import adapter, Scope
 from ports.secondary.monitoring import (
     ExperimentInfo,
     LogLevel,
@@ -22,6 +23,7 @@ from ports.secondary.monitoring import (
 from ports.secondary.metrics import MetricType
 
 
+@adapter(MonitoringService, scope=Scope.SINGLETON)
 class LoguruMonitoringAdapter(MonitoringService):
     """Loguru implementation of the MonitoringService."""
 

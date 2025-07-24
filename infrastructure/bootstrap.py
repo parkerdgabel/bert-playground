@@ -14,10 +14,11 @@ The bootstrap process follows this order:
 """
 
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Set, List
 
 from .config.manager import ConfigurationManager  
 from .di.container import InfrastructureContainer
+from .di import auto_discover_and_register
 
 
 class ApplicationBootstrap:
@@ -32,6 +33,9 @@ class ApplicationBootstrap:
         config_path: Optional[Path] = None,
         user_config_path: Optional[Path] = None,
         project_config_path: Optional[Path] = None,
+        auto_discover: bool = True,
+        package_paths: Optional[List[str]] = None,
+        profiles: Optional[Set[str]] = None,
     ):
         """Initialize bootstrap.
         
@@ -39,10 +43,22 @@ class ApplicationBootstrap:
             config_path: Command-specific config file path
             user_config_path: User config file path  
             project_config_path: Project config file path
+            auto_discover: Whether to auto-discover components
+            package_paths: Packages to scan for components
+            profiles: Active profiles for component filtering
         """
         self.config_path = config_path
         self.user_config_path = user_config_path
         self.project_config_path = project_config_path
+        self.auto_discover = auto_discover
+        self.package_paths = package_paths or [
+            "domain",
+            "application", 
+            "infrastructure",
+            "adapters",
+            "ports",
+        ]
+        self.profiles = profiles or set()
         
         self.config_manager: Optional[ConfigurationManager] = None
         self.container: Optional[InfrastructureContainer] = None
@@ -164,6 +180,33 @@ class ApplicationBootstrap:
         """Initialize all services and adapters."""
         if self.monitoring:
             self.monitoring.info("Initializing services and adapters")
+            
+        # Auto-discover and register decorated components
+        if self.auto_discover:
+            if self.monitoring:
+                self.monitoring.info(
+                    "Auto-discovering components",
+                    packages=self.package_paths,
+                    profiles=list(self.profiles) if self.profiles else None,
+                )
+            
+            try:
+                auto_discover_and_register(
+                    self.container.core_container,
+                    package_paths=self.package_paths,
+                    profiles=self.profiles,
+                    validate=True,
+                )
+                
+                if self.monitoring:
+                    self.monitoring.info(
+                        "Auto-discovery completed",
+                        components_found=len(self.container.core_container._component_registry),
+                    )
+            except Exception as e:
+                if self.monitoring:
+                    self.monitoring.error("Auto-discovery failed", error=e)
+                raise
             
         # Initialize the container with all registrations
         self.container.initialize_all()
@@ -361,6 +404,9 @@ def get_bootstrap(
     config_path: Optional[Path] = None,
     user_config_path: Optional[Path] = None,
     project_config_path: Optional[Path] = None,
+    auto_discover: bool = True,
+    package_paths: Optional[List[str]] = None,
+    profiles: Optional[Set[str]] = None,
 ) -> ApplicationBootstrap:
     """Get the global bootstrap instance.
     
@@ -368,6 +414,9 @@ def get_bootstrap(
         config_path: Command-specific config path
         user_config_path: User config path
         project_config_path: Project config path
+        auto_discover: Whether to auto-discover components
+        package_paths: Packages to scan for components
+        profiles: Active profiles for component filtering
         
     Returns:
         Bootstrap instance
@@ -378,6 +427,9 @@ def get_bootstrap(
             config_path=config_path,
             user_config_path=user_config_path,
             project_config_path=project_config_path,
+            auto_discover=auto_discover,
+            package_paths=package_paths,
+            profiles=profiles,
         )
     return _bootstrap
 
@@ -386,6 +438,9 @@ def initialize_application(
     config_path: Optional[Path] = None,
     user_config_path: Optional[Path] = None, 
     project_config_path: Optional[Path] = None,
+    auto_discover: bool = True,
+    package_paths: Optional[List[str]] = None,
+    profiles: Optional[Set[str]] = None,
 ) -> InfrastructureContainer:
     """Initialize the complete application.
     
@@ -393,11 +448,17 @@ def initialize_application(
         config_path: Command-specific config path
         user_config_path: User config path
         project_config_path: Project config path
+        auto_discover: Whether to auto-discover components
+        package_paths: Packages to scan for components
+        profiles: Active profiles for component filtering
         
     Returns:
         Configured container
     """
-    bootstrap = get_bootstrap(config_path, user_config_path, project_config_path)
+    bootstrap = get_bootstrap(
+        config_path, user_config_path, project_config_path,
+        auto_discover, package_paths, profiles
+    )
     return bootstrap.initialize()
 
 

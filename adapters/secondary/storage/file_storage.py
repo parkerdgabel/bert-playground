@@ -15,6 +15,7 @@ import mlx.nn as nn
 from safetensors import safe_open
 from safetensors.mlx import save_file
 
+from infrastructure.di import adapter, Scope
 from ports.secondary.storage import (
     ModelCheckpoint,
     ModelMetadata,
@@ -24,6 +25,7 @@ from ports.secondary.storage import (
 )
 
 
+@adapter(StorageService, scope=Scope.SINGLETON)
 class FileStorageAdapter(StorageService):
     """File system implementation of the StoragePort."""
 

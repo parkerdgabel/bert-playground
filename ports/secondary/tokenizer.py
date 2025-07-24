@@ -7,9 +7,10 @@ different tokenizer libraries (HuggingFace, SentencePiece, etc.).
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable, Optional
 
 from typing_extensions import TypeAlias
+from infrastructure.di import port
 
 # Type aliases
 TokenIds: TypeAlias = list[int]
@@ -68,6 +69,7 @@ class TokenizerVocabulary:
     vocab_size: int
 
 
+@port()
 @runtime_checkable
 class TokenizerPort(Protocol):
     """Secondary port for tokenization operations.
@@ -115,10 +117,10 @@ class TokenizerPort(Protocol):
         self,
         text: str | list[str],
         add_special_tokens: bool = True,
-        max_length: int | None = None,
+        max_length: Optional[int] = None,
         truncation: bool = True,
         padding: bool | str = False,
-        return_tensors: str | None = None,
+        return_tensors: Optional[str] = None,
         return_offsets: bool = False,
     ) -> TokenizerOutput:
         """Tokenize text or batch of texts.
@@ -141,7 +143,7 @@ class TokenizerPort(Protocol):
         self,
         text: str,
         add_special_tokens: bool = True,
-        max_length: int | None = None,
+        max_length: Optional[int] = None,
         truncation: bool = True,
     ) -> TokenIds:
         """Encode text to token IDs.
@@ -179,7 +181,7 @@ class TokenizerPort(Protocol):
         self,
         texts: list[str],
         add_special_tokens: bool = True,
-        max_length: int | None = None,
+        max_length: Optional[int] = None,
         truncation: bool = True,
         padding: bool | str = True,
     ) -> list[TokenIds]:
@@ -270,7 +272,7 @@ class TokenizerPort(Protocol):
     def create_token_type_ids_from_sequences(
         self,
         token_ids_0: TokenIds,
-        token_ids_1: TokenIds | None = None,
+        token_ids_1: Optional[TokenIds] = None,
     ) -> list[int]:
         """Create token type IDs for sequence pair.
         
@@ -286,10 +288,10 @@ class TokenizerPort(Protocol):
     def truncate_sequences(
         self,
         ids: TokenIds,
-        pair_ids: TokenIds | None = None,
-        max_length: int | None = None,
+        pair_ids: Optional[TokenIds] = None,
+        max_length: Optional[int] = None,
         truncation_strategy: str = "longest_first",
-    ) -> tuple[TokenIds, TokenIds | None]:
+    ) -> tuple[TokenIds, Optional[TokenIds]]:
         """Truncate sequences to max length.
         
         Args:

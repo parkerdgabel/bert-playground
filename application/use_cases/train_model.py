@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+from infrastructure.di import use_case
 from application.dto.training import TrainingRequestDTO, TrainingResponseDTO
 from domain.services.training_service import (
     TrainingConfig, TrainingService, TrainingState,
@@ -21,6 +22,7 @@ from ports.secondary.checkpointing import CheckpointManager
 from ports.secondary.metrics import MetricsCollector
 
 
+@use_case
 class TrainModelUseCase:
     """Use case for training a model.
     

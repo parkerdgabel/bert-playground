@@ -7,11 +7,13 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime
 import re
 
+from infrastructure.di import adapter, Scope
 from ports.secondary.checkpointing import CheckpointManager, CheckpointInfo
 from ports.secondary.optimization import Optimizer
 from domain.protocols.models import Model
 
 
+@adapter(CheckpointManager, scope=Scope.SINGLETON)
 class FilesystemCheckpointManager:
     """Filesystem-based checkpoint manager implementation."""
     

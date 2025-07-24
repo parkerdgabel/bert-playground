@@ -6,6 +6,8 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 import re
 
+from infrastructure.di import adapter, Scope
+from ports.secondary.checkpointing import CheckpointManager
 from domain.entities.model import BertModel
 from domain.entities.training import TrainingState
 from adapters.secondary.storage.base import BaseCheckpointAdapter
@@ -18,6 +20,7 @@ from adapters.secondary.storage.filesystem.utils import (
 )
 
 
+@adapter(CheckpointManager, scope=Scope.SINGLETON)
 class FilesystemCheckpointAdapter(BaseCheckpointAdapter):
     """Filesystem implementation of the CheckpointPort."""
     

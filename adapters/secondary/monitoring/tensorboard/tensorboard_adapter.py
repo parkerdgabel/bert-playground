@@ -5,12 +5,15 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 import json
 
+from infrastructure.di import adapter, Scope
+from ports.secondary.monitoring import MonitoringService
 from ..base import BaseMonitoringAdapter, BaseProgressBar
 from .writer import TensorBoardWriter
 # object removed - not defined in ports
 from domain.entities.training import TrainingSession
 
 
+@adapter(MonitoringService, scope=Scope.SINGLETON)
 class TensorBoardMonitoringAdapter(BaseMonitoringAdapter):
     """TensorBoard implementation of the MonitoringService."""
     

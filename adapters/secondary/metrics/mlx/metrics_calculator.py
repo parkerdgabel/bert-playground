@@ -4,10 +4,12 @@ from typing import Dict, Any, List, Optional, Union
 import mlx.core as mx
 import numpy as np
 
+from infrastructure.di import adapter, Scope
 from ports.secondary.metrics import MetricsCalculatorPort
 from adapters.secondary.compute.mlx.utils import convert_from_mlx_array
 
 
+@adapter(MetricsCalculatorPort, scope=Scope.SINGLETON)
 class MLXMetricsCalculator(MetricsCalculatorPort):
     """MLX implementation for metrics calculation."""
     

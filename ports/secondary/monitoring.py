@@ -11,6 +11,7 @@ from enum import Enum
 from typing import Any, Protocol, runtime_checkable, Optional, Dict
 
 from typing_extensions import TypeAlias
+from infrastructure.di import port
 
 # Type aliases
 MetricValue: TypeAlias = float | int
@@ -77,6 +78,7 @@ class RunInfo:
     tags: Optional[Dict[str, str]] = None
 
 
+@port()
 @runtime_checkable
 class MonitoringService(Protocol):
     """Secondary port for monitoring and logging operations.
@@ -89,8 +91,8 @@ class MonitoringService(Protocol):
         self,
         level: LogSeverity | LogLevel,
         message: str,
-        context: Context | None = None,
-        error: Exception | None = None
+        context: Optional[Context] = None,
+        error: Optional[Exception] = None
     ) -> None:
         """Log a message.
         
@@ -117,7 +119,7 @@ class MonitoringService(Protocol):
     def error(
         self,
         message: str,
-        error: Exception | None = None,
+        error: Optional[Exception] = None,
         **kwargs: Any
     ) -> None:
         """Log error message."""
@@ -127,8 +129,8 @@ class MonitoringService(Protocol):
         self,
         name: str,
         value: MetricValue,
-        tags: Tags | None = None,
-        timestamp: datetime | None = None
+        tags: Optional[Tags] = None,
+        timestamp: Optional[datetime] = None
     ) -> None:
         """Record a metric value.
         
@@ -144,7 +146,7 @@ class MonitoringService(Protocol):
         self,
         name: str,
         value: MetricValue,
-        tags: Tags | None = None
+        tags: Optional[Tags] = None
     ) -> None:
         """Record a gauge metric (point-in-time value)."""
         ...
@@ -153,7 +155,7 @@ class MonitoringService(Protocol):
         self,
         name: str,
         value: MetricValue = 1,
-        tags: Tags | None = None
+        tags: Optional[Tags] = None
     ) -> None:
         """Increment a counter metric."""
         ...
@@ -162,7 +164,7 @@ class MonitoringService(Protocol):
         self,
         name: str,
         value: MetricValue,
-        tags: Tags | None = None
+        tags: Optional[Tags] = None
     ) -> None:
         """Record a histogram metric."""
         ...
@@ -170,7 +172,7 @@ class MonitoringService(Protocol):
     def timer(
         self,
         name: str,
-        tags: Tags | None = None
+        tags: Optional[Tags] = None
     ) -> "Timer":
         """Create a timer context manager.
         
@@ -186,7 +188,7 @@ class MonitoringService(Protocol):
     def span(
         self,
         name: str,
-        context: Context | None = None
+        context: Optional[Context] = None
     ) -> "Span":
         """Create a tracing span.
         
@@ -212,6 +214,7 @@ class MonitoringService(Protocol):
         ...
 
 
+@port()
 @runtime_checkable
 class Timer(Protocol):
     """Timer context manager for measuring durations."""
@@ -230,6 +233,7 @@ class Timer(Protocol):
         ...
 
 
+@port()
 @runtime_checkable
 class Span(Protocol):
     """Tracing span for distributed tracing."""
@@ -255,6 +259,7 @@ class Span(Protocol):
         ...
 
 
+@port()
 @runtime_checkable
 class ExperimentTracker(Protocol):
     """Experiment tracking port for ML experiments.
@@ -265,8 +270,8 @@ class ExperimentTracker(Protocol):
 
     def start_run(
         self,
-        run_name: str | None = None,
-        tags: Tags | None = None,
+        run_name: Optional[str] = None,
+        tags: Optional[Tags] = None,
         nested: bool = False
     ) -> str:
         """Start a new experiment run.
@@ -300,7 +305,7 @@ class ExperimentTracker(Protocol):
     def log_metrics(
         self,
         metrics: dict[str, MetricValue],
-        step: int | None = None
+        step: Optional[int] = None
     ) -> None:
         """Log run metrics.
         
@@ -313,7 +318,7 @@ class ExperimentTracker(Protocol):
     def log_artifact(
         self,
         path: str,
-        artifact_type: str | None = None
+        artifact_type: Optional[str] = None
     ) -> None:
         """Log an artifact file.
         
@@ -338,7 +343,7 @@ class ExperimentTracker(Protocol):
         """
         ...
 
-    def get_run_id(self) -> str | None:
+    def get_run_id(self) -> Optional[str]:
         """Get current run ID."""
         ...
 
@@ -350,7 +355,7 @@ class ExperimentTracker(Protocol):
         self,
         figure: Any,
         name: str,
-        step: int | None = None
+        step: Optional[int] = None
     ) -> None:
         """Log a figure/plot.
         
@@ -365,7 +370,7 @@ class ExperimentTracker(Protocol):
         self,
         text: str,
         name: str,
-        step: int | None = None
+        step: Optional[int] = None
     ) -> None:
         """Log text data.
         
@@ -380,7 +385,7 @@ class ExperimentTracker(Protocol):
         self,
         data: dict[str, list[Any]] | Any,
         name: str,
-        step: int | None = None
+        step: Optional[int] = None
     ) -> None:
         """Log tabular data.
         
@@ -391,7 +396,7 @@ class ExperimentTracker(Protocol):
         """
         ...
 
-    def get_experiment_id(self) -> str | None:
+    def get_experiment_id(self) -> Optional[str]:
         """Get current experiment ID."""
         ...
 
